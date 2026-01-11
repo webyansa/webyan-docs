@@ -47,8 +47,11 @@ import {
   Maximize2,
   Minimize2,
   Move,
+  Trash2,
+  RefreshCw,
+  ImagePlus,
 } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -82,6 +85,9 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
   const [uploading, setUploading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [imageTab, setImageTab] = useState<'upload' | 'library' | 'url'>('upload');
+  const [isDragging, setIsDragging] = useState(false);
+  const [replaceImageDialogOpen, setReplaceImageDialogOpen] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -123,8 +129,129 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
       attributes: {
         class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[400px] p-4',
       },
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer?.files.length) {
+          const file = event.dataTransfer.files[0];
+          if (file.type.startsWith('image/')) {
+            event.preventDefault();
+            handleDroppedFile(file);
+            return true;
+          }
+        }
+        return false;
+      },
+      handlePaste: (view, event) => {
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (const item of Array.from(items)) {
+            if (item.type.startsWith('image/')) {
+              event.preventDefault();
+              const file = item.getAsFile();
+              if (file) {
+                handleDroppedFile(file);
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      },
     },
   });
+
+  // Handle dropped/pasted file
+  const handleDroppedFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('يرجى اختيار ملف صورة فقط');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('حجم الملف يجب أن يكون أقل من 10 ميجابايت');
+      return;
+    }
+
+    setUploading(true);
+    toast.info('جاري رفع الصورة...');
+    
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `articles/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('docs-media')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('docs-media')
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+
+      await supabase.from('docs_media').insert({
+        filename: fileName,
+        original_name: file.name,
+        url: publicUrl,
+        mime_type: file.type,
+        size_bytes: file.size,
+      });
+
+      if (editor) {
+        editor.chain().focus().setImage({ src: publicUrl }).run();
+      }
+
+      toast.success('تم رفع الصورة بنجاح');
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      toast.error('حدث خطأ أثناء رفع الصورة');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Handle drag events
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.types.includes('Files')) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      handleDroppedFile(file);
+    }
+  }, []);
+
+  // Delete selected image
+  const deleteSelectedImage = () => {
+    if (editor) {
+      editor.chain().focus().deleteSelection().run();
+    }
+  };
+
+  // Replace selected image
+  const replaceSelectedImage = async (newUrl: string) => {
+    if (editor) {
+      editor.chain().focus().updateAttributes('image', { src: newUrl }).run();
+      setReplaceImageDialogOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
@@ -285,7 +412,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
   );
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border rounded-lg overflow-hidden relative">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-1 p-2 border-b bg-muted/50">
         {/* Undo/Redo */}
@@ -642,7 +769,12 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
       {/* Image Controls - Shows when image is selected */}
       {editor?.isActive('image') && (
         <div className="flex flex-wrap items-center gap-1 p-2 border-b bg-blue-50 dark:bg-blue-950/30">
-          <span className="text-xs text-muted-foreground ml-2">حجم الصورة:</span>
+          <span className="text-xs font-medium text-blue-700 dark:text-blue-300 ml-2">
+            <ImagePlus className="h-3 w-3 inline ml-1" />
+            تحرير الصورة
+          </span>
+          <Separator orientation="vertical" className="h-5 mx-1" />
+          <span className="text-xs text-muted-foreground ml-1">الحجم:</span>
           <Button
             type="button"
             variant="ghost"
@@ -686,7 +818,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
             كامل
           </Button>
           <Separator orientation="vertical" className="h-5 mx-1" />
-          <span className="text-xs text-muted-foreground ml-2">المحاذاة:</span>
+          <span className="text-xs text-muted-foreground ml-1">المحاذاة:</span>
           <Button
             type="button"
             variant="ghost"
@@ -729,11 +861,204 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
             <AlignLeft className="h-3 w-3 ml-1" />
             يسار
           </Button>
+          <Separator orientation="vertical" className="h-5 mx-1" />
+          
+          {/* Replace Image */}
+          <Dialog open={replaceImageDialogOpen} onOpenChange={setReplaceImageDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-100"
+              >
+                <RefreshCw className="h-3 w-3 ml-1" />
+                استبدال
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>استبدال الصورة</DialogTitle>
+              </DialogHeader>
+              <Tabs defaultValue="upload">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="upload" className="gap-2">
+                    <Upload className="h-4 w-4" />
+                    رفع صورة
+                  </TabsTrigger>
+                  <TabsTrigger value="library" className="gap-2" onClick={fetchMediaLibrary}>
+                    <FolderOpen className="h-4 w-4" />
+                    مكتبة الوسائط
+                  </TabsTrigger>
+                  <TabsTrigger value="url" className="gap-2">
+                    <LinkIcon className="h-4 w-4" />
+                    رابط خارجي
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="upload" className="space-y-4 py-4">
+                  <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 hover:border-primary/50 transition-colors">
+                    <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-sm text-muted-foreground mb-4">
+                      اسحب الصورة هنا أو اضغط للاختيار
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setUploading(true);
+                          try {
+                            const fileExt = file.name.split('.').pop();
+                            const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+                            const filePath = `articles/${fileName}`;
+
+                            const { error: uploadError } = await supabase.storage
+                              .from('docs-media')
+                              .upload(filePath, file);
+
+                            if (uploadError) throw uploadError;
+
+                            const { data: urlData } = supabase.storage
+                              .from('docs-media')
+                              .getPublicUrl(filePath);
+
+                            replaceSelectedImage(urlData.publicUrl);
+                            toast.success('تم استبدال الصورة بنجاح');
+                          } catch (error) {
+                            toast.error('حدث خطأ أثناء رفع الصورة');
+                          } finally {
+                            setUploading(false);
+                          }
+                        }
+                      }}
+                      className="hidden"
+                      id="replace-image-upload"
+                      disabled={uploading}
+                    />
+                    <label htmlFor="replace-image-upload">
+                      <Button type="button" variant="outline" disabled={uploading} asChild>
+                        <span>
+                          {uploading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                              جاري الرفع...
+                            </>
+                          ) : (
+                            'اختر صورة'
+                          )}
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="library" className="py-4">
+                  {loadingMedia ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : mediaItems.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      لا توجد صور في المكتبة
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-[300px]">
+                      <div className="grid grid-cols-4 gap-2">
+                        {mediaItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              replaceSelectedImage(item.url);
+                              toast.success('تم استبدال الصورة بنجاح');
+                            }}
+                            className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-colors"
+                          >
+                            <img
+                              src={item.url}
+                              alt={item.original_name}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="url" className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>رابط الصورة</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        placeholder="https://example.com/image.jpg"
+                        dir="ltr"
+                      />
+                      <Button
+                        onClick={() => {
+                          if (imageUrl) {
+                            replaceSelectedImage(imageUrl);
+                            setImageUrl('');
+                            toast.success('تم استبدال الصورة بنجاح');
+                          }
+                        }}
+                      >
+                        استبدال
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </DialogContent>
+          </Dialog>
+          
+          {/* Delete Image */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-100"
+            onClick={deleteSelectedImage}
+          >
+            <Trash2 className="h-3 w-3 ml-1" />
+            حذف
+          </Button>
+        </div>
+      )}
+
+      {/* Drag Overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10">
+          <div className="text-center">
+            <Upload className="h-12 w-12 text-primary mx-auto mb-2" />
+            <p className="text-lg font-medium text-primary">أفلت الصورة هنا</p>
+          </div>
         </div>
       )}
 
       {/* Editor */}
-      <EditorContent editor={editor} />
+      <div
+        ref={dropZoneRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="relative"
+      >
+        <EditorContent editor={editor} />
+      </div>
+      
+      {uploading && (
+        <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-20 rounded-lg">
+          <div className="flex items-center gap-2 bg-card p-4 rounded-lg shadow-lg">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span>جاري رفع الصورة...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
