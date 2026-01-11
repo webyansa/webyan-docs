@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Menu, X } from "lucide-react";
+import { Search, Menu, X, LogOut, Settings, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import webyanLogo from "@/assets/webyan-logo.svg";
@@ -12,6 +13,7 @@ interface HeaderProps {
 
 export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const { user, role, signOut, isAdmin, isAdminOrEditor } = useAuth();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +67,38 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
           <Button variant="outline" size="sm" asChild>
             <Link to="/report-issue">إبلاغ عن مشكلة</Link>
           </Button>
+          
+          {user ? (
+            <>
+              {isAdminOrEditor && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/admin" className="flex items-center gap-1">
+                    <Settings className="h-4 w-4" />
+                    لوحة التحكم
+                  </Link>
+                </Button>
+              )}
+              <div className="flex items-center gap-2 mr-2 pr-2 border-r border-border">
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                  <User className="h-4 w-4" />
+                  {role === 'admin' ? 'مدير' : role === 'editor' ? 'محرر' : 'زائر'}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={signOut}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <LogOut className="h-4 w-4 ml-1" />
+                  خروج
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button variant="default" size="sm" asChild>
+              <Link to="/auth">تسجيل الدخول</Link>
+            </Button>
+          )}
         </nav>
       </div>
     </header>
