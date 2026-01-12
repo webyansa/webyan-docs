@@ -15,6 +15,10 @@ import ReportIssuePage from "./pages/ReportIssuePage";
 import GettingStartedPage from "./pages/GettingStartedPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
+import SubmitTicketPage from "./pages/SubmitTicketPage";
+import MyTicketsPage from "./pages/MyTicketsPage";
+import TicketDetailPage from "./pages/TicketDetailPage";
+import TrackTicketPage from "./pages/TrackTicketPage";
 
 // Admin pages
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -31,6 +35,8 @@ import SearchLogsPage from "./pages/admin/SearchLogsPage";
 import ReportsPage from "./pages/admin/ReportsPage";
 import UsersPage from "./pages/admin/UsersPage";
 import SettingsPage from "./pages/admin/SettingsPage";
+import AdminTicketsPage from "./pages/admin/AdminTicketsPage";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -48,6 +54,10 @@ const App = () => (
             <Route path="/search" element={<SearchPage />} />
             <Route path="/changelog" element={<ChangelogPage />} />
             <Route path="/report-issue" element={<ReportIssuePage />} />
+            <Route path="/submit-ticket" element={<SubmitTicketPage />} />
+            <Route path="/my-tickets" element={<MyTicketsPage />} />
+            <Route path="/my-tickets/:ticketId" element={<TicketDetailPage />} />
+            <Route path="/track-ticket" element={<TrackTicketPage />} />
             <Route path="/docs/:moduleSlug" element={<ModulePage />} />
             <Route path="/docs/:moduleSlug/:subModuleSlug" element={<ModulePage />} />
             <Route path="/docs/:moduleSlug/:subModuleSlug/:articleSlug" element={<ArticlePage />} />
@@ -68,6 +78,7 @@ const App = () => (
               <Route path="reports" element={<ReportsPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="tickets" element={<AdminTicketsPage />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />
