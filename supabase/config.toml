@@ -1,1 +1,13 @@
 project_id = "mzzhpknxooubophxvwch"
+
+[functions.send-welcome-email]
+verify_jwt = false
+
+[functions.send-ticket-notification]
+verify_jwt = false
+
+[functions.create-guest-ticket]
+verify_jwt = false
+
+[functions.track-guest-ticket]
+verify_jwt = false
