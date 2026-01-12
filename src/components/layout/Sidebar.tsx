@@ -13,7 +13,7 @@ interface SidebarProps {
 
 function getIcon(iconName: string) {
   const IconComponent = (Icons as any)[iconName];
-  return IconComponent ? <IconComponent className="h-4 w-4" /> : null;
+  return IconComponent ? <IconComponent className="h-5 w-5 flex-shrink-0" /> : null;
 }
 
 const SubModuleItem = memo(function SubModuleItem({
@@ -33,14 +33,14 @@ const SubModuleItem = memo(function SubModuleItem({
       <Link
         to={`/docs/${module.slug}/${subModule.slug}`}
         className={cn(
-          'flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+          'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors',
           isActive
-            ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-            : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/30'
+            ? 'bg-primary/10 text-primary font-medium'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
         )}
       >
         {getIcon(subModule.icon)}
-        <span>{subModule.title}</span>
+        <span className="flex-1 text-right">{subModule.title}</span>
       </Link>
     );
   }
@@ -50,34 +50,32 @@ const SubModuleItem = memo(function SubModuleItem({
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
-          'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+          'w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors',
           isActive
-            ? 'text-sidebar-primary font-medium'
-            : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/30'
+            ? 'text-primary font-medium'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
         )}
       >
-        <div className="flex items-center gap-2">
-          {getIcon(subModule.icon)}
-          <span>{subModule.title}</span>
-        </div>
+        {getIcon(subModule.icon)}
+        <span className="flex-1 text-right">{subModule.title}</span>
         {isExpanded ? (
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronLeft className="h-3 w-3" />
+          <ChevronLeft className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         )}
       </button>
 
       {isExpanded && (
-        <div className="mr-4 mt-0.5 space-y-0.5">
+        <div className="mr-6 mt-1 border-r-2 border-border pr-3 space-y-1">
           {subModule.articles.map((article) => (
             <Link
               key={article.id}
               to={`/docs/${module.slug}/${subModule.slug}/${article.slug}`}
               className={cn(
-                'block px-3 py-1.5 rounded text-xs transition-colors',
+                'block px-3 py-2 rounded-lg text-sm transition-colors',
                 location.pathname.includes(article.slug)
-                  ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-                  : 'text-muted-foreground hover:text-sidebar-foreground'
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
               )}
             >
               {article.title}
@@ -95,29 +93,27 @@ const ModuleItem = memo(function ModuleItem({ module }: { module: SidebarModule 
   const [isExpanded, setIsExpanded] = useState(isActive);
 
   return (
-    <div className="mb-1">
+    <div className="mb-2">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
-          'w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+          'w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all',
           isActive
-            ? 'bg-sidebar-accent text-sidebar-primary'
-            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+            ? 'bg-primary/10 text-primary'
+            : 'text-foreground hover:bg-muted/50'
         )}
       >
-        <div className="flex items-center gap-2">
-          {getIcon(module.icon)}
-          <span>{module.title}</span>
-        </div>
+        {getIcon(module.icon)}
+        <span className="flex-1 text-right">{module.title}</span>
         {isExpanded ? (
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         )}
       </button>
 
-      {isExpanded && (
-        <div className="mr-4 mt-1 border-r border-sidebar-border pr-2 space-y-0.5">
+      {isExpanded && module.subModules.length > 0 && (
+        <div className="mr-5 mt-1 border-r-2 border-border pr-3 space-y-1">
           {module.subModules.map((subModule) => (
             <SubModuleItem
               key={subModule.id}
@@ -147,27 +143,27 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-72 border-l bg-sidebar transition-transform duration-300 lg:translate-x-0',
+          'fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-80 border-l bg-background transition-transform duration-300 lg:translate-x-0',
           isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
         )}
       >
-        <ScrollArea className="h-full py-4 px-3">
-          <nav className="space-y-1">
+        <ScrollArea className="h-full py-6 px-4">
+          <nav className="space-y-2">
             {/* Quick Links */}
-            <div className="mb-4 pb-4 border-b border-sidebar-border">
+            <div className="mb-6 pb-4 border-b border-border">
               <Link
                 to="/"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
               >
                 {getIcon('Home')}
-                <span>الرئيسية</span>
+                <span className="flex-1 text-right">الرئيسية</span>
               </Link>
               <Link
                 to="/getting-started"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-secondary hover:bg-sidebar-accent transition-colors"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-secondary hover:bg-muted/50 transition-colors"
               >
                 {getIcon('Rocket')}
-                <span>ابدأ هنا</span>
+                <span className="flex-1 text-right">ابدأ هنا</span>
               </Link>
             </div>
 
