@@ -509,6 +509,104 @@ export type Database = {
         }
         Relationships: []
       }
+      support_tickets: {
+        Row: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          description: string
+          guest_email: string | null
+          guest_name: string | null
+          id: string
+          priority: string
+          resolved_at: string | null
+          resolved_by: string | null
+          screenshot_url: string | null
+          status: string
+          subject: string
+          ticket_number: string
+          updated_at: string
+          user_id: string | null
+          website_url: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          description: string
+          guest_email?: string | null
+          guest_name?: string | null
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          screenshot_url?: string | null
+          status?: string
+          subject: string
+          ticket_number: string
+          updated_at?: string
+          user_id?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          description?: string
+          guest_email?: string | null
+          guest_name?: string | null
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          screenshot_url?: string | null
+          status?: string
+          subject?: string
+          ticket_number?: string
+          updated_at?: string
+          user_id?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      ticket_replies: {
+        Row: {
+          attachments: string[] | null
+          created_at: string
+          id: string
+          is_staff_reply: boolean
+          message: string
+          ticket_id: string
+          user_id: string | null
+        }
+        Insert: {
+          attachments?: string[] | null
+          created_at?: string
+          id?: string
+          is_staff_reply?: boolean
+          message: string
+          ticket_id: string
+          user_id?: string | null
+        }
+        Update: {
+          attachments?: string[] | null
+          created_at?: string
+          id?: string
+          is_staff_reply?: boolean
+          message?: string
+          ticket_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_replies_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_notifications: {
         Row: {
           article_id: string | null
