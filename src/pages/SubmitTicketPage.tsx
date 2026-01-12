@@ -87,28 +87,44 @@ export default function SubmitTicketPage() {
         screenshotUrl = urlData.publicUrl;
       }
 
-      // Insert ticket
-      const ticketData: any = {
-        guest_name: user ? null : formData.guestName,
-        guest_email: user ? null : formData.guestEmail,
-        subject: formData.subject,
-        description: formData.description,
-        website_url: formData.websiteUrl || null,
-        screenshot_url: screenshotUrl,
-        category: formData.category,
-        priority: formData.priority,
-      };
-      if (user?.id) {
-        ticketData.user_id = user.id;
-      }
-      
-      const { data: ticket, error } = await supabase
-        .from('support_tickets')
-        .insert(ticketData)
-        .select()
-        .single();
+      let ticket;
 
-      if (error) throw error;
+      if (user?.id) {
+        // Authenticated user - insert directly
+        const { data, error } = await supabase
+          .from('support_tickets')
+          .insert({
+            user_id: user.id,
+            subject: formData.subject,
+            description: formData.description,
+            website_url: formData.websiteUrl || null,
+            screenshot_url: screenshotUrl,
+            category: formData.category,
+            priority: formData.priority,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        ticket = data;
+      } else {
+        // Guest user - use edge function
+        const { data, error } = await supabase.functions.invoke('create-guest-ticket', {
+          body: {
+            guestName: formData.guestName,
+            guestEmail: formData.guestEmail,
+            subject: formData.subject,
+            description: formData.description,
+            websiteUrl: formData.websiteUrl || null,
+            screenshotUrl: screenshotUrl,
+            category: formData.category,
+            priority: formData.priority,
+          },
+        });
+
+        if (error) throw error;
+        ticket = data;
+      }
 
       // Send email notification
       const email = user?.email || formData.guestEmail;
@@ -119,6 +135,7 @@ export default function SubmitTicketPage() {
             ticketNumber: ticket.ticket_number,
             subject: formData.subject,
             type: 'created',
+            siteUrl: window.location.origin,
           },
         });
       }
