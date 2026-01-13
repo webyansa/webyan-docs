@@ -31,6 +31,7 @@ import {
   Menu,
   BookOpen,
   Home,
+  CalendarDays,
   Ticket,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -56,6 +57,7 @@ const navItems: NavItem[] = [
 
 const adminOnlyItems: NavItem[] = [
   { title: 'تذاكر الدعم', href: '/admin/tickets', icon: Ticket, requiredRole: 'admin' },
+  { title: 'طلبات الاجتماعات', href: '/admin/meetings', icon: CalendarDays, requiredRole: 'admin' },
   { title: 'إدارة العملاء', href: '/admin/clients', icon: Users, requiredRole: 'admin' },
   { title: 'التقييمات', href: '/admin/feedback', icon: MessageSquare, requiredRole: 'admin' },
   { title: 'البلاغات', href: '/admin/issues', icon: AlertTriangle, requiredRole: 'admin' },

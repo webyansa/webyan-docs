@@ -2,34 +2,50 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
 import { 
   Calendar, 
   ArrowRight,
   Loader2,
-  Clock
+  Clock,
+  Video,
+  CheckCircle2,
+  Info,
+  Sparkles
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { MeetingCalendar } from '@/components/booking/MeetingCalendar';
+import { cn } from '@/lib/utils';
 
 const meetingTypes = [
-  { value: 'general', label: 'اجتماع عام', description: 'مناقشة عامة أو استفسارات' },
-  { value: 'training', label: 'جلسة تدريبية', description: 'تدريب على استخدام المنصة' },
-  { value: 'support', label: 'دعم فني', description: 'حل مشكلة تقنية' },
-  { value: 'demo', label: 'عرض توضيحي', description: 'عرض ميزات جديدة' },
-  { value: 'consultation', label: 'استشارة', description: 'استشارة تقنية أو إدارية' },
+  { value: 'general', label: 'اجتماع عام', description: 'مناقشة عامة أو استفسارات', icon: '💬', color: 'bg-blue-100 border-blue-200' },
+  { value: 'training', label: 'جلسة تدريبية', description: 'تدريب على استخدام المنصة', icon: '📚', color: 'bg-green-100 border-green-200' },
+  { value: 'support', label: 'دعم فني', description: 'حل مشكلة تقنية', icon: '🔧', color: 'bg-orange-100 border-orange-200' },
+  { value: 'demo', label: 'عرض توضيحي', description: 'عرض ميزات جديدة', icon: '🎬', color: 'bg-purple-100 border-purple-200' },
+  { value: 'consultation', label: 'استشارة', description: 'استشارة تقنية أو إدارية', icon: '💡', color: 'bg-pink-100 border-pink-200' },
 ];
 
 const durations = [
-  { value: 15, label: '15 دقيقة' },
-  { value: 30, label: '30 دقيقة' },
-  { value: 45, label: '45 دقيقة' },
-  { value: 60, label: 'ساعة كاملة' },
+  { value: 15, label: '15 دقيقة', description: 'مناسب للاستفسارات السريعة' },
+  { value: 30, label: '30 دقيقة', description: 'الخيار الأكثر شيوعاً' },
+  { value: 45, label: '45 دقيقة', description: 'للمواضيع المتوسطة' },
+  { value: 60, label: 'ساعة كاملة', description: 'للتدريب والمواضيع المعقدة' },
+];
+
+const steps = [
+  { id: 1, title: 'نوع الاجتماع', description: 'اختر نوع الاجتماع' },
+  { id: 2, title: 'الموعد', description: 'حدد التاريخ والوقت' },
+  { id: 3, title: 'التفاصيل', description: 'أضف المزيد من المعلومات' },
+  { id: 4, title: 'المراجعة', description: 'تأكيد الحجز' },
 ];
 
 const PortalNewMeeting = () => {
@@ -37,17 +53,17 @@ const PortalNewMeeting = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
   
   const [formData, setFormData] = useState({
-    meeting_type: 'general',
+    meeting_type: '',
     subject: '',
     description: '',
-    preferred_date: '',
-    preferred_time: '',
-    alternative_date: '',
-    alternative_time: '',
     duration_minutes: 30
   });
+
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrganizationId();
@@ -67,10 +83,8 @@ const PortalNewMeeting = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.subject || !formData.preferred_date || !formData.preferred_time) {
+  const handleSubmit = async () => {
+    if (!formData.subject || !selectedDate || !selectedTime) {
       toast.error('يرجى ملء جميع الحقول المطلوبة');
       return;
     }
@@ -83,12 +97,9 @@ const PortalNewMeeting = () => {
     setLoading(true);
 
     try {
-      const preferredDateTime = new Date(`${formData.preferred_date}T${formData.preferred_time}`);
-      let alternativeDateTime = null;
-      
-      if (formData.alternative_date && formData.alternative_time) {
-        alternativeDateTime = new Date(`${formData.alternative_date}T${formData.alternative_time}`);
-      }
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      const preferredDateTime = new Date(selectedDate);
+      preferredDateTime.setHours(hours, minutes, 0, 0);
 
       const { error } = await supabase
         .from('meeting_requests')
@@ -99,14 +110,13 @@ const PortalNewMeeting = () => {
           subject: formData.subject,
           description: formData.description || null,
           preferred_date: preferredDateTime.toISOString(),
-          alternative_date: alternativeDateTime?.toISOString() || null,
           duration_minutes: formData.duration_minutes,
           status: 'pending'
         });
 
       if (error) throw error;
 
-      toast.success('تم إرسال طلب الاجتماع بنجاح');
+      toast.success('تم إرسال طلب الاجتماع بنجاح! سيتم إشعارك عند التأكيد.');
       navigate('/portal/meetings');
     } catch (error) {
       console.error('Error creating meeting request:', error);
@@ -116,13 +126,40 @@ const PortalNewMeeting = () => {
     }
   };
 
-  // Get minimum date (tomorrow)
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = format(tomorrow, 'yyyy-MM-dd');
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1:
+        return formData.meeting_type !== '';
+      case 2:
+        return selectedDate !== null && selectedTime !== null;
+      case 3:
+        return formData.subject.trim() !== '';
+      case 4:
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const nextStep = () => {
+    if (canProceed() && currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const progress = (currentStep / 4) * 100;
+
+  const selectedMeetingType = meetingTypes.find(t => t.value === formData.meeting_type);
+  const selectedDuration = durations.find(d => d.value === formData.duration_minutes);
 
   return (
-    <div className="p-6 lg:p-8 max-w-3xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <Button variant="ghost" asChild className="mb-4 gap-2">
@@ -131,153 +168,289 @@ const PortalNewMeeting = () => {
             العودة للاجتماعات
           </Link>
         </Button>
-        <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-3">
-          <Calendar className="w-8 h-8 text-primary" />
-          طلب اجتماع جديد
-        </h1>
-        <p className="text-muted-foreground mt-1">حدد موعداً مناسباً للاجتماع مع فريق ويبيان</p>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-3 rounded-xl bg-primary/10">
+            <Calendar className="w-8 h-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
+              حجز موعد اجتماع
+            </h1>
+            <p className="text-muted-foreground">حدد موعداً مناسباً للاجتماع مع فريق ويبيان</p>
+          </div>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardContent className="p-6 space-y-6">
-            {/* Meeting Type */}
-            <div className="space-y-2">
-              <Label>نوع الاجتماع</Label>
-              <Select 
-                value={formData.meeting_type}
-                onValueChange={(value) => setFormData({ ...formData, meeting_type: value })}
+      {/* Progress */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          {steps.map((step, index) => (
+            <div
+              key={step.id}
+              className={cn(
+                "flex items-center gap-2",
+                index < steps.length - 1 && "flex-1"
+              )}
+            >
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all",
+                  currentStep === step.id && "bg-primary text-primary-foreground ring-4 ring-primary/20",
+                  currentStep > step.id && "bg-green-500 text-white",
+                  currentStep < step.id && "bg-muted text-muted-foreground"
+                )}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {meetingTypes.map(type => (
-                    <SelectItem key={type.value} value={type.value}>
-                      <div>
-                        <span className="font-medium">{type.label}</span>
-                        <span className="text-muted-foreground text-sm mr-2">- {type.description}</span>
+                {currentStep > step.id ? <CheckCircle2 className="h-5 w-5" /> : step.id}
+              </div>
+              {index < steps.length - 1 && (
+                <div className={cn(
+                  "flex-1 h-1 rounded-full mx-2",
+                  currentStep > step.id ? "bg-green-500" : "bg-muted"
+                )} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          {steps.map((step) => (
+            <span key={step.id} className={cn(
+              currentStep === step.id && "text-primary font-medium"
+            )}>
+              {step.title}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Step Content */}
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          {/* Step 1: Meeting Type */}
+          {currentStep === 1 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">ما نوع الاجتماع الذي تحتاجه؟</h2>
+                <p className="text-muted-foreground text-sm">اختر النوع الأنسب لموضوعك</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {meetingTypes.map((type) => (
+                  <button
+                    key={type.value}
+                    onClick={() => setFormData({ ...formData, meeting_type: type.value })}
+                    className={cn(
+                      "p-4 rounded-xl border-2 text-right transition-all hover:shadow-md",
+                      formData.meeting_type === type.value
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : `${type.color} hover:border-primary/30`
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl">{type.icon}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold">{type.label}</p>
+                        <p className="text-sm text-muted-foreground">{type.description}</p>
                       </div>
-                    </SelectItem>
+                      {formData.meeting_type === type.value && (
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="pt-4 border-t">
+                <Label className="text-base font-semibold mb-3 block">مدة الاجتماع</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {durations.map((d) => (
+                    <button
+                      key={d.value}
+                      onClick={() => setFormData({ ...formData, duration_minutes: d.value })}
+                      className={cn(
+                        "p-3 rounded-lg border-2 text-center transition-all",
+                        formData.duration_minutes === d.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/30"
+                      )}
+                    >
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold">{d.label}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{d.description}</p>
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Subject */}
-            <div className="space-y-2">
-              <Label htmlFor="subject">موضوع الاجتماع *</Label>
-              <Input
-                id="subject"
-                placeholder="مثال: تدريب على لوحة التحكم"
-                value={formData.subject}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                required
-              />
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">تفاصيل إضافية (اختياري)</Label>
-              <Textarea
-                id="description"
-                placeholder="اكتب أي تفاصيل أو أسئلة تريد مناقشتها..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-              />
-            </div>
-
-            {/* Preferred Date & Time */}
-            <div className="space-y-4">
-              <Label className="text-base font-semibold">الموعد المفضل *</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="preferred_date" className="text-sm">التاريخ</Label>
-                  <Input
-                    id="preferred_date"
-                    type="date"
-                    min={minDate}
-                    value={formData.preferred_date}
-                    onChange={(e) => setFormData({ ...formData, preferred_date: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="preferred_time" className="text-sm">الوقت</Label>
-                  <Input
-                    id="preferred_time"
-                    type="time"
-                    value={formData.preferred_time}
-                    onChange={(e) => setFormData({ ...formData, preferred_time: e.target.value })}
-                    required
-                  />
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Alternative Date & Time */}
-            <div className="space-y-4">
-              <Label className="text-base font-semibold">موعد بديل (اختياري)</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Step 2: Date & Time */}
+          {currentStep === 2 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">متى تفضل الاجتماع؟</h2>
+                <p className="text-muted-foreground text-sm">اختر التاريخ والوقت المناسب</p>
+              </div>
+
+              <MeetingCalendar
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                duration={formData.duration_minutes}
+                onDateSelect={setSelectedDate}
+                onTimeSelect={setSelectedTime}
+              />
+            </div>
+          )}
+
+          {/* Step 3: Details */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">أخبرنا المزيد عن اجتماعك</h2>
+                <p className="text-muted-foreground text-sm">هذه المعلومات تساعدنا على الاستعداد بشكل أفضل</p>
+              </div>
+
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="alternative_date" className="text-sm">التاريخ</Label>
+                  <Label htmlFor="subject">موضوع الاجتماع *</Label>
                   <Input
-                    id="alternative_date"
-                    type="date"
-                    min={minDate}
-                    value={formData.alternative_date}
-                    onChange={(e) => setFormData({ ...formData, alternative_date: e.target.value })}
+                    id="subject"
+                    placeholder="مثال: تدريب على لوحة التحكم الجديدة"
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    className="text-lg"
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="alternative_time" className="text-sm">الوقت</Label>
-                  <Input
-                    id="alternative_time"
-                    type="time"
-                    value={formData.alternative_time}
-                    onChange={(e) => setFormData({ ...formData, alternative_time: e.target.value })}
+                  <Label htmlFor="description">تفاصيل إضافية (اختياري)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="اكتب أي تفاصيل أو أسئلة تريد مناقشتها في الاجتماع..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={5}
                   />
+                </div>
+
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+                  <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">نصيحة:</p>
+                    <p>كلما كانت التفاصيل أوضح، كلما استطعنا تقديم مساعدة أفضل في الاجتماع.</p>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Duration */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                مدة الاجتماع
-              </Label>
-              <Select 
-                value={formData.duration_minutes.toString()}
-                onValueChange={(value) => setFormData({ ...formData, duration_minutes: parseInt(value) })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {durations.map(d => (
-                    <SelectItem key={d.value} value={d.value.toString()}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Step 4: Review */}
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-primary" />
+                <div>
+                  <h2 className="text-xl font-semibold">مراجعة وتأكيد الحجز</h2>
+                  <p className="text-muted-foreground text-sm">تأكد من صحة المعلومات قبل الإرسال</p>
+                </div>
+              </div>
 
-            {/* Submit */}
-            <div className="flex justify-end gap-4 pt-4">
-              <Button type="button" variant="outline" onClick={() => navigate('/portal/meetings')}>
-                إلغاء
-              </Button>
-              <Button type="submit" disabled={loading} className="gap-2">
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                إرسال الطلب
-              </Button>
+              <div className="grid gap-4">
+                <div className="p-4 rounded-xl bg-muted/50 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{selectedMeetingType?.icon}</span>
+                    <div>
+                      <p className="text-sm text-muted-foreground">نوع الاجتماع</p>
+                      <p className="font-semibold">{selectedMeetingType?.label}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-6 w-6 text-primary" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">التاريخ والوقت</p>
+                      <p className="font-semibold">
+                        {selectedDate && format(selectedDate, 'EEEE d MMMM yyyy', { locale: ar })}
+                        {' - '}
+                        {selectedTime}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-6 w-6 text-primary" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">المدة</p>
+                      <p className="font-semibold">{selectedDuration?.label}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border">
+                  <p className="text-sm text-muted-foreground mb-1">الموضوع</p>
+                  <p className="font-semibold text-lg">{formData.subject}</p>
+                  {formData.description && (
+                    <>
+                      <p className="text-sm text-muted-foreground mt-3 mb-1">التفاصيل</p>
+                      <p className="text-sm">{formData.description}</p>
+                    </>
+                  )}
+                </div>
+
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                  <Video className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div className="text-sm text-green-800">
+                    <p className="font-medium mb-1">ماذا بعد؟</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>سيتم مراجعة طلبك من قبل فريقنا</li>
+                      <li>ستتلقى إشعاراً بتأكيد الموعد أو اقتراح موعد بديل</li>
+                      <li>سيتم إرسال رابط الاجتماع إلى بريدك الإلكتروني</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </form>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Navigation Buttons */}
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={prevStep}
+          disabled={currentStep === 1}
+          className="gap-2"
+        >
+          <ArrowRight className="h-4 w-4" />
+          السابق
+        </Button>
+
+        {currentStep < 4 ? (
+          <Button
+            onClick={nextStep}
+            disabled={!canProceed()}
+            className="gap-2"
+          >
+            التالي
+            <ArrowRight className="h-4 w-4 rotate-180" />
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || !canProceed()}
+            className="gap-2 bg-green-600 hover:bg-green-700"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            تأكيد الحجز
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
