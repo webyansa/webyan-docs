@@ -113,7 +113,7 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
               <div className="flex items-center gap-2 mr-2 pr-2 border-r border-border">
                 <span className="text-sm text-muted-foreground flex items-center gap-1">
                   <User className="h-4 w-4" />
-                  {role === 'admin' ? 'مدير' : role === 'editor' ? 'محرر' : 'زائر'}
+                  {isClient ? 'عميل' : role === 'admin' ? 'مدير' : role === 'editor' ? 'محرر' : 'زائر'}
                 </span>
                 <Button 
                   variant="ghost" 
@@ -127,9 +127,17 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
               </div>
             </>
           ) : (
-            <Button variant="default" size="sm" asChild>
-              <Link to="/auth">تسجيل الدخول</Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/portal-login" className="flex items-center gap-1">
+                  <Building2 className="h-4 w-4" />
+                  بوابة العملاء
+                </Link>
+              </Button>
+              <Button variant="default" size="sm" asChild>
+                <Link to="/auth">تسجيل الدخول</Link>
+              </Button>
+            </div>
           )}
         </nav>
       </div>

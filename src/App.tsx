@@ -19,6 +19,7 @@ import SubmitTicketPage from "./pages/SubmitTicketPage";
 import MyTicketsPage from "./pages/MyTicketsPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import TrackTicketPage from "./pages/TrackTicketPage";
+import PortalLoginPage from "./pages/PortalLoginPage";
 
 // Admin pages
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -71,6 +72,7 @@ const App = () => (
             <Route path="/my-tickets" element={<MyTicketsPage />} />
             <Route path="/my-tickets/:ticketId" element={<TicketDetailPage />} />
             <Route path="/track-ticket" element={<TrackTicketPage />} />
+            <Route path="/portal-login" element={<PortalLoginPage />} />
             <Route path="/docs/:moduleSlug" element={<ModulePage />} />
             <Route path="/docs/:moduleSlug/:subModuleSlug" element={<ModulePage />} />
             <Route path="/docs/:moduleSlug/:subModuleSlug/:articleSlug" element={<ArticlePage />} />

@@ -244,18 +244,18 @@ export default function HomePage() {
             </Link>
           ) : (
             <Link
-              to="/track-ticket"
-              className="docs-card flex items-center gap-4 p-6 group"
+              to="/portal-login"
+              className="docs-card flex items-center gap-4 p-6 group border-primary/20"
             >
-              <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 group-hover:scale-110 transition-transform">
-                <TrendingUp className="h-7 w-7" />
+              <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                <Building2 className="h-7 w-7" />
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold group-hover:text-primary transition-colors">
-                  تتبع تذكرة
+                  بوابة العملاء
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  متابعة حالة تذكرتك
+                  دخول عملاء ويبيان
                 </p>
               </div>
               <ArrowLeft className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-1 transition-all" />
