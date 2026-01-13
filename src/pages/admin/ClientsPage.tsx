@@ -244,32 +244,23 @@ const ClientsPage = () => {
         if (error) throw error;
         toast.success('تم تحديث بيانات الحساب');
       } else {
-        // Create new user in auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: accountForm.email,
-          password: accountForm.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/portal`
-          }
-        });
-
-        if (authError) throw authError;
-
-        // Create client account
-        const { error: accountError } = await supabase
-          .from('client_accounts')
-          .insert({
-            user_id: authData.user?.id,
+        // Create new client account using edge function
+        const { data, error } = await supabase.functions.invoke('create-client-account', {
+          body: {
             organization_id: accountForm.organization_id,
             full_name: accountForm.full_name,
             email: accountForm.email,
+            password: accountForm.password,
             phone: accountForm.phone || null,
             job_title: accountForm.job_title || null,
             is_primary_contact: accountForm.is_primary_contact
-          });
+          }
+        });
 
-        if (accountError) throw accountError;
-        toast.success('تم إنشاء الحساب بنجاح');
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        
+        toast.success('تم إنشاء الحساب وإرسال بيانات الدخول للبريد الإلكتروني');
       }
 
       setAccountDialogOpen(false);
@@ -277,10 +268,10 @@ const ClientsPage = () => {
       fetchData();
     } catch (error: any) {
       console.error('Error saving account:', error);
-      if (error.message?.includes('already registered')) {
+      if (error.message?.includes('already registered') || error.message?.includes('already been registered')) {
         toast.error('البريد الإلكتروني مسجل مسبقاً');
       } else {
-        toast.error('حدث خطأ أثناء الحفظ');
+        toast.error(error.message || 'حدث خطأ أثناء الحفظ');
       }
     } finally {
       setSaving(false);
