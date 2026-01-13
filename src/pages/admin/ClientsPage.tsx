@@ -123,8 +123,19 @@ const ClientsPage = () => {
     phone: '',
     job_title: '',
     is_primary_contact: false,
-    password: ''
+    password: '',
+    useOrgEmail: false
   });
+
+  // Get selected organization
+  const selectedOrg = organizations.find(org => org.id === accountForm.organization_id);
+
+  // Phone validation for Saudi numbers (05xxxxxxxx)
+  const validateSaudiPhone = (phone: string): boolean => {
+    if (!phone) return true; // Optional field
+    const saudiPhoneRegex = /^05\d{8}$/;
+    return saudiPhoneRegex.test(phone);
+  };
 
   useEffect(() => {
     fetchData();
@@ -227,6 +238,12 @@ const ClientsPage = () => {
       return;
     }
 
+    // Validate Saudi phone number
+    if (accountForm.phone && !validateSaudiPhone(accountForm.phone)) {
+      toast.error('رقم الهاتف يجب أن يبدأ بـ 05 ويتكون من 10 أرقام');
+      return;
+    }
+
     setSaving(true);
     try {
       if (editingAccount) {
@@ -324,7 +341,8 @@ const ClientsPage = () => {
       phone: '',
       job_title: '',
       is_primary_contact: false,
-      password: ''
+      password: '',
+      useOrgEmail: false
     });
   };
 
@@ -517,7 +535,14 @@ const ClientsPage = () => {
                   <Label>المؤسسة *</Label>
                   <Select 
                     value={accountForm.organization_id} 
-                    onValueChange={(v) => setAccountForm({ ...accountForm, organization_id: v })}
+                    onValueChange={(v) => {
+                      const org = organizations.find(o => o.id === v);
+                      setAccountForm({ 
+                        ...accountForm, 
+                        organization_id: v,
+                        email: accountForm.useOrgEmail && org ? org.contact_email : accountForm.email
+                      });
+                    }}
                     disabled={!!editingAccount}
                   >
                     <SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger>
@@ -535,13 +560,38 @@ const ClientsPage = () => {
                     onChange={(e) => setAccountForm({ ...accountForm, full_name: e.target.value })}
                   />
                 </div>
+                
+                {/* Use Organization Email Option */}
+                {!editingAccount && selectedOrg && (
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="useOrgEmail"
+                      checked={accountForm.useOrgEmail}
+                      onChange={(e) => {
+                        const useOrg = e.target.checked;
+                        setAccountForm({
+                          ...accountForm,
+                          useOrgEmail: useOrg,
+                          email: useOrg ? selectedOrg.contact_email : ''
+                        });
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <Label htmlFor="useOrgEmail" className="cursor-pointer text-sm">
+                      استخدم بريد المؤسسة ({selectedOrg.contact_email})
+                    </Label>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <Label>البريد الإلكتروني *</Label>
                   <Input
                     type="email"
                     value={accountForm.email}
-                    onChange={(e) => setAccountForm({ ...accountForm, email: e.target.value })}
-                    disabled={!!editingAccount}
+                    onChange={(e) => setAccountForm({ ...accountForm, email: e.target.value, useOrgEmail: false })}
+                    disabled={!!editingAccount || accountForm.useOrgEmail}
+                    placeholder="example@organization.com"
                   />
                 </div>
                 {!editingAccount && (
@@ -556,11 +606,22 @@ const ClientsPage = () => {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label>رقم الهاتف</Label>
+                  <Label>رقم الهاتف (السعودية)</Label>
                   <Input
                     value={accountForm.phone}
-                    onChange={(e) => setAccountForm({ ...accountForm, phone: e.target.value })}
+                    onChange={(e) => {
+                      // Only allow numbers
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      setAccountForm({ ...accountForm, phone: value });
+                    }}
+                    placeholder="05xxxxxxxx"
+                    maxLength={10}
+                    dir="ltr"
+                    className="text-left"
                   />
+                  {accountForm.phone && !validateSaudiPhone(accountForm.phone) && (
+                    <p className="text-xs text-destructive">رقم الهاتف يجب أن يبدأ بـ 05 ويتكون من 10 أرقام</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>المسمى الوظيفي</Label>
@@ -752,7 +813,8 @@ const ClientsPage = () => {
                           phone: account.phone || '',
                           job_title: account.job_title || '',
                           is_primary_contact: account.is_primary_contact,
-                          password: ''
+                          password: '',
+                          useOrgEmail: false
                         });
                         setAccountDialogOpen(true);
                       }}>

@@ -105,9 +105,7 @@ const PortalLoginPage = () => {
         <Card className="border-0 shadow-xl">
           <CardHeader className="text-center pb-2">
             <div className="flex justify-center mb-4">
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5">
-                <img src={webyanLogo} alt="ويبيان" className="h-12 w-auto" />
-              </div>
+              <img src={webyanLogo} alt="ويبيان" className="h-16 w-auto" />
             </div>
             <CardTitle className="text-2xl font-bold">بوابة عملاء ويبيان</CardTitle>
             <CardDescription className="text-base">
