@@ -64,7 +64,50 @@ Deno.serve(async (req) => {
       throw new Error('Password must be at least 6 characters');
     }
 
-    // Create user in auth
+    // Check if email already exists
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = existingUsers?.users?.find(u => u.email === email);
+    
+    if (existingUser) {
+      // Check if this user already has a client account
+      const { data: existingAccount } = await supabaseAdmin
+        .from('client_accounts')
+        .select('id')
+        .eq('user_id', existingUser.id)
+        .maybeSingle();
+      
+      if (existingAccount) {
+        throw new Error('هذا البريد الإلكتروني مسجل بالفعل كحساب عميل');
+      }
+      
+      // Link existing user to client account
+      const { error: accountError } = await supabaseAdmin
+        .from('client_accounts')
+        .insert({
+          user_id: existingUser.id,
+          organization_id,
+          full_name,
+          email,
+          phone: phone || null,
+          job_title: job_title || null,
+          is_primary_contact: is_primary_contact || false
+        });
+      
+      if (accountError) {
+        throw accountError;
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          user_id: existingUser.id,
+          message: 'تم ربط الحساب الموجود بالمؤسسة بنجاح'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create new user in auth
     const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
