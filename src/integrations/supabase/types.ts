@@ -1012,6 +1012,7 @@ export type Database = {
           guest_name: string | null
           id: string
           is_escalated: boolean | null
+          organization_id: string | null
           priority: string
           resolved_at: string | null
           resolved_by: string | null
@@ -1038,6 +1039,7 @@ export type Database = {
           guest_name?: string | null
           id?: string
           is_escalated?: boolean | null
+          organization_id?: string | null
           priority?: string
           resolved_at?: string | null
           resolved_by?: string | null
@@ -1064,6 +1066,7 @@ export type Database = {
           guest_name?: string | null
           id?: string
           is_escalated?: boolean | null
+          organization_id?: string | null
           priority?: string
           resolved_at?: string | null
           resolved_by?: string | null
@@ -1082,6 +1085,13 @@ export type Database = {
             columns: ["assigned_to_staff"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
             referencedColumns: ["id"]
           },
         ]

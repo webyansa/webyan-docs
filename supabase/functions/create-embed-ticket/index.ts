@@ -42,10 +42,10 @@ serve(async (req) => {
       );
     }
 
-    // Verify token
+    // Verify token and get organization details
     const { data: embedToken, error: tokenError } = await supabase
       .from('embed_tokens')
-      .select('*, organization:client_organizations(id, name)')
+      .select('*, organization:client_organizations(id, name, contact_email, website_url, logo_url)')
       .eq('token', body.token)
       .eq('is_active', true)
       .single();
@@ -89,20 +89,21 @@ serve(async (req) => {
     // Generate ticket number
     const ticketNumber = 'EMB-' + Math.floor(100000 + Math.random() * 900000);
 
-    // Create the ticket
+    // Create the ticket linked to the organization
     const { data: ticket, error: ticketError } = await supabase
       .from('support_tickets')
       .insert({
         ticket_number: ticketNumber,
-        subject: body.subject.slice(0, 200), // Limit length
-        description: body.description.slice(0, 5000), // Limit length
+        subject: body.subject.slice(0, 200),
+        description: body.description.slice(0, 5000),
         category: body.category || 'technical',
         priority: body.priority || 'medium',
         guest_name: body.contactName?.slice(0, 100) || embedToken.organization?.name || 'عميل مضمن',
-        guest_email: body.contactEmail?.slice(0, 255) || null,
-        website_url: body.websiteUrl?.slice(0, 500) || null,
+        guest_email: body.contactEmail?.slice(0, 255) || embedToken.organization?.contact_email || null,
+        website_url: body.websiteUrl?.slice(0, 500) || embedToken.organization?.website_url || null,
         status: 'open',
-        admin_note: `تذكرة من نموذج مضمن - المنظمة: ${embedToken.organization?.name || 'غير معروف'}`
+        organization_id: embedToken.organization_id,
+        admin_note: `تذكرة من نموذج مضمن - العميل: ${embedToken.organization?.name || 'غير معروف'}`
       })
       .select()
       .single();
