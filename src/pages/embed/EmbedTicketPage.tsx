@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  HelpCircle,
   Monitor,
   CreditCard,
   Sparkles,
@@ -16,7 +15,12 @@ import {
   AlertTriangle,
   Clock,
   Zap,
-  Flame
+  Flame,
+  X,
+  Minimize2,
+  Maximize2,
+  MessageCircle,
+  Headphones
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +54,9 @@ const priorities = [
 const EmbedTicketPage = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const mode = searchParams.get('mode') || 'full'; // full, compact, widget
+  const theme = searchParams.get('theme') || 'light'; // light, dark
+  const primaryColor = searchParams.get('color') || '#3b82f6';
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -57,6 +64,8 @@ const EmbedTicketPage = () => {
   const [ticketNumber, setTicketNumber] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [isMinimized, setIsMinimized] = useState(mode === 'widget');
+  const [step, setStep] = useState(1);
   
   const [formData, setFormData] = useState({
     subject: '',
@@ -71,6 +80,27 @@ const EmbedTicketPage = () => {
   useEffect(() => {
     verifyToken();
   }, [token]);
+
+  // Listen for postMessage from parent window
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'WEBYAN_OPEN_WIDGET') {
+        setIsMinimized(false);
+      } else if (event.data.type === 'WEBYAN_CLOSE_WIDGET') {
+        setIsMinimized(true);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  // Send ready message to parent
+  useEffect(() => {
+    if (!loading && !error) {
+      window.parent.postMessage({ type: 'WEBYAN_WIDGET_READY' }, '*');
+    }
+  }, [loading, error]);
 
   const verifyToken = async () => {
     if (!token) {
@@ -129,6 +159,12 @@ const EmbedTicketPage = () => {
 
       setTicketNumber(data.ticketNumber);
       setSubmitted(true);
+      
+      // Notify parent window
+      window.parent.postMessage({ 
+        type: 'WEBYAN_TICKET_CREATED', 
+        ticketNumber: data.ticketNumber 
+      }, '*');
     } catch (err: any) {
       console.error('Submit error:', err);
       toast.error(err.message || 'حدث خطأ أثناء إرسال التذكرة');
@@ -137,13 +173,36 @@ const EmbedTicketPage = () => {
     }
   };
 
+  const resetForm = () => {
+    setSubmitted(false);
+    setTicketNumber('');
+    setStep(1);
+    setFormData({
+      subject: '',
+      description: '',
+      category: 'technical',
+      priority: 'medium',
+      contactName: '',
+      contactEmail: '',
+      websiteUrl: ''
+    });
+  };
+
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4" dir="rtl">
+      <div className={cn(
+        "min-h-screen flex items-center justify-center p-4",
+        theme === 'dark' ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-50 to-slate-100'
+      )} dir="rtl">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">جاري التحقق...</p>
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full border-4 border-primary/20 animate-pulse mx-auto" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className={cn("mt-4", theme === 'dark' ? 'text-slate-400' : 'text-muted-foreground')}>
+            جاري التحقق...
+          </p>
         </div>
       </div>
     );
@@ -152,14 +211,27 @@ const EmbedTicketPage = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 p-4" dir="rtl">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center border border-red-100">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-8 h-8 text-red-500" />
+      <div className={cn(
+        "min-h-screen flex items-center justify-center p-4",
+        theme === 'dark' ? 'bg-slate-900' : 'bg-gradient-to-br from-red-50 to-orange-50'
+      )} dir="rtl">
+        <div className={cn(
+          "rounded-2xl shadow-xl p-8 max-w-md w-full text-center border",
+          theme === 'dark' ? 'bg-slate-800 border-red-900' : 'bg-white border-red-100'
+        )}>
+          <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-red-500/30">
+            <AlertCircle className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">رمز غير صالح</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <div className="p-4 bg-gray-50 rounded-xl text-sm text-gray-500">
+          <h2 className={cn("text-xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            رمز غير صالح
+          </h2>
+          <p className={cn("mb-6", theme === 'dark' ? 'text-slate-400' : 'text-gray-600')}>
+            {error}
+          </p>
+          <div className={cn(
+            "p-4 rounded-xl text-sm",
+            theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-50 text-gray-500'
+          )}>
             <p>إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع مسؤول النظام.</p>
           </div>
         </div>
@@ -170,72 +242,306 @@ const EmbedTicketPage = () => {
   // Success state
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50 p-4" dir="rtl">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center border border-green-100">
-          <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <CheckCircle2 className="w-10 h-10 text-white" />
+      <div className={cn(
+        "min-h-screen flex items-center justify-center p-4",
+        theme === 'dark' ? 'bg-slate-900' : 'bg-gradient-to-br from-green-50 to-emerald-50'
+      )} dir="rtl">
+        <div className={cn(
+          "rounded-2xl shadow-xl p-8 max-w-md w-full text-center border",
+          theme === 'dark' ? 'bg-slate-800 border-green-900' : 'bg-white border-green-100'
+        )}>
+          <div className="relative mb-6">
+            <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-green-500/30">
+              <CheckCircle2 className="w-12 h-12 text-white" />
+            </div>
+            <div className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center animate-bounce shadow-lg">
+              <span className="text-lg">🎉</span>
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">تم إرسال التذكرة بنجاح!</h2>
-          <p className="text-gray-600 mb-6">سيتم التواصل معك في أقرب وقت ممكن</p>
           
-          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-6 mb-6 border border-primary/20">
-            <p className="text-sm text-gray-500 mb-2">رقم التذكرة</p>
-            <p className="text-2xl font-bold font-mono text-primary">{ticketNumber}</p>
+          <h2 className={cn("text-2xl font-bold mb-2", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+            تم إرسال التذكرة بنجاح!
+          </h2>
+          <p className={cn("mb-6", theme === 'dark' ? 'text-slate-400' : 'text-gray-600')}>
+            سيتم التواصل معك في أقرب وقت ممكن
+          </p>
+          
+          <div className={cn(
+            "rounded-2xl p-6 mb-6 border",
+            theme === 'dark' 
+              ? 'bg-gradient-to-br from-emerald-900/50 to-green-900/50 border-green-700' 
+              : 'bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20'
+          )}>
+            <p className={cn("text-sm mb-2", theme === 'dark' ? 'text-slate-400' : 'text-gray-500')}>
+              رقم التذكرة
+            </p>
+            <p className="text-3xl font-bold font-mono text-primary">{ticketNumber}</p>
           </div>
 
-          <p className="text-sm text-gray-500">
+          <p className={cn("text-sm mb-6", theme === 'dark' ? 'text-slate-500' : 'text-gray-500')}>
             احتفظ برقم التذكرة للمتابعة
           </p>
+
+          <Button 
+            onClick={resetForm}
+            variant="outline"
+            className="w-full"
+          >
+            <MessageCircle className="w-4 h-4 ml-2" />
+            إرسال تذكرة أخرى
+          </Button>
         </div>
       </div>
     );
   }
 
-  // Form state
+  // Compact mode - Step form
+  if (mode === 'compact') {
+    return (
+      <div className={cn(
+        "min-h-screen p-4",
+        theme === 'dark' ? 'bg-slate-900' : 'bg-white'
+      )} dir="rtl">
+        <div className="max-w-md mx-auto">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
+              <Headphones className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className={cn("font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                الدعم الفني
+              </h1>
+              <p className={cn("text-xs", theme === 'dark' ? 'text-slate-400' : 'text-gray-500')}>
+                {organization?.name}
+              </p>
+            </div>
+          </div>
+
+          {/* Progress */}
+          <div className="flex items-center gap-2 mb-6">
+            {[1, 2, 3].map((s) => (
+              <div 
+                key={s}
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-all duration-300",
+                  s <= step 
+                    ? 'bg-primary' 
+                    : theme === 'dark' ? 'bg-slate-700' : 'bg-gray-200'
+                )}
+              />
+            ))}
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {step === 1 && (
+              <div className="space-y-4 animate-in slide-in-from-right-4">
+                <div className="space-y-2">
+                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                    ما نوع المشكلة؟
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {categories.slice(0, 4).map((cat) => (
+                      <button
+                        key={cat.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, category: cat.value })}
+                        className={cn(
+                          "flex items-center gap-2 p-3 rounded-xl border-2 transition-all",
+                          formData.category === cat.value
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : theme === 'dark' 
+                              ? 'border-slate-700 text-slate-300 hover:border-slate-600' 
+                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        )}
+                      >
+                        <cat.icon className="w-4 h-4" />
+                        <span className="text-sm font-medium">{cat.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Button 
+                  type="button" 
+                  onClick={() => setStep(2)} 
+                  className="w-full"
+                >
+                  التالي
+                </Button>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-4 animate-in slide-in-from-right-4">
+                <div className="space-y-2">
+                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                    عنوان المشكلة
+                  </Label>
+                  <Input
+                    placeholder="صف المشكلة بجملة واحدة..."
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    required
+                    className="h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                    التفاصيل
+                  </Label>
+                  <Textarea
+                    placeholder="اشرح المشكلة بالتفصيل..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={4}
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setStep(1)} 
+                    className="flex-1"
+                  >
+                    السابق
+                  </Button>
+                  <Button 
+                    type="button" 
+                    onClick={() => setStep(3)} 
+                    className="flex-1"
+                    disabled={!formData.subject || !formData.description}
+                  >
+                    التالي
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-4 animate-in slide-in-from-right-4">
+                <div className="space-y-2">
+                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                    الاسم (اختياري)
+                  </Label>
+                  <Input
+                    placeholder="اسمك الكريم"
+                    value={formData.contactName}
+                    onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                    البريد الإلكتروني (اختياري)
+                  </Label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={formData.contactEmail}
+                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                    dir="ltr"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setStep(2)} 
+                    className="flex-1"
+                  >
+                    السابق
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    className="flex-1"
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 ml-2" />
+                        إرسال
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Full mode - Original form
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 p-4 md:p-6" dir="rtl">
+    <div className={cn(
+      "min-h-screen p-4 md:p-6",
+      theme === 'dark' ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50'
+    )} dir="rtl">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+        <div className={cn(
+          "rounded-2xl shadow-sm border p-6 mb-6",
+          theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+        )}>
           <div className="flex items-center gap-4">
             {organization?.logo_url ? (
               <img src={organization.logo_url} alt={organization.name} className="w-14 h-14 rounded-xl object-cover" />
             ) : (
-              <div className="w-14 h-14 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center">
+              <div className="w-14 h-14 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
                 <Ticket className="w-7 h-7 text-white" />
               </div>
             )}
             <div>
-              <h1 className="text-xl font-bold text-gray-900">فتح تذكرة دعم</h1>
-              <p className="text-sm text-gray-500">{organization?.name || 'مركز الدعم'}</p>
+              <h1 className={cn("text-xl font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+                فتح تذكرة دعم
+              </h1>
+              <p className={cn("text-sm", theme === 'dark' ? 'text-slate-400' : 'text-gray-500')}>
+                {organization?.name || 'مركز الدعم'}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <form onSubmit={handleSubmit} className={cn(
+          "rounded-2xl shadow-sm border overflow-hidden",
+          theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+        )}>
           <div className="p-6 space-y-6">
             {/* Contact Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="contactName" className="text-gray-700 font-medium">الاسم</Label>
+                <Label htmlFor="contactName" className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                  الاسم
+                </Label>
                 <Input
                   id="contactName"
                   placeholder="اسمك الكريم"
                   value={formData.contactName}
                   onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                  className="h-12 rounded-xl border-slate-200 focus:border-primary focus:ring-primary"
+                  className={cn(
+                    "h-12 rounded-xl",
+                    theme === 'dark' ? 'bg-slate-900 border-slate-600' : 'border-slate-200'
+                  )}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="contactEmail" className="text-gray-700 font-medium">البريد الإلكتروني</Label>
+                <Label htmlFor="contactEmail" className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                  البريد الإلكتروني
+                </Label>
                 <Input
                   id="contactEmail"
                   type="email"
                   placeholder="example@domain.com"
                   value={formData.contactEmail}
                   onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                  className="h-12 rounded-xl border-slate-200 focus:border-primary focus:ring-primary"
+                  className={cn(
+                    "h-12 rounded-xl",
+                    theme === 'dark' ? 'bg-slate-900 border-slate-600' : 'border-slate-200'
+                  )}
                   dir="ltr"
                 />
               </div>
@@ -243,7 +549,7 @@ const EmbedTicketPage = () => {
 
             {/* Subject */}
             <div className="space-y-2">
-              <Label htmlFor="subject" className="text-gray-700 font-medium">
+              <Label htmlFor="subject" className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
                 عنوان المشكلة <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -252,13 +558,16 @@ const EmbedTicketPage = () => {
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                 required
-                className="h-12 rounded-xl border-slate-200 focus:border-primary focus:ring-primary"
+                className={cn(
+                  "h-12 rounded-xl",
+                  theme === 'dark' ? 'bg-slate-900 border-slate-600' : 'border-slate-200'
+                )}
               />
             </div>
 
             {/* Category */}
             <div className="space-y-3">
-              <Label className="text-gray-700 font-medium">نوع المشكلة</Label>
+              <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>نوع المشكلة</Label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                 {categories.map((cat) => (
                   <button
@@ -269,7 +578,9 @@ const EmbedTicketPage = () => {
                       "flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-200",
                       formData.category === cat.value
                         ? cat.color + " border-current ring-2 ring-current/20"
-                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        : theme === 'dark' 
+                          ? 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                     )}
                   >
                     <cat.icon className="w-5 h-5" />
@@ -281,7 +592,7 @@ const EmbedTicketPage = () => {
 
             {/* Priority */}
             <div className="space-y-3">
-              <Label className="text-gray-700 font-medium">الأولوية</Label>
+              <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>الأولوية</Label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {priorities.map((p) => (
                   <button
@@ -292,7 +603,9 @@ const EmbedTicketPage = () => {
                       "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all duration-200",
                       formData.priority === p.value
                         ? p.color + " border-current ring-2 ring-current/20"
-                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        : theme === 'dark' 
+                          ? 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                     )}
                   >
                     <p.icon className="w-5 h-5" />
@@ -304,21 +617,26 @@ const EmbedTicketPage = () => {
 
             {/* Website URL */}
             <div className="space-y-2">
-              <Label htmlFor="websiteUrl" className="text-gray-700 font-medium">رابط الصفحة (اختياري)</Label>
+              <Label htmlFor="websiteUrl" className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                رابط الصفحة (اختياري)
+              </Label>
               <Input
                 id="websiteUrl"
                 type="url"
                 placeholder="https://example.com/page"
                 value={formData.websiteUrl}
                 onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
-                className="h-12 rounded-xl border-slate-200 focus:border-primary focus:ring-primary"
+                className={cn(
+                  "h-12 rounded-xl",
+                  theme === 'dark' ? 'bg-slate-900 border-slate-600' : 'border-slate-200'
+                )}
                 dir="ltr"
               />
             </div>
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="description" className="text-gray-700 font-medium">
+              <Label htmlFor="description" className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
                 وصف المشكلة <span className="text-red-500">*</span>
               </Label>
               <Textarea
@@ -328,13 +646,19 @@ const EmbedTicketPage = () => {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={5}
                 required
-                className="rounded-xl border-slate-200 focus:border-primary focus:ring-primary resize-none"
+                className={cn(
+                  "rounded-xl resize-none",
+                  theme === 'dark' ? 'bg-slate-900 border-slate-600' : 'border-slate-200'
+                )}
               />
             </div>
           </div>
 
           {/* Submit Button */}
-          <div className="bg-slate-50 border-t border-slate-200 p-6">
+          <div className={cn(
+            "border-t p-6",
+            theme === 'dark' ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'
+          )}>
             <Button 
               type="submit" 
               disabled={submitting}
@@ -356,7 +680,10 @@ const EmbedTicketPage = () => {
         </form>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-sm text-gray-500">
+        <div className={cn(
+          "text-center mt-6 text-sm",
+          theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
+        )}>
           <p>مركز دعم ويبيان - نحن هنا لمساعدتك</p>
         </div>
       </div>

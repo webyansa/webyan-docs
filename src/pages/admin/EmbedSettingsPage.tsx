@@ -217,40 +217,84 @@ const EmbedSettingsPage = () => {
 ></iframe>`;
 
   const getWidgetCode = (token: string) => 
-`<!-- Webyan Support Widget -->
+`<!-- Webyan Support Widget - Inline Embed -->
 <div id="webyan-support-widget"></div>
 <script>
 (function() {
   var container = document.getElementById('webyan-support-widget');
   var iframe = document.createElement('iframe');
-  iframe.src = '${getEmbedUrl(token)}';
-  iframe.style.cssText = 'width:100%;height:700px;border:none;border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);';
+  iframe.src = '${getEmbedUrl(token)}&mode=compact';
+  iframe.style.cssText = 'width:100%;height:600px;border:none;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.08);';
   iframe.allow = 'clipboard-write';
   container.appendChild(iframe);
 })();
 </script>`;
 
   const getPopupCode = (token: string) =>
-`<!-- Webyan Support Button -->
+`<!-- Webyan Support Widget - Floating Button (مثل Intercom) -->
 <style>
-.webyan-btn{position:fixed;bottom:20px;right:20px;z-index:9999;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 15px rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;transition:transform .2s}
-.webyan-btn:hover{transform:scale(1.1)}
-.webyan-btn svg{width:28px;height:28px}
-.webyan-modal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px}
-.webyan-modal.open{display:flex}
-.webyan-modal-content{background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:90vh;overflow:hidden;position:relative}
-.webyan-close{position:absolute;top:10px;left:10px;z-index:1;background:#f1f5f9;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.webyan-modal iframe{width:100%;height:700px;border:none}
+#webyan-widget-btn{position:fixed;bottom:24px;right:24px;z-index:999999;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);color:#fff;border:none;cursor:pointer;box-shadow:0 8px 32px rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;transition:all .3s cubic-bezier(.4,0,.2,1);animation:webyan-pulse 2s infinite}
+#webyan-widget-btn:hover{transform:scale(1.1) translateY(-2px);box-shadow:0 12px 40px rgba(59,130,246,0.5)}
+#webyan-widget-btn svg{width:28px;height:28px;transition:transform .3s}
+#webyan-widget-btn.open svg{transform:rotate(45deg)}
+@keyframes webyan-pulse{0%,100%{box-shadow:0 8px 32px rgba(59,130,246,0.4)}50%{box-shadow:0 8px 48px rgba(59,130,246,0.6)}}
+#webyan-widget-popup{position:fixed;bottom:100px;right:24px;z-index:999998;width:400px;max-width:calc(100vw - 48px);height:600px;max-height:calc(100vh - 140px);background:#fff;border-radius:20px;box-shadow:0 25px 80px rgba(0,0,0,0.2);opacity:0;visibility:hidden;transform:translateY(20px) scale(0.95);transition:all .3s cubic-bezier(.4,0,.2,1);overflow:hidden}
+#webyan-widget-popup.open{opacity:1;visibility:visible;transform:translateY(0) scale(1)}
+#webyan-widget-popup iframe{width:100%;height:100%;border:none}
+@media(max-width:480px){#webyan-widget-popup{width:100%;height:100%;max-height:100vh;bottom:0;right:0;left:0;border-radius:0}#webyan-widget-btn{bottom:16px;right:16px}}
 </style>
-<button class="webyan-btn" onclick="document.getElementById('webyanModal').classList.add('open')">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+<button id="webyan-widget-btn" onclick="webyanToggle()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+  </svg>
 </button>
-<div id="webyanModal" class="webyan-modal" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="webyan-modal-content">
-    <button class="webyan-close" onclick="document.getElementById('webyanModal').classList.remove('open')">✕</button>
-    <iframe src="${getEmbedUrl(token)}"></iframe>
+<div id="webyan-widget-popup">
+  <iframe src="${getEmbedUrl(token)}&mode=compact" allow="clipboard-write"></iframe>
+</div>
+<script>
+function webyanToggle(){
+  var btn=document.getElementById('webyan-widget-btn');
+  var popup=document.getElementById('webyan-widget-popup');
+  var isOpen=popup.classList.toggle('open');
+  btn.classList.toggle('open',isOpen);
+  btn.innerHTML=isOpen?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+}
+document.addEventListener('click',function(e){if(!e.target.closest('#webyan-widget-btn')&&!e.target.closest('#webyan-widget-popup')){document.getElementById('webyan-widget-popup').classList.remove('open');document.getElementById('webyan-widget-btn').classList.remove('open');document.getElementById('webyan-widget-btn').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';}});
+window.addEventListener('message',function(e){if(e.data.type==='WEBYAN_TICKET_CREATED'){webyanToggle();setTimeout(function(){alert('تم إرسال التذكرة بنجاح!\\nرقم التذكرة: '+e.data.ticketNumber);},300);}});
+</script>`;
+
+  const getModalCode = (token: string) =>
+`<!-- Webyan Support Widget - Modal on Click (أي زر يفتح النموذج) -->
+<style>
+#webyan-modal-overlay{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);opacity:0;visibility:hidden;transition:all .3s;display:flex;align-items:center;justify-content:center;padding:20px}
+#webyan-modal-overlay.open{opacity:1;visibility:visible}
+#webyan-modal-content{background:#fff;border-radius:20px;width:100%;max-width:600px;height:700px;max-height:calc(100vh - 40px);position:relative;transform:scale(0.9) translateY(20px);transition:all .3s cubic-bezier(.4,0,.2,1);overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,0.3)}
+#webyan-modal-overlay.open #webyan-modal-content{transform:scale(1) translateY(0)}
+#webyan-modal-close{position:absolute;top:12px;left:12px;z-index:10;width:40px;height:40px;border-radius:50%;background:#f1f5f9;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+#webyan-modal-close:hover{background:#e2e8f0;transform:scale(1.1)}
+#webyan-modal-content iframe{width:100%;height:100%;border:none}
+</style>
+<div id="webyan-modal-overlay" onclick="if(event.target===this)webyanCloseModal()">
+  <div id="webyan-modal-content">
+    <button id="webyan-modal-close" onclick="webyanCloseModal()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+    <iframe src="${getEmbedUrl(token)}" allow="clipboard-write"></iframe>
   </div>
-</div>`;
+</div>
+<script>
+function webyanOpenModal(){document.getElementById('webyan-modal-overlay').classList.add('open');document.body.style.overflow='hidden';}
+function webyanCloseModal(){document.getElementById('webyan-modal-overlay').classList.remove('open');document.body.style.overflow='';}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')webyanCloseModal();});
+window.addEventListener('message',function(e){if(e.data.type==='WEBYAN_TICKET_CREATED'){webyanCloseModal();setTimeout(function(){alert('تم إرسال التذكرة بنجاح!\\nرقم التذكرة: '+e.data.ticketNumber);},300);}});
+// لفتح النموذج أضف onclick="webyanOpenModal()" لأي زر
+</script>`;
+
+  const getButtonSnippet = () =>
+`<!-- أضف هذا لأي زر أو رابط لفتح نموذج الدعم -->
+<button onclick="webyanOpenModal()" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;">
+  📩 فتح تذكرة دعم
+</button>`;
 
   if (loading) {
     return (
@@ -496,6 +540,14 @@ const EmbedSettingsPage = () => {
                   </TabsList>
 
                   <TabsContent value="embed" className="space-y-4">
+                    {/* Quick Start */}
+                    <Alert className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                      <HelpCircle className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-blue-800">
+                        <strong>البداية السريعة:</strong> انسخ كود "الزر العائم" والصقه قبل &lt;/body&gt; في موقعك
+                      </AlertDescription>
+                    </Alert>
+
                     {/* Direct URL */}
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
@@ -528,12 +580,68 @@ const EmbedSettingsPage = () => {
 
                     <Separator />
 
+                    {/* Floating Button - Most Popular */}
+                    <div className="space-y-2 p-4 bg-gradient-to-r from-primary/5 to-primary/10 rounded-xl border border-primary/20">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2">
+                          <FileCode className="w-4 h-4 text-primary" />
+                          <span className="text-primary font-semibold">🔥 الزر العائم (الأكثر شيوعاً - مثل Intercom)</span>
+                        </Label>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => copyToClipboard(getPopupCode(selectedToken.token), 'popup')}
+                        >
+                          {copiedField === 'popup' ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+                          نسخ
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        زر عائم في أسفل الشاشة يفتح نافذة منبثقة عند النقر - الطريقة الأكثر احترافية
+                      </p>
+                      <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto max-h-48" dir="ltr">
+                        {getPopupCode(selectedToken.token)}
+                      </pre>
+                    </div>
+
+                    {/* Modal on Click */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2">
+                          <FileCode className="w-4 h-4" />
+                          نافذة منبثقة (Modal) - للربط مع أي زر
+                        </Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => copyToClipboard(getModalCode(selectedToken.token), 'modal')}
+                        >
+                          {copiedField === 'modal' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                          نسخ
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        أضف onclick="webyanOpenModal()" لأي زر في موقعك لفتح النموذج
+                      </p>
+                      <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto max-h-48" dir="ltr">
+                        {getModalCode(selectedToken.token)}
+                      </pre>
+                      <div className="mt-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <p className="text-sm text-amber-800 font-medium mb-1">مثال على زر الفتح:</p>
+                        <pre className="bg-amber-900/10 text-amber-900 p-2 rounded text-xs" dir="ltr">
+                          {getButtonSnippet()}
+                        </pre>
+                      </div>
+                    </div>
+
+                    <Separator />
+
                     {/* iFrame Code */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="flex items-center gap-2">
                           <FileCode className="w-4 h-4" />
-                          كود iFrame (الأبسط)
+                          كود iFrame (للتضمين المباشر في الصفحة)
                         </Label>
                         <Button
                           variant="ghost"
@@ -549,12 +657,12 @@ const EmbedSettingsPage = () => {
                       </pre>
                     </div>
 
-                    {/* Widget Code */}
+                    {/* Inline Widget */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="flex items-center gap-2">
                           <Code2 className="w-4 h-4" />
-                          كود Widget JS (أكثر مرونة)
+                          Widget مضغوط (للمساحات الصغيرة)
                         </Label>
                         <Button
                           variant="ghost"
@@ -567,27 +675,6 @@ const EmbedSettingsPage = () => {
                       </div>
                       <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto max-h-48" dir="ltr">
                         {getWidgetCode(selectedToken.token)}
-                      </pre>
-                    </div>
-
-                    {/* Popup Button */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="flex items-center gap-2">
-                          <FileCode className="w-4 h-4" />
-                          زر الدعم العائم (Popup)
-                        </Label>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(getPopupCode(selectedToken.token), 'popup')}
-                        >
-                          {copiedField === 'popup' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                          نسخ
-                        </Button>
-                      </div>
-                      <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto max-h-48" dir="ltr">
-                        {getPopupCode(selectedToken.token)}
                       </pre>
                     </div>
                   </TabsContent>
