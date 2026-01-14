@@ -124,14 +124,24 @@ export function MeetingCalendar({
     return weeksArray;
   }, [currentWeekStart]);
 
+  // Check if a date is available for booking
   const isDateAvailable = (date: Date): boolean => {
     const now = new Date();
+    now.setHours(0, 0, 0, 0); // Reset time for date comparison
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    
     // Can't book in the past
-    if (isBefore(date, now) && !isSameDay(date, now)) return false;
-    // Can't book on days off (from settings)
-    if (!isWorkingDay(date)) return false;
-    // Can't book on holidays
+    if (checkDate < now) return false;
+    
+    // Check if it's a holiday first
     if (isHoliday(date)) return false;
+    
+    // Check if it's a working day using settings
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    const workingDayConfig = settings.workingDays.find(d => d.day === dayOfWeek);
+    if (!workingDayConfig || !workingDayConfig.isActive) return false;
+    
     return true;
   };
 
@@ -157,48 +167,46 @@ export function MeetingCalendar({
     const now = new Date();
     
     for (let hour = settings.workStartHour; hour < settings.workEndHour; hour++) {
-      // Skip lunch break
+      // Skip lunch break hours completely
       if (hour >= settings.breakStartHour && hour < settings.breakEndHour) continue;
       
       for (let minute = 0; minute < 60; minute += settings.slotDuration) {
-        const slotTime = setMinutes(setHours(date, hour), minute);
+        // Skip if this slot would go past the hour before break or end of day
+        if (minute + settings.slotDuration > 60 && hour !== settings.workEndHour - 1) {
+          // This handles cases where slot duration doesn't divide evenly into 60
+        }
+        
+        const slotTime = setMinutes(setHours(new Date(date), hour), minute);
         
         // Skip if slot is in the past
         if (isSameDay(date, now) && isBefore(slotTime, now)) continue;
         
-        // Check if slot conflicts with any booking
+        // Check if slot conflicts with any booking - improved logic
         const isBooked = bookedSlots.some(booking => {
-          const bookingEnd = addMinutes(booking.date, booking.duration);
-          const slotEnd = addMinutes(slotTime, duration);
+          // Only check bookings on the same day
+          if (!isSameDay(booking.date, date)) return false;
           
-          return (
-            (isAfter(slotTime, booking.date) || isSameDay(slotTime, booking.date)) &&
-            isBefore(slotTime, bookingEnd)
-          ) || (
-            isAfter(slotEnd, booking.date) &&
-            (isBefore(slotEnd, bookingEnd) || isSameDay(slotEnd, bookingEnd))
-          ) || (
-            isSameDay(slotTime, booking.date) &&
-            slotTime.getHours() === booking.date.getHours() &&
-            slotTime.getMinutes() === booking.date.getMinutes()
-          );
+          const bookingStartMinutes = booking.date.getHours() * 60 + booking.date.getMinutes();
+          const bookingEndMinutes = bookingStartMinutes + booking.duration;
+          const slotStartMinutes = hour * 60 + minute;
+          const slotEndMinutes = slotStartMinutes + duration;
+          
+          // Check for any overlap
+          return (slotStartMinutes < bookingEndMinutes && slotEndMinutes > bookingStartMinutes);
         });
 
         // Check if the meeting duration would exceed working hours
-        const meetingEnd = addMinutes(slotTime, duration);
-        const workdayEnd = setMinutes(setHours(date, settings.workEndHour), 0);
-        const exceedsWorkday = isAfter(meetingEnd, workdayEnd);
+        const meetingEndHour = hour + Math.floor((minute + duration) / 60);
+        const meetingEndMinute = (minute + duration) % 60;
+        const exceedsWorkday = meetingEndHour > settings.workEndHour || 
+          (meetingEndHour === settings.workEndHour && meetingEndMinute > 0);
 
         // Check if meeting would overlap with lunch break
-        const lunchStart = setMinutes(setHours(date, settings.breakStartHour), 0);
-        const lunchEnd = setMinutes(setHours(date, settings.breakEndHour), 0);
-        const overlapsLunch = (
-          (isAfter(slotTime, lunchStart) || isSameDay(slotTime, lunchStart)) &&
-          isBefore(slotTime, lunchEnd)
-        ) || (
-          isAfter(meetingEnd, lunchStart) &&
-          isBefore(slotTime, lunchStart)
-        );
+        const slotStartMinutes = hour * 60 + minute;
+        const slotEndMinutes = slotStartMinutes + duration;
+        const breakStartMinutes = settings.breakStartHour * 60;
+        const breakEndMinutes = settings.breakEndHour * 60;
+        const overlapsLunch = slotStartMinutes < breakEndMinutes && slotEndMinutes > breakStartMinutes;
 
         slots.push({
           time: format(slotTime, 'HH:mm'),

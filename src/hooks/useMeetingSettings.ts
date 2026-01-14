@@ -23,6 +23,8 @@ export interface MeetingSettings {
   holidays: Holiday[];
 }
 
+// These defaults are only used if NO settings exist in the database
+// Once settings are saved in the admin panel, these defaults are never used
 const DEFAULT_SETTINGS: MeetingSettings = {
   workStartHour: 9,
   workEndHour: 17,
@@ -30,11 +32,11 @@ const DEFAULT_SETTINGS: MeetingSettings = {
   breakEndHour: 13,
   slotDuration: 30,
   workingDays: [
-    { day: 0, name: 'الأحد', isActive: true },
-    { day: 1, name: 'الإثنين', isActive: true },
-    { day: 2, name: 'الثلاثاء', isActive: true },
-    { day: 3, name: 'الأربعاء', isActive: true },
-    { day: 4, name: 'الخميس', isActive: true },
+    { day: 0, name: 'الأحد', isActive: false },
+    { day: 1, name: 'الإثنين', isActive: false },
+    { day: 2, name: 'الثلاثاء', isActive: false },
+    { day: 3, name: 'الأربعاء', isActive: false },
+    { day: 4, name: 'الخميس', isActive: false },
     { day: 5, name: 'الجمعة', isActive: false },
     { day: 6, name: 'السبت', isActive: false },
   ],
@@ -126,7 +128,7 @@ export function useMeetingSettings() {
   };
 
   const isWorkingDay = (date: Date): boolean => {
-    const dayOfWeek = date.getDay();
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     const workingDay = settings.workingDays.find(d => d.day === dayOfWeek);
     return workingDay?.isActive ?? false;
   };
