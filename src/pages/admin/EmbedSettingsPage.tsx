@@ -72,7 +72,8 @@ const EmbedSettingsPage = () => {
     name: '',
     organization_id: '',
     allowed_domains: '',
-    expires_days: '0'
+    expires_days: '0',
+    allow_any_domain: true // Default to unrestricted
   });
 
   const baseUrl = window.location.origin;
@@ -148,7 +149,7 @@ const EmbedSettingsPage = () => {
 
       toast.success('تم إنشاء رمز التضمين بنجاح');
       setShowCreateDialog(false);
-      setNewToken({ name: '', organization_id: '', allowed_domains: '', expires_days: '0' });
+      setNewToken({ name: '', organization_id: '', allowed_domains: '', expires_days: '0', allow_any_domain: true });
       fetchData();
     } catch (error) {
       console.error('Error creating token:', error);
@@ -357,16 +358,40 @@ window.addEventListener('message',function(e){if(e.data.type==='WEBYAN_TICKET_CR
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>النطاقات المسموحة</Label>
-                <Input
-                  placeholder="example.com, *.example.org (افصل بفاصلة)"
-                  value={newToken.allowed_domains}
-                  onChange={(e) => setNewToken({ ...newToken, allowed_domains: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  اتركه فارغاً للسماح من أي نطاق، أو حدد نطاقات معينة. استخدم * للنطاقات الفرعية.
-                </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-5 h-5 text-primary" />
+                    <div>
+                      <Label className="text-sm font-medium">السماح من أي نطاق</Label>
+                      <p className="text-xs text-muted-foreground">
+                        تمكين التضمين من أي موقع أو نظام خارجي
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={newToken.allow_any_domain}
+                    onCheckedChange={(checked) => setNewToken({ 
+                      ...newToken, 
+                      allow_any_domain: checked,
+                      allowed_domains: checked ? '' : newToken.allowed_domains 
+                    })}
+                  />
+                </div>
+                
+                {!newToken.allow_any_domain && (
+                  <div className="space-y-2">
+                    <Label>النطاقات المسموحة</Label>
+                    <Input
+                      placeholder="example.com, *.example.org (افصل بفاصلة)"
+                      value={newToken.allowed_domains}
+                      onChange={(e) => setNewToken({ ...newToken, allowed_domains: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      حدد نطاقات معينة مسموح لها التضمين. استخدم * للنطاقات الفرعية.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -477,6 +502,10 @@ window.addEventListener('message',function(e){if(e.data.type==='WEBYAN_TICKET_CR
                               <span className="flex items-center gap-1">
                                 <Activity className="w-3 h-3" />
                                 {token.usage_count || 0}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Globe className="w-3 h-3" />
+                                {token.allowed_domains?.length > 0 ? 'محدد' : 'عام'}
                               </span>
                               {token.expires_at && (
                                 <span className="flex items-center gap-1">
@@ -730,24 +759,59 @@ window.addEventListener('message',function(e){if(e.data.type==='WEBYAN_TICKET_CR
 
                   <TabsContent value="domains" className="space-y-4">
                     {selectedToken.allowed_domains && selectedToken.allowed_domains.length > 0 ? (
-                      <div className="space-y-2">
-                        <Label>النطاقات المسموحة</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedToken.allowed_domains.map((domain, i) => (
-                            <Badge key={i} variant="outline" className="text-sm py-1">
-                              <Globe className="w-3 h-3 ml-1" />
-                              {domain}
-                            </Badge>
-                          ))}
+                      <div className="space-y-4">
+                        <Alert className="bg-amber-50 border-amber-200">
+                          <Shield className="h-4 w-4 text-amber-600" />
+                          <AlertDescription className="text-amber-800">
+                            <strong>وضع محدود:</strong> هذا الرمز يعمل فقط من النطاقات المحددة أدناه.
+                          </AlertDescription>
+                        </Alert>
+                        <div className="space-y-2">
+                          <Label>النطاقات المسموحة</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedToken.allowed_domains.map((domain, i) => (
+                              <Badge key={i} variant="outline" className="text-sm py-1 bg-white">
+                                <Globe className="w-3 h-3 ml-1" />
+                                {domain}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          لم يتم تحديد نطاقات. هذا الرمز يعمل من أي نطاق.
-                        </AlertDescription>
-                      </Alert>
+                      <div className="space-y-4">
+                        <Alert className="bg-green-50 border-green-200">
+                          <Globe className="h-4 w-4 text-green-600" />
+                          <AlertDescription className="text-green-800">
+                            <strong>وضع عام (مفتوح):</strong> هذا الرمز يعمل من أي نطاق أو نظام خارجي بدون قيود.
+                          </AlertDescription>
+                        </Alert>
+                        <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-green-500 rounded-lg text-white">
+                              <Globe className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-green-900">التضمين العام</h4>
+                              <p className="text-sm text-green-700">مناسب للأنظمة الخارجية المتعددة</p>
+                            </div>
+                          </div>
+                          <ul className="space-y-2 text-sm text-green-800">
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-600" />
+                              يمكن تضمينه في أي لوحة تحكم للعميل
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-600" />
+                              التذاكر مرتبطة تلقائياً بـ: <strong>{selectedToken.organization?.name}</strong>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-600" />
+                              لا يحتاج لتعديل عند تغيير النطاق
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
                     )}
                   </TabsContent>
 
