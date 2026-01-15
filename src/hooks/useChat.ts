@@ -46,6 +46,7 @@ export interface Message {
 interface UseChatOptions {
   embedToken?: string;
   autoFetch?: boolean;
+  onConversationLoaded?: (conversation: Conversation) => void;
 }
 
 export function useChat(options: UseChatOptions = {}) {
@@ -118,6 +119,25 @@ export function useChat(options: UseChatOptions = {}) {
       setLoading(false);
     }
   }, [callChatAPI]);
+
+  // Restore conversation by ID (for embed persistence)
+  const restoreConversation = useCallback(async (conversationId: string) => {
+    try {
+      setLoading(true);
+      const data = await callChatAPI('get_conversation', { conversationId });
+      if (data.conversation && data.conversation.status !== 'closed') {
+        setCurrentConversation(data.conversation);
+        await fetchMessages(conversationId);
+        return data.conversation;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error restoring conversation:', error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [callChatAPI, fetchMessages]);
 
   const startConversation = useCallback(async (
     subject?: string,
@@ -336,6 +356,7 @@ export function useChat(options: UseChatOptions = {}) {
     sending,
     fetchConversations,
     fetchMessages,
+    restoreConversation,
     startConversation,
     sendMessage,
     assignConversation,
