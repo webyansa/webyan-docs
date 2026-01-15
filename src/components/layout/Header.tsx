@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NotificationDropdown } from "@/components/layout/NotificationDropdown";
+import { ChatNotificationDropdown } from "@/components/layout/ChatNotificationDropdown";
 import webyanLogo from "@/assets/webyan-logo.svg";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -17,22 +18,42 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const { user, role, signOut, isAdmin, isAdminOrEditor } = useAuth();
   const [isClient, setIsClient] = useState(false);
+  const [clientOrganizationId, setClientOrganizationId] = useState<string | null>(null);
+  const [isStaff, setIsStaff] = useState(false);
+  const [staffId, setStaffId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
-      checkIfClient();
+      checkUserType();
     }
   }, [user]);
 
-  const checkIfClient = async () => {
-    const { data } = await supabase
+  const checkUserType = async () => {
+    // Check if client
+    const { data: clientData } = await supabase
       .from('client_accounts')
+      .select('id, organization_id')
+      .eq('user_id', user?.id)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (clientData) {
+      setIsClient(true);
+      setClientOrganizationId(clientData.organization_id);
+    }
+
+    // Check if staff
+    const { data: staffData } = await supabase
+      .from('staff_members')
       .select('id')
       .eq('user_id', user?.id)
       .eq('is_active', true)
       .maybeSingle();
     
-    setIsClient(!!data);
+    if (staffData) {
+      setIsStaff(true);
+      setStaffId(staffData.id);
+    }
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -91,6 +112,32 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
           {user ? (
             <>
               <NotificationDropdown />
+              
+              {/* Chat Notifications for Admin */}
+              {isAdminOrEditor && (
+                <ChatNotificationDropdown 
+                  userType="admin" 
+                  linkTo="/admin/chat"
+                />
+              )}
+              
+              {/* Chat Notifications for Staff */}
+              {isStaff && !isAdminOrEditor && staffId && (
+                <ChatNotificationDropdown 
+                  userType="staff" 
+                  staffId={staffId}
+                  linkTo="/staff/chat"
+                />
+              )}
+              
+              {/* Chat Notifications for Clients */}
+              {isClient && clientOrganizationId && (
+                <ChatNotificationDropdown 
+                  userType="client" 
+                  organizationId={clientOrganizationId}
+                  linkTo="/portal/chat"
+                />
+              )}
               
               {/* Client Portal Link */}
               {isClient && (
