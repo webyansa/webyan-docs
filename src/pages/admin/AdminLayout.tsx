@@ -82,9 +82,10 @@ const clientsSection: NavSection = {
   items: [
     { title: 'إدارة العملاء', href: '/admin/clients', icon: Users, requiredRole: 'admin' },
     { title: 'تذاكر الدعم', href: '/admin/tickets', icon: Ticket, requiredRole: 'admin' },
+    { title: 'المحادثات', href: '/admin/chat-settings', icon: MessageSquare, requiredRole: 'admin' },
     { title: 'طلبات الاجتماعات', href: '/admin/meetings', icon: CalendarDays, requiredRole: 'admin' },
     { title: 'إعدادات المواعيد', href: '/admin/meeting-settings', icon: Settings, requiredRole: 'admin' },
-    { title: 'التقييمات', href: '/admin/feedback', icon: MessageSquare, requiredRole: 'admin' },
+    { title: 'التقييمات', href: '/admin/feedback', icon: ThumbsUp, requiredRole: 'admin' },
     { title: 'البلاغات', href: '/admin/issues', icon: AlertTriangle, requiredRole: 'admin' },
   ]
 };
