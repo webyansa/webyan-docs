@@ -86,14 +86,60 @@ export default function EmbedChatWidget({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [lastMessageCount, setLastMessageCount] = useState(0);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Generate a unique session ID for this embed user
-  const sessionId = useRef(`embed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  // Generate or restore session ID for persistence
+  const getSessionId = () => {
+    const storageKey = `webyan_chat_session_${embedToken}`;
+    let sessionId = localStorage.getItem(storageKey);
+    if (!sessionId) {
+      sessionId = `embed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem(storageKey, sessionId);
+    }
+    return sessionId;
+  };
+  
+  const sessionId = useRef(getSessionId());
+
+  // Persist conversation ID
+  const getStoredConversationId = (): string | null => {
+    const storageKey = `webyan_chat_conversation_${embedToken}`;
+    return localStorage.getItem(storageKey);
+  };
+
+  const storeConversationId = (conversationId: string) => {
+    const storageKey = `webyan_chat_conversation_${embedToken}`;
+    localStorage.setItem(storageKey, conversationId);
+    // Also store user info for persistence
+    const userKey = `webyan_chat_user_${embedToken}`;
+    localStorage.setItem(userKey, JSON.stringify({ name, email }));
+  };
+
+  const clearStoredConversation = () => {
+    localStorage.removeItem(`webyan_chat_conversation_${embedToken}`);
+    localStorage.removeItem(`webyan_chat_session_${embedToken}`);
+    localStorage.removeItem(`webyan_chat_user_${embedToken}`);
+  };
+
+  // Restore stored user info
+  useEffect(() => {
+    const userKey = `webyan_chat_user_${embedToken}`;
+    const storedUser = localStorage.getItem(userKey);
+    if (storedUser) {
+      try {
+        const { name: storedName, email: storedEmail } = JSON.parse(storedUser);
+        if (storedName && !prefillName) setName(storedName);
+        if (storedEmail && !prefillEmail) setEmail(storedEmail);
+      } catch (e) {
+        console.error('Error parsing stored user:', e);
+      }
+    }
+  }, [embedToken, prefillName, prefillEmail]);
 
   // Notification sound hook
   const { playNotificationSound } = useNotificationSound();
@@ -117,8 +163,51 @@ export default function EmbedChatWidget({
     sending,
     startConversation,
     sendMessage,
-    fetchMessages
+    fetchMessages,
+    setCurrentConversation
   } = useChat({ embedToken, autoFetch: false });
+
+  // Restore previous conversation on mount
+  useEffect(() => {
+    const storedConversationId = getStoredConversationId();
+    if (storedConversationId && !currentConversation) {
+      // Fetch the stored conversation
+      const restoreConversation = async () => {
+        try {
+          await fetchMessages(storedConversationId);
+          // Create a minimal conversation object to restore state
+          setCurrentConversation({
+            id: storedConversationId,
+            status: 'assigned',
+            subject: 'محادثة مستعادة',
+            organization_id: null,
+            client_account_id: null,
+            assigned_agent_id: null,
+            source: 'embed',
+            source_domain: window.location.hostname,
+            metadata: {},
+            unread_count: 0,
+            last_message_at: null,
+            last_message_preview: null,
+            created_at: new Date().toISOString(),
+            closed_at: null
+          });
+        } catch (error) {
+          console.error('Error restoring conversation:', error);
+          // Clear invalid stored conversation
+          clearStoredConversation();
+        }
+      };
+      restoreConversation();
+    }
+  }, [embedToken]);
+
+  // Store conversation ID when new conversation is created
+  useEffect(() => {
+    if (currentConversation?.id) {
+      storeConversationId(currentConversation.id);
+    }
+  }, [currentConversation?.id, embedToken]);
 
   // Typing indicator hook
   const { typingUsers, handleTyping, stopTyping } = useTypingIndicator({
@@ -348,6 +437,47 @@ export default function EmbedChatWidget({
         />
       )}
 
+      {/* End Conversation Confirmation Dialog */}
+      {showEndConfirm && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowEndConfirm(false)}
+        >
+          <div 
+            className={`p-6 rounded-2xl shadow-2xl max-w-sm mx-4 ${
+              isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2 text-center">إنهاء المحادثة؟</h3>
+            <p className={`text-sm text-center mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              هل أنت متأكد من إنهاء هذه المحادثة؟ يمكنك بدء محادثة جديدة لاحقاً.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowEndConfirm(false)}
+              >
+                إلغاء
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  clearStoredConversation();
+                  setCurrentConversation(null);
+                  setShowEndConfirm(false);
+                  setInitialMessage(defaultMessage);
+                }}
+              >
+                إنهاء المحادثة
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`fixed bottom-6 left-6 w-[380px] sm:w-[420px] h-[600px] rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 border ${
         isDark ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'
       }`}
@@ -395,6 +525,18 @@ export default function EmbedChatWidget({
                   <VolumeX className="h-4 w-4" />
                 )}
               </Button>
+              {/* End conversation button - only show if conversation is active */}
+              {currentConversation && currentConversation.status !== 'closed' && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9 rounded-xl text-white/70 hover:text-red-300 hover:bg-red-500/20 transition-colors" 
+                  onClick={() => setShowEndConfirm(true)}
+                  title="إنهاء المحادثة"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -738,12 +880,29 @@ export default function EmbedChatWidget({
                 </div>
               </div>
             ) : (
-              <div className={`p-3 text-center ${
-                isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-500'
+              <div className={`p-4 ${
+                isDark ? 'bg-slate-800' : 'bg-slate-50'
               }`}>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-400" />
-                  <span className="text-sm">تم إغلاق هذه المحادثة</span>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-400" />
+                    <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      تم إغلاق هذه المحادثة
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    style={{ background: gradientStyle }}
+                    onClick={() => {
+                      clearStoredConversation();
+                      setCurrentConversation(null);
+                      setInitialMessage(defaultMessage);
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    بدء محادثة جديدة
+                  </Button>
                 </div>
               </div>
             )}
