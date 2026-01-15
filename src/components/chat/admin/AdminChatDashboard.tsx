@@ -97,7 +97,7 @@ export default function AdminChatDashboard() {
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ConversationTab>('customers');
-  const [filter, setFilter] = useState<ConversationFilter>('unassigned');
+  const [filter, setFilter] = useState<ConversationFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
