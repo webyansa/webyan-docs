@@ -48,6 +48,9 @@ import EscalationSettingsPage from "./pages/admin/EscalationSettingsPage";
 import EmbedSettingsPage from "./pages/admin/EmbedSettingsPage";
 import ChatSettingsPage from "./pages/admin/ChatSettingsPage";
 import AdminChatPage from "./pages/admin/AdminChatPage";
+import QuickRepliesPage from "./pages/admin/QuickRepliesPage";
+import ChatEmbedSettingsPage from "./pages/admin/ChatEmbedSettingsPage";
+import EmbedChatPage from "./pages/embed/EmbedChatPage";
 
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
@@ -94,6 +97,7 @@ const App = () => (
               <Route path="/track-ticket" element={<TrackTicketPage />} />
               <Route path="/portal-login" element={<PortalLoginPage />} />
               <Route path="/embed/ticket" element={<EmbedTicketPage />} />
+              <Route path="/embed/chat" element={<EmbedChatPage />} />
               <Route path="/docs/:moduleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug/:articleSlug" element={<ArticlePage />} />
@@ -149,6 +153,8 @@ const App = () => (
                 <Route path="embed-settings" element={<EmbedSettingsPage />} />
                 <Route path="chat-settings" element={<ChatSettingsPage />} />
                 <Route path="chat" element={<AdminChatPage />} />
+                <Route path="quick-replies" element={<QuickRepliesPage />} />
+                <Route path="chat-embed" element={<ChatEmbedSettingsPage />} />
               </Route>
               
               <Route path="*" element={<NotFound />} />
