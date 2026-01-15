@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Send, X, Loader2, CheckCheck, Headphones, Sparkles } from 'lucide-react';
+import { MessageCircle, Send, X, Loader2, CheckCheck, Headphones, Sparkles, User, Mail, Edit3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -14,6 +14,10 @@ interface EmbedChatWidgetProps {
   contactEmail?: string;
   primaryColor?: string;
   theme?: 'light' | 'dark';
+  // New props for prefilling client data
+  prefillName?: string;
+  prefillEmail?: string;
+  defaultMessage?: string;
 }
 
 const statusLabels = {
@@ -33,16 +37,33 @@ export default function EmbedChatWidget({
   organizationName = 'الدعم الفني', 
   contactEmail,
   primaryColor,
-  theme = 'light'
+  theme = 'light',
+  prefillName = '',
+  prefillEmail = '',
+  defaultMessage = ''
 }: EmbedChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState(contactEmail || '');
+  const [name, setName] = useState(prefillName);
+  const [email, setEmail] = useState(prefillEmail || contactEmail || '');
   const [messageText, setMessageText] = useState('');
-  const [initialMessage, setInitialMessage] = useState('');
+  const [initialMessage, setInitialMessage] = useState(defaultMessage);
   const [isPolling, setIsPolling] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update fields when props change
+  useEffect(() => {
+    if (prefillName) setName(prefillName);
+  }, [prefillName]);
+
+  useEffect(() => {
+    if (prefillEmail || contactEmail) setEmail(prefillEmail || contactEmail || '');
+  }, [prefillEmail, contactEmail]);
+
+  useEffect(() => {
+    if (defaultMessage) setInitialMessage(defaultMessage);
+  }, [defaultMessage]);
 
   const {
     currentConversation,
@@ -52,6 +73,9 @@ export default function EmbedChatWidget({
     sendMessage,
     fetchMessages
   } = useChat({ embedToken, autoFetch: false });
+
+  // Check if client data is prefilled
+  const hasPrefilledData = !!(prefillName || prefillEmail);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -214,7 +238,7 @@ export default function EmbedChatWidget({
         /* Start Chat Form */
         <div className="flex-1 p-6 overflow-auto">
           {/* Welcome Section */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <div 
               className="w-20 h-20 mx-auto mb-5 rounded-3xl flex items-center justify-center shadow-lg"
               style={{ background: `linear-gradient(135deg, ${webyanSecondary}20 0%, ${webyanPrimary}20 100%)` }}
@@ -229,46 +253,118 @@ export default function EmbedChatWidget({
             </p>
           </div>
           
-          {/* Form */}
-          <div className="space-y-4">
-            <div className="relative">
-              <Input
-                placeholder="اسمك الكريم *"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={`h-12 rounded-xl text-base px-4 transition-all duration-200 focus:ring-2 ${
-                  isDark 
-                    ? 'bg-slate-800 border-slate-700 focus:border-cyan-500 focus:ring-cyan-500/20' 
-                    : 'bg-slate-50 border-slate-200 focus:border-cyan-500 focus:ring-cyan-500/20'
-                }`}
-              />
+          {/* Prefilled Client Info Display */}
+          {hasPrefilledData && !isEditingProfile ? (
+            <div className={`mb-5 p-4 rounded-2xl border ${
+              isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-gradient-to-br from-slate-50 to-white border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  بياناتك المسجلة
+                </span>
+                <button
+                  onClick={() => setIsEditingProfile(true)}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-105 ${
+                    isDark ? 'text-cyan-400 hover:bg-cyan-500/10' : 'text-cyan-600 hover:bg-cyan-50'
+                  }`}
+                >
+                  <Edit3 className="h-3 w-3" />
+                  تعديل
+                </button>
+              </div>
+              <div className="space-y-2.5">
+                {name && (
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      isDark ? 'bg-slate-700' : 'bg-slate-100'
+                    }`}>
+                      <User className="h-4 w-4" style={{ color: webyanSecondary }} />
+                    </div>
+                    <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                      {name}
+                    </span>
+                  </div>
+                )}
+                {email && (
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      isDark ? 'bg-slate-700' : 'bg-slate-100'
+                    }`}>
+                      <Mail className="h-4 w-4" style={{ color: webyanSecondary }} />
+                    </div>
+                    <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                      {email}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="relative">
-              <Input
-                placeholder="البريد الإلكتروني (اختياري)"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`h-12 rounded-xl text-base px-4 transition-all duration-200 focus:ring-2 ${
-                  isDark 
-                    ? 'bg-slate-800 border-slate-700 focus:border-cyan-500 focus:ring-cyan-500/20' 
-                    : 'bg-slate-50 border-slate-200 focus:border-cyan-500 focus:ring-cyan-500/20'
-                }`}
-              />
+          ) : (
+            /* Editable Form Fields */
+            <div className="space-y-4 mb-5">
+              {isEditingProfile && (
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    تعديل البيانات
+                  </span>
+                  {hasPrefilledData && (
+                    <button
+                      onClick={() => setIsEditingProfile(false)}
+                      className={`text-xs px-3 py-1 rounded-lg ${
+                        isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      إلغاء
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="relative">
+                <Input
+                  placeholder="اسمك الكريم *"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={`h-12 rounded-xl text-base px-4 transition-all duration-200 focus:ring-2 ${
+                    isDark 
+                      ? 'bg-slate-800 border-slate-700 focus:border-cyan-500 focus:ring-cyan-500/20' 
+                      : 'bg-slate-50 border-slate-200 focus:border-cyan-500 focus:ring-cyan-500/20'
+                  }`}
+                />
+              </div>
+              <div className="relative">
+                <Input
+                  placeholder="البريد الإلكتروني (اختياري)"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={`h-12 rounded-xl text-base px-4 transition-all duration-200 focus:ring-2 ${
+                    isDark 
+                      ? 'bg-slate-800 border-slate-700 focus:border-cyan-500 focus:ring-cyan-500/20' 
+                      : 'bg-slate-50 border-slate-200 focus:border-cyan-500 focus:ring-cyan-500/20'
+                  }`}
+                />
+              </div>
             </div>
-            <div className="relative">
-              <Textarea
-                placeholder="اكتب رسالتك هنا... *"
-                value={initialMessage}
-                onChange={(e) => setInitialMessage(e.target.value)}
-                rows={4}
-                className={`rounded-xl text-base px-4 py-3 resize-none transition-all duration-200 focus:ring-2 ${
-                  isDark 
-                    ? 'bg-slate-800 border-slate-700 focus:border-cyan-500 focus:ring-cyan-500/20' 
-                    : 'bg-slate-50 border-slate-200 focus:border-cyan-500 focus:ring-cyan-500/20'
-                }`}
-              />
-            </div>
+          )}
+
+          {/* Message Input */}
+          <div className="relative">
+            <Textarea
+              placeholder="اكتب رسالتك هنا... *"
+              value={initialMessage}
+              onChange={(e) => setInitialMessage(e.target.value)}
+              rows={4}
+              className={`rounded-xl text-base px-4 py-3 resize-none transition-all duration-200 focus:ring-2 ${
+                isDark 
+                  ? 'bg-slate-800 border-slate-700 focus:border-cyan-500 focus:ring-cyan-500/20' 
+                  : 'bg-slate-50 border-slate-200 focus:border-cyan-500 focus:ring-cyan-500/20'
+              }`}
+            />
+            {defaultMessage && initialMessage === defaultMessage && (
+              <span className={`absolute left-3 bottom-2 text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                💡 يمكنك تعديل الرسالة
+              </span>
+            )}
           </div>
           
           <Button 
