@@ -46,6 +46,7 @@ import StaffPage from "./pages/admin/StaffPage";
 import StaffPerformancePage from "./pages/admin/StaffPerformancePage";
 import EscalationSettingsPage from "./pages/admin/EscalationSettingsPage";
 import EmbedSettingsPage from "./pages/admin/EmbedSettingsPage";
+import ChatSettingsPage from "./pages/admin/ChatSettingsPage";
 
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
@@ -57,6 +58,7 @@ import PortalMeetings from "./pages/portal/PortalMeetings";
 import PortalNewMeeting from "./pages/portal/PortalNewMeeting";
 import PortalSubscription from "./pages/portal/PortalSubscription";
 import PortalMessages from "./pages/portal/PortalMessages";
+import PortalChat from "./pages/portal/PortalChat";
 import PortalSettings from "./pages/portal/PortalSettings";
 
 // Staff Portal pages
@@ -65,6 +67,7 @@ import StaffDashboard from "./pages/staff/StaffDashboard";
 import StaffTickets from "./pages/staff/StaffTickets";
 import StaffMeetings from "./pages/staff/StaffMeetings";
 import StaffContent from "./pages/staff/StaffContent";
+import StaffChatPage from "./pages/staff/StaffChatPage";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +103,7 @@ const App = () => (
                 <Route path="tickets" element={<PortalTickets />} />
                 <Route path="tickets/new" element={<PortalNewTicket />} />
                 <Route path="tickets/:id" element={<PortalTicketDetail />} />
+                <Route path="chat" element={<PortalChat />} />
                 <Route path="meetings" element={<PortalMeetings />} />
                 <Route path="meetings/new" element={<PortalNewMeeting />} />
                 <Route path="subscription" element={<PortalSubscription />} />
@@ -112,6 +116,7 @@ const App = () => (
                 <Route index element={<StaffDashboard />} />
                 <Route path="tickets" element={<StaffTickets />} />
                 <Route path="tickets/:id" element={<StaffTickets />} />
+                <Route path="chat" element={<StaffChatPage />} />
                 <Route path="meetings" element={<StaffMeetings />} />
                 <Route path="meetings/:id" element={<StaffMeetings />} />
                 <Route path="content" element={<StaffContent />} />
@@ -141,6 +146,7 @@ const App = () => (
                 <Route path="staff-performance" element={<StaffPerformancePage />} />
                 <Route path="escalation-settings" element={<EscalationSettingsPage />} />
                 <Route path="embed-settings" element={<EmbedSettingsPage />} />
+                <Route path="chat-settings" element={<ChatSettingsPage />} />
               </Route>
               
               <Route path="*" element={<NotFound />} />

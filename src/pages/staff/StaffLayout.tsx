@@ -12,7 +12,8 @@ import {
   LogOut,
   Home,
   Loader2,
-  UserCog
+  UserCog,
+  MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -90,6 +91,7 @@ export default function StaffLayout() {
   const navItems: NavItem[] = [
     { title: 'لوحة التحكم', href: '/staff', icon: LayoutDashboard },
     { title: 'التذاكر الموجهة', href: '/staff/tickets', icon: Ticket, permission: 'canReplyTickets' },
+    { title: 'المحادثات', href: '/staff/chat', icon: MessageCircle, permission: 'canReplyTickets' },
     { title: 'الاجتماعات الموجهة', href: '/staff/meetings', icon: Calendar, permission: 'canAttendMeetings' },
     { title: 'إدارة المحتوى', href: '/staff/content', icon: FileText, permission: 'canManageContent' },
   ];
