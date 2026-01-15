@@ -36,9 +36,9 @@ interface ClientInfo {
 const menuItems = [
   { path: '/portal', label: 'لوحة التحكم', icon: LayoutDashboard, exact: true },
   { path: '/portal/tickets', label: 'تذاكر الدعم', icon: Ticket },
+  { path: '/portal/chat', label: 'المحادثات', icon: MessageSquare },
   { path: '/portal/meetings', label: 'طلب اجتماع', icon: Calendar },
   { path: '/portal/subscription', label: 'الاشتراك', icon: CreditCard },
-  { path: '/portal/messages', label: 'الرسائل', icon: MessageSquare },
   { path: '/portal/settings', label: 'الإعدادات', icon: Settings },
 ];
 

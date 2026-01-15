@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import EmbedChatWidget from '@/components/chat/EmbedChatWidget';
 
 interface Organization {
   id: string;
@@ -845,6 +846,17 @@ const EmbedTicketPage = () => {
           <p>مركز دعم ويبيان - نحن هنا لمساعدتك</p>
         </div>
       </div>
+
+      {/* Chat Widget */}
+      {token && organization && (
+        <EmbedChatWidget 
+          embedToken={token}
+          organizationName={organization.name}
+          contactEmail={organization.contact_email}
+          primaryColor={primaryColor}
+          theme={theme as 'light' | 'dark'}
+        />
+      )}
     </div>
   );
 };
