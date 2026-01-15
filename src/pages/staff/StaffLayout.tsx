@@ -48,14 +48,12 @@ export default function StaffLayout() {
   const [staffName, setStaffName] = useState<string>('');
 
   useEffect(() => {
-    const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
-
     if (!loading && !user) {
-      navigate(`/auth?redirect=${redirect}`);
+      navigate('/auth');
     } else if (!loading && user && !isStaff) {
       navigate('/');
     }
-  }, [user, loading, isStaff, navigate, location.pathname, location.search]);
+  }, [user, loading, isStaff, navigate]);
 
   useEffect(() => {
     const fetchStaffName = async () => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStaffAuth } from '@/hooks/useStaffAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,7 +21,6 @@ type LoginMode = 'select' | 'admin' | 'staff';
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, loading, signIn, signUp } = useAuth();
   const { isStaff } = useStaffAuth();
   const [loginMode, setLoginMode] = useState<LoginMode>('select');
@@ -33,42 +32,32 @@ export default function AuthPage() {
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const redirectParam = new URLSearchParams(location.search).get('redirect');
-
   useEffect(() => {
     const checkUserRole = async () => {
       if (user && !loading) {
         // Check if user is admin
         const { data: isAdmin } = await supabase.rpc('is_admin', { _user_id: user.id });
-
+        
         if (isAdmin) {
-          if (redirectParam && redirectParam.startsWith('/admin')) {
-            navigate(redirectParam, { replace: true });
-          } else {
-            navigate('/admin', { replace: true });
-          }
+          navigate('/admin');
           return;
         }
-
+        
         // Check if user is staff
         const { data: staffData } = await supabase.rpc('is_staff', { _user_id: user.id });
-
+        
         if (staffData) {
-          if (redirectParam && redirectParam.startsWith('/staff')) {
-            navigate(redirectParam, { replace: true });
-          } else {
-            navigate('/staff', { replace: true });
-          }
+          navigate('/staff');
           return;
         }
-
+        
         // Default redirect
-        navigate('/', { replace: true });
+        navigate('/');
       }
     };
-
+    
     checkUserRole();
-  }, [user, loading, navigate, redirectParam]);
+  }, [user, loading, navigate]);
 
   const validateInputs = (isSignUp: boolean) => {
     try {

@@ -53,7 +53,7 @@ const subscriptionStatusLabels: Record<string, { label: string; variant: 'defaul
 };
 
 const PortalLayout = () => {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
@@ -62,18 +62,10 @@ const PortalLayout = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
-    // Wait for auth to resolve
-    if (authLoading) return;
-
-    // Not logged in → go to portal login and preserve route
-    if (!user) {
-      const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
-      navigate(`/portal-login?redirect=${redirect}`, { replace: true });
-      return;
+    if (user) {
+      fetchClientInfo();
     }
-
-    fetchClientInfo();
-  }, [user, authLoading, location.pathname, location.search]);
+  }, [user]);
 
   const fetchClientInfo = async () => {
     try {
@@ -108,12 +100,13 @@ const PortalLayout = () => {
           organization: org
         });
       } else {
+        // User is not a client, redirect to home
         toast.error('ليس لديك صلاحية الوصول لبوابة العملاء');
-        navigate('/', { replace: true });
+        navigate('/');
       }
     } catch (error) {
       console.error('Error fetching client info:', error);
-      navigate('/portal-login', { replace: true });
+      navigate('/');
     } finally {
       setLoading(false);
     }

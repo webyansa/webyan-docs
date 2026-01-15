@@ -198,15 +198,9 @@ export default function EmbedChatWidget({
     }, '*');
   }, [isOpen]);
 
-  // Polling for new messages - optimized with longer interval and throttling
-  const lastPollRef = useRef<number>(0);
+  // Polling for new messages
   const pollMessages = useCallback(async () => {
-    const now = Date.now();
-    // Throttle: don't poll if we polled in the last 3 seconds
-    if (now - lastPollRef.current < 3000) return;
-    
     if (currentConversation?.id && !sending) {
-      lastPollRef.current = now;
       try {
         await fetchMessages(currentConversation.id);
       } catch (error) {
@@ -215,11 +209,11 @@ export default function EmbedChatWidget({
     }
   }, [currentConversation?.id, fetchMessages, sending]);
 
-  // Start/stop polling when conversation is active - use 5 second interval
+  // Start/stop polling when conversation is active
   useEffect(() => {
     if (currentConversation?.id && isOpen) {
       pollMessages();
-      pollingRef.current = setInterval(pollMessages, 5000);
+      pollingRef.current = setInterval(pollMessages, 2000);
       setIsPolling(true);
 
       return () => {
