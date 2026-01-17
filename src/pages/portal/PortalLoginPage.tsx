@@ -33,13 +33,13 @@ export default function PortalLoginPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T | null> => {
+    const withTimeout = async <T,>(thenable: PromiseLike<T>, ms: number): Promise<T | null> => {
       let timeoutId: number | undefined;
       const timeout = new Promise<null>((resolve) => {
         timeoutId = window.setTimeout(() => resolve(null), ms);
       });
 
-      const result = (await Promise.race([promise, timeout])) as T | null;
+      const result = (await Promise.race([Promise.resolve(thenable), timeout])) as T | null;
       if (timeoutId) window.clearTimeout(timeoutId);
       return result;
     };
