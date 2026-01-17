@@ -125,10 +125,10 @@ const PortalLayout = () => {
 
     setLoading(true);
 
-    const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    const withTimeout = async <T,>(thenable: PromiseLike<T>, ms: number): Promise<T> => {
       return (await Promise.race([
-        promise,
-        new Promise((_, reject) => window.setTimeout(() => reject(new Error('timeout')), ms)),
+        Promise.resolve(thenable),
+        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), ms)),
       ])) as T;
     };
 
