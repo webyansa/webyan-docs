@@ -2,22 +2,22 @@ import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  LayoutDashboard, 
-  Ticket, 
-  Calendar, 
-  CreditCard, 
+import {
+  LayoutDashboard,
+  Ticket,
+  Calendar,
+  CreditCard,
   MessageSquare,
   Settings,
   LogOut,
   Menu,
-  X,
   Building2,
-  Bell
+  Bell,
+  Loader2,
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { toast } from 'sonner';
@@ -44,7 +44,10 @@ const menuItems = [
   { path: '/portal/settings', label: 'الإعدادات', icon: Settings },
 ];
 
-const subscriptionStatusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+const subscriptionStatusLabels: Record<
+  string,
+  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+> = {
   trial: { label: 'تجريبي', variant: 'secondary' },
   active: { label: 'نشط', variant: 'default' },
   pending_renewal: { label: 'في انتظار التجديد', variant: 'outline' },
@@ -52,26 +55,88 @@ const subscriptionStatusLabels: Record<string, { label: string; variant: 'defaul
   cancelled: { label: 'ملغي', variant: 'destructive' },
 };
 
+const PORTAL_GUARD_TIMEOUT_MS = 5000;
+
 const PortalLayout = () => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, authStatus } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadNotifications] = useState(0);
+  const [guardTimedOut, setGuardTimedOut] = useState(false);
+
+  // Guard timeout: never allow infinite loaders on protected portal routes
+  useEffect(() => {
+    if (authStatus !== 'unknown') {
+      setGuardTimedOut(false);
+      return;
+    }
+    const id = window.setTimeout(() => setGuardTimedOut(true), PORTAL_GUARD_TIMEOUT_MS);
+    return () => window.clearTimeout(id);
+  }, [authStatus]);
+
+  // Route guard: unauthenticated -> portal login (with returnUrl)
+  useEffect(() => {
+    const returnUrl = encodeURIComponent(location.pathname + location.search);
+
+    if (authStatus === 'unauthenticated') {
+      navigate(`/portal/login?returnUrl=${returnUrl}`, { replace: true });
+      return;
+    }
+
+    if (authStatus === 'unknown' && guardTimedOut) {
+      navigate(`/portal/login?returnUrl=${returnUrl}&reason=timeout`, { replace: true });
+    }
+  }, [authStatus, guardTimedOut, location.pathname, location.search, navigate]);
 
   useEffect(() => {
-    if (user) {
+    if (authStatus === 'authenticated' && user) {
       fetchClientInfo();
     }
-  }, [user]);
+  }, [authStatus, user]);
+
+  const redirectNonClient = async () => {
+    try {
+      if (!user) {
+        navigate('/portal/login', { replace: true });
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('get_user_type', { _user_id: user.id });
+      if (error) throw error;
+
+      const userType = (data?.[0]?.user_type || null) as string | null;
+      if (userType === 'staff') {
+        navigate('/support', { replace: true });
+      } else if (userType === 'admin' || userType === 'editor') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/portal/login', { replace: true });
+      }
+    } catch {
+      navigate('/portal/login', { replace: true });
+    }
+  };
 
   const fetchClientInfo = async () => {
+    if (!user) return;
+
+    setLoading(true);
+
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+      return (await Promise.race([
+        promise,
+        new Promise((_, reject) => window.setTimeout(() => reject(new Error('timeout')), ms)),
+      ])) as T;
+    };
+
     try {
-      const { data, error } = await supabase
+      const query = supabase
         .from('client_accounts')
-        .select(`
+        .select(
+          `
           full_name,
           email,
           job_title,
@@ -82,31 +147,37 @@ const PortalLayout = () => {
             subscription_status,
             subscription_plan
           )
-        `)
-        .eq('user_id', user?.id)
+        `
+        )
+        .eq('user_id', user.id)
         .eq('is_active', true)
         .single();
 
+      const { data, error } = (await withTimeout(query, PORTAL_GUARD_TIMEOUT_MS)) as any;
       if (error) throw error;
 
       if (data && data.organization) {
-        // Handle the case where organization might be an array
         const org = Array.isArray(data.organization) ? data.organization[0] : data.organization;
         setClientInfo({
           full_name: data.full_name,
           email: data.email,
           job_title: data.job_title,
           organization_id: data.organization_id,
-          organization: org
+          organization: org,
         });
       } else {
-        // User is not a client, redirect to portal login
         toast.error('ليس لديك صلاحية الوصول لبوابة العملاء');
-        navigate('/portal/login');
+        await redirectNonClient();
       }
-    } catch (error) {
-      console.error('Error fetching client info:', error);
-      navigate('/portal/login');
+    } catch (error: any) {
+      if (error?.message === 'timeout') {
+        toast.error('تعذر التحقق من الحساب، أعد المحاولة');
+        navigate('/portal/login?reason=timeout', { replace: true });
+      } else {
+        console.error('Error fetching client info:', error);
+        toast.error('ليس لديك صلاحية الوصول لبوابة العملاء');
+        await redirectNonClient();
+      }
     } finally {
       setLoading(false);
     }
@@ -114,7 +185,7 @@ const PortalLayout = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/');
+    navigate('/portal/login', { replace: true });
   };
 
   const isActive = (path: string, exact?: boolean) => {
@@ -122,10 +193,25 @@ const PortalLayout = () => {
     return location.pathname.startsWith(path);
   };
 
+  // Protected routes: show loader only while truly checking
+  if (authStatus === 'unknown') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">جاري التحقق من الحساب...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect is handled by effect
+  if (authStatus !== 'authenticated') return null;
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
@@ -138,10 +224,11 @@ const PortalLayout = () => {
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3 mb-4">
           {clientInfo.organization.logo_url ? (
-            <img 
-              src={clientInfo.organization.logo_url} 
+            <img
+              src={clientInfo.organization.logo_url}
               alt={clientInfo.organization.name}
               className="w-12 h-12 rounded-lg object-cover"
+              loading="lazy"
             />
           ) : (
             <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -150,11 +237,15 @@ const PortalLayout = () => {
           )}
           <div className="flex-1 min-w-0">
             <h2 className="font-bold text-foreground truncate">{clientInfo.organization.name}</h2>
-            <Badge 
-              variant={subscriptionStatusLabels[clientInfo.organization.subscription_status]?.variant || 'secondary'}
+            <Badge
+              variant={
+                subscriptionStatusLabels[clientInfo.organization.subscription_status]?.variant ||
+                'secondary'
+              }
               className="mt-1"
             >
-              {subscriptionStatusLabels[clientInfo.organization.subscription_status]?.label || clientInfo.organization.subscription_status}
+              {subscriptionStatusLabels[clientInfo.organization.subscription_status]?.label ||
+                clientInfo.organization.subscription_status}
             </Badge>
           </div>
         </div>
@@ -193,14 +284,12 @@ const PortalLayout = () => {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-foreground truncate">{clientInfo.full_name}</p>
-            <p className="text-sm text-muted-foreground truncate">{clientInfo.job_title || 'عميل'}</p>
+            <p className="text-sm text-muted-foreground truncate">
+              {clientInfo.job_title || 'عميل'}
+            </p>
           </div>
         </div>
-        <Button 
-          variant="outline" 
-          className="w-full justify-start gap-2"
-          onClick={handleSignOut}
-        >
+        <Button variant="outline" className="w-full justify-start gap-2" onClick={handleSignOut}>
           <LogOut className="w-4 h-4" />
           تسجيل الخروج
         </Button>
@@ -214,7 +303,7 @@ const PortalLayout = () => {
       <header className="lg:hidden fixed top-0 inset-x-0 h-16 bg-background border-b border-border z-40 px-4 flex items-center justify-between">
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" aria-label="فتح القائمة">
               <Menu className="w-6 h-6" />
             </Button>
           </SheetTrigger>
@@ -222,8 +311,8 @@ const PortalLayout = () => {
             <SidebarContent />
           </SheetContent>
         </Sheet>
-        
-        <h1 className="font-bold text-lg">بوابة عملاء ويبيان</h1>
+
+        <h1 className="font-bold text-lg">بوابة العملاء</h1>
 
         <div className="flex items-center gap-2">
           {clientInfo?.organization_id && (
@@ -234,7 +323,7 @@ const PortalLayout = () => {
             />
           )}
 
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative" aria-label="الإشعارات">
             <Bell className="w-5 h-5" />
             {unreadNotifications > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
