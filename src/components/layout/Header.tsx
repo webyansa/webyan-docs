@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Search, Menu, X, LogOut, Settings, User, Building2, Users, Shield } from "lucide-react";
+import { Search, Menu, X, LogOut, User, Building2, Users, Shield, Headphones } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useStaffAuth } from "@/hooks/useStaffAuth";
 import { Button } from "@/components/ui/button";
@@ -10,44 +10,64 @@ import { NotificationDropdown } from "@/components/layout/NotificationDropdown";
 import { ChatNotificationDropdown } from "@/components/layout/ChatNotificationDropdown";
 import webyanLogo from "@/assets/webyan-logo.svg";
 import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface HeaderProps {
   onMenuToggle?: () => void;
   isMenuOpen?: boolean;
 }
 
-type UserType = 'admin' | 'staff' | 'client' | 'visitor' | null;
+type UserType = 'admin' | 'editor' | 'staff' | 'support_agent' | 'client' | 'visitor' | null;
 
 export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
   const location = useLocation();
   const isDashboardOnly = location.pathname.startsWith('/admin') || location.pathname.startsWith('/staff') || location.pathname.startsWith('/portal');
 
   const [searchQuery, setSearchQuery] = useState("");
-  const { user, role, signOut, isAdmin, isAdminOrEditor } = useAuth();
-  const { isStaff, permissions } = useStaffAuth();
+  const { user, role, loading: authLoading, signOut, isAdmin, isAdminOrEditor, isSupportAgent } = useAuth();
+  const { isStaff, permissions, loading: staffLoading } = useStaffAuth();
   
   const [isClient, setIsClient] = useState(false);
   const [clientOrganizationId, setClientOrganizationId] = useState<string | null>(null);
   const [userType, setUserType] = useState<UserType>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [clientLoading, setClientLoading] = useState(false);
+
+  // Combined loading state
+  const isLoading = authLoading || staffLoading || clientLoading;
 
   useEffect(() => {
-    if (user) {
+    if (!authLoading && !staffLoading && user) {
       checkUserType();
-    } else {
+    } else if (!user && !authLoading) {
       setUserType(null);
       setIsClient(false);
       setClientOrganizationId(null);
       setUserName(null);
     }
-  }, [user, isAdmin, isAdminOrEditor, isStaff]);
+  }, [user, authLoading, staffLoading, isAdmin, isAdminOrEditor, isStaff, isSupportAgent]);
 
   const checkUserType = async () => {
-    // Priority: Admin > Staff > Client
+    // Priority: Admin > Editor > Support Agent > Staff > Client > Visitor
     
     // Check if admin first
-    if (isAdmin || isAdminOrEditor) {
+    if (isAdmin) {
       setUserType('admin');
+      setUserName(user?.email?.split('@')[0] || null);
+      return;
+    }
+
+    // Check if editor
+    if (isAdminOrEditor && !isAdmin) {
+      setUserType('editor');
+      setUserName(user?.email?.split('@')[0] || null);
+      return;
+    }
+
+    // Check if support agent (new role)
+    if (isSupportAgent) {
+      setUserType('support_agent');
+      setUserName(user?.email?.split('@')[0] || null);
       return;
     }
 
@@ -68,23 +88,29 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
     }
 
     // Check if client
-    const { data: clientData } = await supabase
-      .from('client_accounts')
-      .select('id, organization_id, full_name')
-      .eq('user_id', user?.id)
-      .eq('is_active', true)
-      .maybeSingle();
-    
-    if (clientData) {
-      setIsClient(true);
-      setClientOrganizationId(clientData.organization_id);
-      setUserType('client');
-      setUserName(clientData.full_name);
-      return;
+    setClientLoading(true);
+    try {
+      const { data: clientData } = await supabase
+        .from('client_accounts')
+        .select('id, organization_id, full_name')
+        .eq('user_id', user?.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (clientData) {
+        setIsClient(true);
+        setClientOrganizationId(clientData.organization_id);
+        setUserType('client');
+        setUserName(clientData.full_name);
+        return;
+      }
+    } finally {
+      setClientLoading(false);
     }
 
     // Default: visitor
     setUserType('visitor');
+    setUserName(user?.email?.split('@')[0] || null);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -97,9 +123,13 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
   const getUserTypeLabel = () => {
     switch (userType) {
       case 'admin':
-        return role === 'admin' ? 'مدير النظام' : 'محرر';
+        return 'مدير النظام';
+      case 'editor':
+        return 'محرر';
+      case 'support_agent':
+        return 'موظف دعم فني';
       case 'staff':
-        return 'موظف دعم';
+        return 'موظف';
       case 'client':
         return 'عميل';
       default:
@@ -111,6 +141,10 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
     switch (userType) {
       case 'admin':
         return 'bg-red-100 text-red-700 border-red-200';
+      case 'editor':
+        return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'support_agent':
+        return 'bg-orange-100 text-orange-700 border-orange-200';
       case 'staff':
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'client':
@@ -124,6 +158,10 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
     switch (userType) {
       case 'admin':
         return <Shield className="h-3 w-3" />;
+      case 'editor':
+        return <User className="h-3 w-3" />;
+      case 'support_agent':
+        return <Headphones className="h-3 w-3" />;
       case 'staff':
         return <Users className="h-3 w-3" />;
       case 'client':
@@ -132,6 +170,24 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
         return <User className="h-3 w-3" />;
     }
   };
+
+  // Get appropriate portal link based on user type
+  const getPortalLink = () => {
+    switch (userType) {
+      case 'admin':
+      case 'editor':
+        return { href: '/admin', label: 'لوحة التحكم', icon: Shield, color: 'text-red-600 hover:text-red-700 hover:bg-red-50' };
+      case 'support_agent':
+      case 'staff':
+        return { href: '/staff', label: 'بوابة الموظفين', icon: Users, color: 'text-blue-600 hover:text-blue-700 hover:bg-blue-50' };
+      case 'client':
+        return { href: '/portal', label: 'بوابة العملاء', icon: Building2, color: 'text-green-600 hover:text-green-700 hover:bg-green-50' };
+      default:
+        return null;
+    }
+  };
+
+  const portalLink = getPortalLink();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
@@ -179,21 +235,29 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
             <Link to="/submit-ticket">إبلاغ عن مشكلة</Link>
           </Button>
           
-          {user ? (
+          {isLoading ? (
+            <div className="flex items-center gap-2 mr-2 pr-2 border-r border-border">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex flex-col gap-1">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+          ) : user ? (
             <>
               {isDashboardOnly && (
                 <>
                   <NotificationDropdown />
 
                   {/* Chat Notifications based on user type */}
-                  {userType === 'admin' && (
+                  {(userType === 'admin' || userType === 'editor') && (
                     <ChatNotificationDropdown 
                       userType="admin" 
                       linkTo="/admin/chat"
                     />
                   )}
 
-                  {userType === 'staff' && permissions.staffId && (
+                  {(userType === 'staff' || userType === 'support_agent') && permissions.staffId && (
                     <ChatNotificationDropdown 
                       userType="staff" 
                       staffId={permissions.staffId}
@@ -211,30 +275,12 @@ export function Header({ onMenuToggle, isMenuOpen }: HeaderProps) {
                 </>
               )}
               
-              {/* Portal Links based on user type - Only show the appropriate portal */}
-              {userType === 'client' && (
-                <Button variant="ghost" size="sm" asChild className="text-green-600 hover:text-green-700 hover:bg-green-50">
-                  <Link to="/portal" className="flex items-center gap-1">
-                    <Building2 className="h-4 w-4" />
-                    بوابة العملاء
-                  </Link>
-                </Button>
-              )}
-
-              {userType === 'staff' && (
-                <Button variant="ghost" size="sm" asChild className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                  <Link to="/staff" className="flex items-center gap-1">
-                    <Users className="h-4 w-4" />
-                    بوابة الموظفين
-                  </Link>
-                </Button>
-              )}
-              
-              {userType === 'admin' && (
-                <Button variant="ghost" size="sm" asChild className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                  <Link to="/admin" className="flex items-center gap-1">
-                    <Shield className="h-4 w-4" />
-                    لوحة التحكم
+              {/* Portal Link based on user type - Show only the appropriate portal */}
+              {portalLink && (
+                <Button variant="ghost" size="sm" asChild className={portalLink.color}>
+                  <Link to={portalLink.href} className="flex items-center gap-1">
+                    <portalLink.icon className="h-4 w-4" />
+                    {portalLink.label}
                   </Link>
                 </Button>
               )}

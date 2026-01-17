@@ -1,8 +1,8 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type AppRole = 'admin' | 'editor' | 'viewer';
+type AppRole = 'admin' | 'editor' | 'support_agent' | 'viewer';
 
 interface AuthContextType {
   user: User | null;
@@ -15,6 +15,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isEditor: boolean;
   isAdminOrEditor: boolean;
+  isSupportAgent: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,9 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(true);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = useCallback(async (userId: string) => {
     try {
+      setRoleLoading(true);
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
@@ -35,30 +38,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error fetching user role:', error);
-        return null;
+        setRole(null);
+      } else {
+        setRole(data?.role as AppRole | null);
       }
-
-      return data?.role as AppRole | null;
     } catch (error) {
       console.error('Error fetching user role:', error);
-      return null;
+      setRole(null);
+    } finally {
+      setRoleLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    let mounted = true;
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, newSession) => {
+        if (!mounted) return;
+        
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
         
         // Defer role fetching to avoid deadlock
-        if (session?.user) {
+        if (newSession?.user) {
           setTimeout(() => {
-            fetchUserRole(session.user.id).then(setRole);
+            if (mounted) {
+              fetchUserRole(newSession.user.id);
+            }
           }, 0);
         } else {
           setRole(null);
+          setRoleLoading(false);
         }
         
         setLoading(false);
@@ -66,19 +78,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      if (!mounted) return;
       
-      if (session?.user) {
-        fetchUserRole(session.user.id).then(setRole);
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
+      
+      if (existingSession?.user) {
+        fetchUserRole(existingSession.user.id);
+      } else {
+        setRoleLoading(false);
       }
       
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchUserRole]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -127,7 +146,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = role === 'admin';
   const isEditor = role === 'editor';
+  const isSupportAgent = role === 'support_agent';
   const isAdminOrEditor = isAdmin || isEditor;
+
+  // Combined loading - wait for both auth and role to be loaded
+  const isFullyLoaded = !loading && !roleLoading;
 
   return (
     <AuthContext.Provider
@@ -135,13 +158,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         session,
         role,
-        loading,
+        loading: !isFullyLoaded,
         signIn,
         signUp,
         signOut,
         isAdmin,
         isEditor,
         isAdminOrEditor,
+        isSupportAgent,
       }}
     >
       {children}
