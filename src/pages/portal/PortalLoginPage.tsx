@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Building2, Mail, Lock, Eye, EyeOff, Home, Loader2, Shield, Headphones } from 'lucide-react';
+import { Building2, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,50 +11,101 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import webyanLogo from '@/assets/webyan-logo.svg';
 
+type UserType = 'admin' | 'editor' | 'staff' | 'client' | 'visitor' | null;
+
 export default function PortalLoginPage() {
   const navigate = useNavigate();
-  const { user, signIn, loading: authLoading } = useAuth();
+  const location = useLocation();
+  const { user, signIn, authStatus } = useAuth();
+
+  const params = new URLSearchParams(location.search);
+  const returnUrlParam = params.get('returnUrl');
+  const reason = params.get('reason');
+  const safeReturnUrl = returnUrlParam && returnUrlParam.startsWith('/portal') ? returnUrlParam : '/portal';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Silent check: if a valid session exists, redirect quickly WITHOUT blocking UI.
   useEffect(() => {
-    const checkClientStatus = async () => {
-      if (user && !authLoading) {
-        const { data: clientData } = await supabase
-          .from('client_accounts')
-          .select('id, is_active')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        if (clientData?.is_active) {
-          navigate('/portal', { replace: true });
-        }
-      }
+    let cancelled = false;
+
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T | null> => {
+      let timeoutId: number | undefined;
+      const timeout = new Promise<null>((resolve) => {
+        timeoutId = window.setTimeout(() => resolve(null), ms);
+      });
+
+      const result = (await Promise.race([promise, timeout])) as T | null;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      return result;
     };
-    
-    checkClientStatus();
-  }, [user, authLoading, navigate]);
+
+    const redirectByType = (userType: UserType) => {
+      if (userType === 'admin' || userType === 'editor') {
+        navigate('/admin', { replace: true });
+        return;
+      }
+      if (userType === 'staff') {
+        navigate('/support', { replace: true });
+        return;
+      }
+      navigate(safeReturnUrl, { replace: true });
+    };
+
+    const run = async () => {
+      // Prefer user in context if already authenticated
+      if (authStatus === 'authenticated' && user) {
+        const rpcRes = await withTimeout(
+          supabase.rpc('get_user_type', { _user_id: user.id }),
+          800
+        );
+        const userType = (rpcRes as any)?.data?.[0]?.user_type as UserType | undefined;
+        if (!cancelled) redirectByType(userType || 'client');
+        return;
+      }
+
+      // Otherwise do a lightweight session check (no spinner)
+      const sessionRes = await withTimeout(supabase.auth.getSession(), 800);
+      const existingSession = (sessionRes as any)?.data?.session as any | null;
+      if (!existingSession?.user || cancelled) return;
+
+      const rpcRes = await withTimeout(
+        supabase.rpc('get_user_type', { _user_id: existingSession.user.id }),
+        800
+      );
+      const userType = (rpcRes as any)?.data?.[0]?.user_type as UserType | undefined;
+      if (!cancelled) redirectByType(userType || 'client');
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [authStatus, user, navigate, safeReturnUrl]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!email || !password) {
       setError('يرجى إدخال البريد الإلكتروني وكلمة المرور');
       return;
     }
 
     setLoading(true);
-    
+
     try {
       const { error: signInError } = await signIn(email, password);
-      
+
       if (signInError) {
         if (signInError.message.includes('Invalid login credentials')) {
           setError('بيانات الدخول غير صحيحة');
+        } else if (signInError.message.includes('Email not confirmed')) {
+          setError('يرجى تأكيد بريدك الإلكتروني أولاً');
         } else {
           setError('حدث خطأ أثناء تسجيل الدخول');
         }
@@ -62,7 +113,7 @@ export default function PortalLoginPage() {
       }
 
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+
       if (!currentUser) {
         setError('حدث خطأ أثناء تسجيل الدخول');
         return;
@@ -92,8 +143,7 @@ export default function PortalLoginPage() {
         .eq('id', clientAccount.id);
 
       toast.success('تم تسجيل الدخول بنجاح');
-      navigate('/portal');
-
+      navigate(safeReturnUrl, { replace: true });
     } catch (error) {
       console.error('Login error:', error);
       setError('حدث خطأ أثناء تسجيل الدخول');
@@ -102,28 +152,17 @@ export default function PortalLoginPage() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">جاري التحقق من الحساب...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50/50 to-background flex flex-col" dir="rtl">
-      {/* Header */}
-      <header className="p-4 flex justify-between items-center">
-        <Link to="/" className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
+      {/* Minimal Portal Header (security by design) */}
+      <header className="p-4">
+        <div className="mx-auto max-w-5xl flex items-center gap-3">
           <img src={webyanLogo} alt="ويبيان" className="h-8 w-auto" />
-        </Link>
-        <Link to="/" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <Home className="h-4 w-4" />
-          العودة للرئيسية
-        </Link>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-foreground">بوابة العملاء</span>
+            <span className="text-xs text-muted-foreground">تسجيل الدخول</span>
+          </div>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -134,12 +173,18 @@ export default function PortalLoginPage() {
               <Building2 className="h-8 w-8 text-green-600" />
             </div>
             <CardTitle className="text-2xl font-bold">بوابة العملاء</CardTitle>
-            <CardDescription>
-              سجل دخولك للوصول إلى بوابة عملاء ويبيان
-            </CardDescription>
+            <CardDescription>سجل دخولك للوصول إلى بوابة عملاء ويبيان</CardDescription>
           </CardHeader>
-          
+
           <CardContent>
+            {reason === 'timeout' && (
+              <Alert className="mb-4">
+                <AlertDescription>
+                  تعذر التحقق من الجلسة بسرعة. يمكنك تسجيل الدخول الآن أو إعادة تحميل الصفحة.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {error && (
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{error}</AlertDescription>
@@ -182,14 +227,15 @@ export default function PortalLoginPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-green-600 hover:bg-green-700 gap-2"
                 disabled={loading}
               >
@@ -221,24 +267,6 @@ export default function PortalLoginPage() {
                 تواصل معنا
               </Link>
             </p>
-            
-            <div className="flex flex-col gap-2 w-full">
-              <p className="text-sm text-muted-foreground">هل تريد الوصول إلى بوابة أخرى؟</p>
-              <div className="flex gap-2">
-                <Button variant="outline" asChild className="flex-1 gap-1 text-xs">
-                  <Link to="/admin/login">
-                    <Shield className="h-4 w-4" />
-                    لوحة التحكم
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild className="flex-1 gap-1 text-xs">
-                  <Link to="/support/login">
-                    <Headphones className="h-4 w-4" />
-                    بوابة الدعم
-                  </Link>
-                </Button>
-              </div>
-            </div>
           </CardFooter>
         </Card>
       </main>
