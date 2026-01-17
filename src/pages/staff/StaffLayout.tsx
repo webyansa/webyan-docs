@@ -48,10 +48,14 @@ export default function StaffLayout() {
   const [staffName, setStaffName] = useState<string>('');
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    } else if (!loading && user && !isStaff) {
-      navigate('/');
+    // Only redirect when loading is complete
+    if (!loading) {
+      if (!user) {
+        navigate('/auth');
+      } else if (!isStaff) {
+        // User is logged in but not staff - redirect to home
+        navigate('/');
+      }
     }
   }, [user, loading, isStaff, navigate]);
 
@@ -77,15 +81,20 @@ export default function StaffLayout() {
     navigate('/auth');
   };
 
+  // Show loading while auth is being checked
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">جاري التحقق من الصلاحيات...</p>
+        </div>
       </div>
     );
   }
 
-  if (!isStaff) {
+  // Don't render until we confirm user has access
+  if (!user || !isStaff) {
     return null;
   }
 

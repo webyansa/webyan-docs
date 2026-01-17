@@ -159,14 +159,18 @@ const settingsSection: NavSection = {
 export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, role, loading, signOut, isAdmin, isAdminOrEditor } = useAuth();
+  const { user, role, loading, signOut, isAdmin, isAdminOrEditor, isSupportAgent } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    } else if (!loading && user && !isAdminOrEditor) {
-      navigate('/');
+    // Only redirect when loading is complete
+    if (!loading) {
+      if (!user) {
+        navigate('/auth');
+      } else if (!isAdminOrEditor) {
+        // User is logged in but not admin/editor - redirect to appropriate portal
+        navigate('/');
+      }
     }
   }, [user, loading, isAdminOrEditor, navigate]);
 
@@ -175,15 +179,20 @@ export default function AdminLayout() {
     navigate('/auth');
   };
 
+  // Show loading while auth is being checked
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">جاري التحقق من الصلاحيات...</p>
+        </div>
       </div>
     );
   }
 
-  if (!isAdminOrEditor) {
+  // Don't render until we confirm user has access
+  if (!user || !isAdminOrEditor) {
     return null;
   }
 
@@ -193,6 +202,8 @@ export default function AdminLayout() {
         return 'مدير';
       case 'editor':
         return 'محرر';
+      case 'support_agent':
+        return 'موظف دعم فني';
       default:
         return 'زائر';
     }
@@ -204,6 +215,8 @@ export default function AdminLayout() {
         return 'bg-red-100 text-red-700';
       case 'editor':
         return 'bg-blue-100 text-blue-700';
+      case 'support_agent':
+        return 'bg-orange-100 text-orange-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }

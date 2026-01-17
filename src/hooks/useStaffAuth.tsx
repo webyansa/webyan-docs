@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -32,11 +32,13 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [isStaff, setIsStaff] = useState(false);
   const [permissions, setPermissions] = useState<StaffPermissions>(defaultPermissions);
 
-  const fetchStaffPermissions = async (userId: string) => {
+  const fetchStaffPermissions = useCallback(async (userId: string) => {
     try {
+      setPermissionsLoading(true);
       const { data, error } = await supabase
         .rpc('get_staff_permissions', { _user_id: userId });
 
@@ -64,41 +66,57 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
       console.error('Error fetching staff permissions:', error);
       setIsStaff(false);
       setPermissions(defaultPermissions);
+    } finally {
+      setPermissionsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    let mounted = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, newSession) => {
+        if (!mounted) return;
         
-        if (session?.user) {
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        
+        if (newSession?.user) {
           setTimeout(() => {
-            fetchStaffPermissions(session.user.id);
+            if (mounted) {
+              fetchStaffPermissions(newSession.user.id);
+            }
           }, 0);
         } else {
           setIsStaff(false);
           setPermissions(defaultPermissions);
+          setPermissionsLoading(false);
         }
         
         setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      if (!mounted) return;
       
-      if (session?.user) {
-        fetchStaffPermissions(session.user.id);
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
+      
+      if (existingSession?.user) {
+        fetchStaffPermissions(existingSession.user.id);
+      } else {
+        setPermissionsLoading(false);
       }
       
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchStaffPermissions]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -114,12 +132,15 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     setPermissions(defaultPermissions);
   };
 
+  // Combined loading - wait for both auth and permissions to be loaded
+  const isFullyLoaded = !loading && !permissionsLoading;
+
   return (
     <StaffAuthContext.Provider
       value={{
         user,
         session,
-        loading,
+        loading: !isFullyLoaded,
         isStaff,
         permissions,
         signIn,

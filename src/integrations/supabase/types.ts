@@ -1614,6 +1614,20 @@ export type Database = {
           staff_id: string
         }[]
       }
+      get_user_type: {
+        Args: { _user_id: string }
+        Returns: {
+          can_attend_meetings: boolean
+          can_manage_content: boolean
+          can_reply_tickets: boolean
+          client_id: string
+          display_name: string
+          organization_id: string
+          role_name: string
+          staff_id: string
+          user_type: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1625,10 +1639,11 @@ export type Database = {
       is_admin_or_editor: { Args: { _user_id: string }; Returns: boolean }
       is_client: { Args: { _user_id: string }; Returns: boolean }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_support_agent: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       agent_status: "available" | "busy" | "offline"
-      app_role: "admin" | "editor" | "viewer"
+      app_role: "admin" | "editor" | "viewer" | "support_agent"
       article_status: "draft" | "published" | "archived"
       auto_assign_mode: "disabled" | "round_robin" | "least_active" | "by_team"
       conversation_status: "unassigned" | "assigned" | "closed"
@@ -1779,7 +1794,7 @@ export const Constants = {
   public: {
     Enums: {
       agent_status: ["available", "busy", "offline"],
-      app_role: ["admin", "editor", "viewer"],
+      app_role: ["admin", "editor", "viewer", "support_agent"],
       article_status: ["draft", "published", "archived"],
       auto_assign_mode: ["disabled", "round_robin", "least_active", "by_team"],
       conversation_status: ["unassigned", "assigned", "closed"],
