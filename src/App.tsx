@@ -21,6 +21,7 @@ import TicketDetailPage from "./pages/TicketDetailPage";
 import TrackTicketPage from "./pages/TrackTicketPage";
 import EmbedTicketPage from "./pages/embed/EmbedTicketPage";
 import EmbedChatPage from "./pages/embed/EmbedChatPage";
+import UnauthorizedPage from "./pages/UnauthorizedPage";
 
 // Admin pages
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -176,6 +177,9 @@ const App = () => (
                 <Route path="roles" element={<RolesManagementPage />} />
                 <Route path="activity-log" element={<ActivityLogPage />} />
               </Route>
+              
+              {/* Unauthorized Page */}
+              <Route path="/unauthorized" element={<UnauthorizedPage />} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>
