@@ -64,19 +64,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (shouldShowLoading) setRoleLoading(true);
 
         try {
+          // NOTE: user may have multiple roles (multiple rows). We pick the highest privilege.
+          const rolePriority: AppRole[] = ['admin', 'editor', 'support_agent', 'client'];
+
           const { data, error } = await supabase
             .from('user_roles')
             .select('role')
-            .eq('user_id', userId)
-            .maybeSingle();
+            .eq('user_id', userId);
 
           if (error) {
+            // Fallback to backend role resolution (avoids RLS / multi-row issues)
             console.error('Error fetching user role:', error);
-            if (isFirstResolveForUser) setRole(null);
+
+            const { data: userTypeData, error: userTypeError } = await supabase.rpc('get_user_type', {
+              _user_id: userId,
+            });
+
+            if (userTypeError) {
+              console.error('Error fetching user role (fallback):', userTypeError);
+              if (isFirstResolveForUser) setRole(null);
+              return;
+            }
+
+            const roleName = (userTypeData?.[0]?.role_name as AppRole | undefined) ?? null;
+            setRole(rolePriority.includes(roleName as AppRole) ? (roleName as AppRole) : null);
             return;
           }
 
-          setRole((data?.role as AppRole | null) ?? null);
+          const roles = ((data ?? [])
+            .map((r: any) => r?.role)
+            .filter(Boolean) as AppRole[]);
+
+          const bestRole = rolePriority.find((r) => roles.includes(r)) ?? null;
+          setRole(bestRole);
         } catch (error) {
           console.error('Error fetching user role:', error);
           if (isFirstResolveForUser) setRole(null);
