@@ -267,23 +267,6 @@ export default function PortalLoginPage() {
             >
               نسيت كلمة المرور؟
             </Link>
-            <div className="flex flex-col gap-2 w-full">
-              <p className="text-sm text-muted-foreground">هل أنت موظف أو مدير؟</p>
-              <div className="flex gap-2">
-                <Button variant="outline" asChild className="flex-1 gap-1">
-                  <Link to="/admin/login">
-                    <Shield className="h-4 w-4" />
-                    لوحة التحكم
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild className="flex-1 gap-1">
-                  <Link to="/support/login">
-                    <Headphones className="h-4 w-4" />
-                    بوابة الدعم
-                  </Link>
-                </Button>
-              </div>
-            </div>
           </CardFooter>
         </Card>
       </main>

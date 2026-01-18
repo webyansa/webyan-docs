@@ -424,10 +424,8 @@ export default function ArticleEditorPage() {
         // Clear draft after successful save
         clearDraft();
         
-        // Stay on edit page
-        if (data?.id) {
-          navigate(`/admin/articles/${data.id}`, { replace: true });
-        }
+        // Redirect to articles list
+        navigate('/admin/articles', { replace: true });
       } else {
         const { data, error } = await supabase
           .from('docs_articles')
@@ -445,12 +443,8 @@ export default function ArticleEditorPage() {
         // Clear draft after successful save
         clearDraft();
         
-        // Redirect to edit page of the newly created article
-        if (data?.id) {
-          navigate(`/admin/articles/${data.id}`, { replace: true });
-        } else {
-          navigate('/admin/articles', { replace: true });
-        }
+        // Redirect to articles list
+        navigate('/admin/articles', { replace: true });
       }
     } catch (error: any) {
       console.error('Error saving article:', error);
