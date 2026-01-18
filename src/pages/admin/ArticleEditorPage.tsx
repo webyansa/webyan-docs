@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,35 +16,50 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowRight, Save, Eye, Loader2, Plus, X, AlertCircle } from 'lucide-react';
+import { 
+  ArrowRight, 
+  Save, 
+  Eye, 
+  Loader2, 
+  Plus, 
+  X, 
+  AlertCircle,
+  RefreshCw,
+  Copy,
+  Check,
+  Link as LinkIcon
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import RichTextEditor from '@/components/editor/RichTextEditor';
+import { generateSlug } from '@/lib/slugify';
 
-// Validation schema
+// Validation schema - simplified
 const articleSchema = z.object({
-  title: z.string().trim().min(1, 'العنوان مطلوب').max(200, 'العنوان طويل جداً'),
+  title: z.string().trim().min(1, 'العنوان مطلوب').max(200, 'العنوان طويل جداً (الحد الأقصى 200 حرف)'),
   slug: z.string().trim().min(1, 'الرابط مطلوب').max(100, 'الرابط طويل جداً')
     .regex(/^[a-z0-9-]+$/, 'الرابط يجب أن يحتوي على أحرف إنجليزية صغيرة وأرقام وشرطات فقط'),
   submodule_id: z.string().uuid('يجب اختيار القسم'),
   status: z.enum(['draft', 'published', 'archived']),
   difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
-  description: z.string().max(500, 'الوصف طويل جداً').optional().nullable(),
-  objective: z.string().max(500, 'الهدف طويل جداً').optional().nullable(),
-  content: z.string().optional().nullable(),
+  description: z.string().max(500, 'الوصف طويل جداً (الحد الأقصى 500 حرف)').optional().nullable(),
+  content: z.string().min(1, 'المحتوى مطلوب - لا يمكن حفظ مقال فارغ').optional().nullable(),
 });
 
 interface Module {
   id: string;
   title: string;
+  slug: string;
   submodules: Submodule[];
 }
 
 interface Submodule {
   id: string;
   title: string;
+  slug: string;
 }
 
+// Simplified form data - removed unnecessary fields
 interface ArticleFormData {
   title: string;
   slug: string;
@@ -52,12 +67,9 @@ interface ArticleFormData {
   status: 'draft' | 'published' | 'archived';
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   description: string;
-  objective: string;
   content: string;
-  prerequisites: string[];
   warnings: string[];
   notes: string[];
-  target_roles: string[];
 }
 
 const initialFormData: ArticleFormData = {
@@ -67,13 +79,13 @@ const initialFormData: ArticleFormData = {
   status: 'draft',
   difficulty: 'beginner',
   description: '',
-  objective: '',
   content: '',
-  prerequisites: [],
   warnings: [],
   notes: [],
-  target_roles: [],
 };
+
+// Base URL for article preview
+const DOCS_BASE_URL = 'https://docs.webyan.net/articles';
 
 export default function ArticleEditorPage() {
   const { id } = useParams();
@@ -83,30 +95,58 @@ export default function ArticleEditorPage() {
   
   const [formData, setFormData] = useState<ArticleFormData>(initialFormData);
   const [modules, setModules] = useState<Module[]>([]);
+  const [existingSlugs, setExistingSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   // New item inputs
-  const [newPrerequisite, setNewPrerequisite] = useState('');
   const [newWarning, setNewWarning] = useState('');
   const [newNote, setNewNote] = useState('');
-  const [newRole, setNewRole] = useState('');
+
+  // Fetch all existing slugs for uniqueness check
+  const fetchExistingSlugs = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('docs_articles')
+        .select('slug, id');
+      
+      if (error) throw error;
+      
+      // Exclude current article's slug if editing
+      const slugs = (data || [])
+        .filter(article => !isEditing || article.id !== id)
+        .map(article => article.slug);
+      
+      setExistingSlugs(slugs);
+    } catch (error) {
+      console.error('Error fetching slugs:', error);
+    }
+  }, [id, isEditing]);
 
   useEffect(() => {
-    fetchModules();
-    if (isEditing) {
-      fetchArticle();
-    } else {
+    const init = async () => {
+      await Promise.all([
+        fetchModules(),
+        fetchExistingSlugs(),
+      ]);
+      
+      if (isEditing) {
+        await fetchArticle();
+      }
       setLoading(false);
-    }
-  }, [id]);
+    };
+    
+    init();
+  }, [id, fetchExistingSlugs]);
 
   const fetchModules = async () => {
     try {
       const { data: modulesData, error: modulesError } = await supabase
         .from('docs_modules')
-        .select('id, title')
+        .select('id, title, slug')
         .eq('is_published', true)
         .order('sort_order');
 
@@ -117,7 +157,7 @@ export default function ArticleEditorPage() {
       for (const module of modulesData || []) {
         const { data: submodulesData, error: submodulesError } = await supabase
           .from('docs_submodules')
-          .select('id, title')
+          .select('id, title, slug')
           .eq('module_id', module.id)
           .order('sort_order');
 
@@ -154,42 +194,90 @@ export default function ArticleEditorPage() {
           status: data.status || 'draft',
           difficulty: data.difficulty || 'beginner',
           description: data.description || '',
-          objective: data.objective || '',
           content: data.content || '',
-          prerequisites: data.prerequisites || [],
           warnings: data.warnings || [],
           notes: data.notes || [],
-          target_roles: data.target_roles || [],
         });
+        // Mark slug as manually edited if article exists
+        setSlugManuallyEdited(true);
       }
     } catch (error) {
       console.error('Error fetching article:', error);
       toast.error('حدث خطأ أثناء تحميل المقال');
       navigate('/admin/articles');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[\u0621-\u064A]/g, '') // Remove Arabic letters
-      .replace(/\s+/g, '-')
-      .replace(/[^\w-]/g, '')
-      .replace(/--+/g, '-')
-      .trim();
-  };
-
+  // Auto-generate slug from title
   const handleTitleChange = (value: string) => {
     setFormData(prev => ({
       ...prev,
       title: value,
-      slug: prev.slug || generateSlug(value),
     }));
+    
+    // Only auto-generate if not manually edited
+    if (!slugManuallyEdited) {
+      const newSlug = generateSlug(value);
+      setFormData(prev => ({
+        ...prev,
+        slug: newSlug,
+      }));
+    }
+    
     if (errors.title) {
       setErrors(prev => ({ ...prev, title: '' }));
     }
+  };
+
+  // Manual slug edit
+  const handleSlugChange = (value: string) => {
+    // Clean the slug input
+    const cleanSlug = value
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-');
+    
+    setFormData(prev => ({ ...prev, slug: cleanSlug }));
+    setSlugManuallyEdited(true);
+    
+    if (errors.slug) {
+      setErrors(prev => ({ ...prev, slug: '' }));
+    }
+  };
+
+  // Regenerate slug from title
+  const regenerateSlug = () => {
+    const newSlug = generateSlug(formData.title);
+    setFormData(prev => ({ ...prev, slug: newSlug }));
+    setSlugManuallyEdited(false);
+    toast.success('تم توليد الرابط تلقائياً');
+  };
+
+  // Copy full URL to clipboard
+  const copyUrl = async () => {
+    const fullUrl = `${DOCS_BASE_URL}/${formData.slug}`;
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      toast.success('تم نسخ الرابط');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('فشل نسخ الرابط');
+    }
+  };
+
+  // Ensure slug uniqueness before save
+  const getUniqueSlug = async (slug: string): Promise<string> => {
+    let baseSlug = slug;
+    let counter = 1;
+    let uniqueSlug = slug;
+    
+    while (existingSlugs.includes(uniqueSlug)) {
+      counter++;
+      uniqueSlug = `${baseSlug}-${counter}`;
+    }
+    
+    return uniqueSlug;
   };
 
   const validateForm = (): boolean => {
@@ -201,7 +289,6 @@ export default function ArticleEditorPage() {
         status: formData.status,
         difficulty: formData.difficulty,
         description: formData.description || null,
-        objective: formData.objective || null,
         content: formData.content || null,
       });
       setErrors({});
@@ -215,61 +302,134 @@ export default function ArticleEditorPage() {
           }
         });
         setErrors(newErrors);
+        
+        // Show toast with first error
+        const firstError = error.errors[0];
+        if (firstError) {
+          const fieldNames: Record<string, string> = {
+            title: 'العنوان',
+            slug: 'الرابط',
+            submodule_id: 'القسم',
+            content: 'المحتوى',
+            description: 'الوصف',
+          };
+          const fieldName = fieldNames[firstError.path[0] as string] || firstError.path[0];
+          toast.error(`خطأ في حقل "${fieldName}": ${firstError.message}`);
+        }
       }
       return false;
     }
   };
 
   const handleSave = async (publish = false) => {
+    // Basic validation
+    if (!formData.title.trim()) {
+      setErrors({ title: 'العنوان مطلوب' });
+      toast.error('يجب إدخال عنوان المقال');
+      return;
+    }
+    
+    if (!formData.submodule_id) {
+      setErrors({ submodule_id: 'يجب اختيار القسم' });
+      toast.error('يجب اختيار القسم');
+      return;
+    }
+    
+    if (!formData.content?.trim()) {
+      setErrors({ content: 'المحتوى مطلوب' });
+      toast.error('لا يمكن حفظ مقال فارغ - يجب إضافة محتوى');
+      return;
+    }
+    
     if (!validateForm()) {
-      toast.error('يرجى تصحيح الأخطاء');
       return;
     }
 
     setSaving(true);
+    
     try {
+      // Ensure slug is unique
+      let finalSlug = formData.slug;
+      if (!isEditing || formData.slug !== formData.slug) {
+        finalSlug = await getUniqueSlug(formData.slug);
+        if (finalSlug !== formData.slug) {
+          setFormData(prev => ({ ...prev, slug: finalSlug }));
+          toast.info(`تم تعديل الرابط ليصبح فريداً: ${finalSlug}`);
+        }
+      }
+      
       const articleData = {
         title: formData.title.trim(),
-        slug: formData.slug.trim(),
+        slug: finalSlug,
         submodule_id: formData.submodule_id,
         status: publish ? 'published' : formData.status,
         difficulty: formData.difficulty,
         description: formData.description?.trim() || null,
-        objective: formData.objective?.trim() || null,
         content: formData.content?.trim() || null,
-        prerequisites: formData.prerequisites.length > 0 ? formData.prerequisites : null,
         warnings: formData.warnings.length > 0 ? formData.warnings : null,
         notes: formData.notes.length > 0 ? formData.notes : null,
-        target_roles: formData.target_roles.length > 0 ? formData.target_roles : null,
         author_id: user?.id,
         published_at: publish ? new Date().toISOString() : null,
       };
 
+      console.log('Saving article with data:', articleData);
+
       if (isEditing) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('docs_articles')
           .update(articleData)
-          .eq('id', id);
+          .eq('id', id)
+          .select('id')
+          .single();
 
-        if (error) throw error;
-        toast.success('تم تحديث المقال بنجاح');
+        if (error) {
+          console.error('Update error:', error);
+          throw error;
+        }
+        
+        toast.success(publish ? 'تم نشر المقال بنجاح' : 'تم تحديث المقال بنجاح');
+        
+        // Stay on edit page
+        if (data?.id) {
+          navigate(`/admin/articles/${data.id}/edit`, { replace: true });
+        }
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('docs_articles')
-          .insert(articleData);
+          .insert(articleData)
+          .select('id')
+          .single();
 
-        if (error) throw error;
-        toast.success('تم إنشاء المقال بنجاح');
+        if (error) {
+          console.error('Insert error:', error);
+          throw error;
+        }
+        
+        toast.success(publish ? 'تم إنشاء ونشر المقال بنجاح' : 'تم إنشاء المقال بنجاح');
+        
+        // Redirect to edit page of new article
+        if (data?.id) {
+          navigate(`/admin/articles/${data.id}/edit`, { replace: true });
+        }
       }
-
-      navigate('/admin/articles');
     } catch (error: any) {
       console.error('Error saving article:', error);
+      
+      // Handle specific errors
       if (error.code === '23505') {
-        setErrors({ slug: 'هذا الرابط مستخدم بالفعل' });
-        toast.error('هذا الرابط مستخدم بالفعل');
+        if (error.message?.includes('slug')) {
+          setErrors({ slug: 'هذا الرابط مستخدم بالفعل، جرب رابطاً آخر' });
+          toast.error('هذا الرابط مستخدم بالفعل');
+        } else {
+          toast.error('يوجد تعارض في البيانات، يرجى المحاولة مرة أخرى');
+        }
+      } else if (error.code === '23503') {
+        setErrors({ submodule_id: 'القسم المحدد غير صالح' });
+        toast.error('القسم المحدد غير موجود');
+      } else if (error.code === '42501') {
+        toast.error('ليس لديك صلاحية لحفظ المقالات');
       } else {
-        toast.error('حدث خطأ أثناء حفظ المقال');
+        toast.error(`حدث خطأ أثناء حفظ المقال: ${error.message || 'خطأ غير معروف'}`);
       }
     } finally {
       setSaving(false);
@@ -277,7 +437,7 @@ export default function ArticleEditorPage() {
   };
 
   const addArrayItem = (
-    field: 'prerequisites' | 'warnings' | 'notes' | 'target_roles',
+    field: 'warnings' | 'notes',
     value: string,
     setter: (value: string) => void
   ) => {
@@ -290,13 +450,27 @@ export default function ArticleEditorPage() {
   };
 
   const removeArrayItem = (
-    field: 'prerequisites' | 'warnings' | 'notes' | 'target_roles',
+    field: 'warnings' | 'notes',
     index: number
   ) => {
     setFormData(prev => ({
       ...prev,
       [field]: prev[field].filter((_, i) => i !== index),
     }));
+  };
+
+  // Get preview URL based on selected submodule
+  const getPreviewUrl = () => {
+    if (!formData.submodule_id || !formData.slug) return null;
+    
+    // Find the module and submodule
+    for (const module of modules) {
+      const submodule = module.submodules.find(s => s.id === formData.submodule_id);
+      if (submodule) {
+        return `/docs/${module.slug}/${submodule.slug}/${formData.slug}`;
+      }
+    }
+    return null;
   };
 
   if (loading) {
@@ -306,6 +480,8 @@ export default function ArticleEditorPage() {
       </div>
     );
   }
+
+  const previewUrl = getPreviewUrl();
 
   return (
     <div className="space-y-6">
@@ -320,14 +496,14 @@ export default function ArticleEditorPage() {
               {isEditing ? 'تعديل المقال' : 'مقال جديد'}
             </h1>
             <p className="text-muted-foreground">
-              {isEditing ? 'تعديل محتوى المقال' : 'إنشاء مقال جديد'}
+              {isEditing ? 'تعديل محتوى المقال' : 'إنشاء مقال جديد في دليل الاستخدام'}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isEditing && (
+          {isEditing && previewUrl && (
             <Button variant="outline" size="sm" asChild>
-              <a href={`/docs/${formData.slug}`} target="_blank" rel="noopener noreferrer">
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer">
                 <Eye className="h-4 w-4 ml-2" />
                 معاينة
               </a>
@@ -358,13 +534,14 @@ export default function ArticleEditorPage() {
               <CardTitle>المعلومات الأساسية</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Title */}
               <div className="space-y-2">
                 <Label htmlFor="title">العنوان *</Label>
                 <Input
                   id="title"
                   value={formData.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="عنوان المقال"
+                  placeholder="عنوان المقال (مثال: كيفية إدارة المستخدمين)"
                   className={errors.title ? 'border-destructive' : ''}
                 />
                 {errors.title && (
@@ -375,47 +552,87 @@ export default function ArticleEditorPage() {
                 )}
               </div>
 
+              {/* Slug with URL Preview */}
               <div className="space-y-2">
-                <Label htmlFor="slug">الرابط (Slug) *</Label>
-                <Input
-                  id="slug"
-                  value={formData.slug}
-                  onChange={(e) => {
-                    setFormData(prev => ({ ...prev, slug: e.target.value }));
-                    if (errors.slug) setErrors(prev => ({ ...prev, slug: '' }));
-                  }}
-                  placeholder="article-slug"
-                  dir="ltr"
-                  className={errors.slug ? 'border-destructive' : ''}
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="slug">الرابط (Slug) *</Label>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={regenerateSlug}
+                      disabled={!formData.title}
+                      className="h-7 text-xs"
+                    >
+                      <RefreshCw className="h-3 w-3 ml-1" />
+                      توليد تلقائي
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={copyUrl}
+                      disabled={!formData.slug}
+                      className="h-7 text-xs"
+                    >
+                      {copied ? (
+                        <Check className="h-3 w-3 ml-1 text-green-500" />
+                      ) : (
+                        <Copy className="h-3 w-3 ml-1" />
+                      )}
+                      نسخ
+                    </Button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="slug"
+                    value={formData.slug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="article-slug"
+                    dir="ltr"
+                    className={`pl-8 ${errors.slug ? 'border-destructive' : ''}`}
+                  />
+                  <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
                 {errors.slug && (
                   <p className="text-sm text-destructive flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
                     {errors.slug}
                   </p>
                 )}
+                {/* URL Preview */}
+                {formData.slug && (
+                  <div className="flex items-center gap-2 p-2 bg-muted rounded-md text-sm">
+                    <span className="text-muted-foreground">الرابط الكامل:</span>
+                    <code className="text-primary font-mono text-xs" dir="ltr">
+                      {DOCS_BASE_URL}/{formData.slug}
+                    </code>
+                  </div>
+                )}
               </div>
 
+              {/* Description */}
               <div className="space-y-2">
-                <Label htmlFor="description">الوصف</Label>
+                <Label htmlFor="description">الوصف (اختياري)</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="وصف مختصر للمقال..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="objective">الهدف</Label>
-                <Textarea
-                  id="objective"
-                  value={formData.objective}
-                  onChange={(e) => setFormData(prev => ({ ...prev, objective: e.target.value }))}
-                  placeholder="ما الذي سيتعلمه القارئ من هذا المقال..."
+                  placeholder="وصف مختصر يظهر في نتائج البحث..."
                   rows={2}
+                  className={errors.description ? 'border-destructive' : ''}
                 />
+                {errors.description && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.description}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {formData.description?.length || 0}/500 حرف
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -423,66 +640,38 @@ export default function ArticleEditorPage() {
           {/* Content */}
           <Card>
             <CardHeader>
-              <CardTitle>المحتوى</CardTitle>
+              <CardTitle>المحتوى *</CardTitle>
               <CardDescription>محتوى المقال - استخدم شريط الأدوات للتنسيق</CardDescription>
             </CardHeader>
             <CardContent>
-              <RichTextEditor
-                content={formData.content}
-                onChange={(content) => setFormData(prev => ({ ...prev, content }))}
-                placeholder="اكتب محتوى المقال هنا..."
-              />
+              <div className={errors.content ? 'ring-2 ring-destructive rounded-md' : ''}>
+                <RichTextEditor
+                  content={formData.content}
+                  onChange={(content) => {
+                    setFormData(prev => ({ ...prev, content }));
+                    if (errors.content) {
+                      setErrors(prev => ({ ...prev, content: '' }));
+                    }
+                  }}
+                  placeholder="اكتب محتوى المقال هنا..."
+                />
+              </div>
+              {errors.content && (
+                <p className="text-sm text-destructive flex items-center gap-1 mt-2">
+                  <AlertCircle className="h-3 w-3" />
+                  {errors.content}
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Additional Info */}
+          {/* Additional Info - Only Warnings and Notes */}
           <Card>
             <CardHeader>
               <CardTitle>معلومات إضافية</CardTitle>
+              <CardDescription>تحذيرات وملاحظات للقارئ (اختياري)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Prerequisites */}
-              <div className="space-y-2">
-                <Label>المتطلبات المسبقة</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={newPrerequisite}
-                    onChange={(e) => setNewPrerequisite(e.target.value)}
-                    placeholder="إضافة متطلب..."
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addArrayItem('prerequisites', newPrerequisite, setNewPrerequisite);
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => addArrayItem('prerequisites', newPrerequisite, setNewPrerequisite)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {formData.prerequisites.map((item, index) => (
-                    <Badge key={index} variant="secondary" className="gap-1">
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem('prerequisites', index)}
-                        className="hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
               {/* Warnings */}
               <div className="space-y-2">
                 <Label>التحذيرات</Label>
@@ -490,7 +679,7 @@ export default function ArticleEditorPage() {
                   <Input
                     value={newWarning}
                     onChange={(e) => setNewWarning(e.target.value)}
-                    placeholder="إضافة تحذير..."
+                    placeholder="إضافة تحذير مهم للقارئ..."
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -532,7 +721,7 @@ export default function ArticleEditorPage() {
                   <Input
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="إضافة ملاحظة..."
+                    placeholder="إضافة ملاحظة مفيدة..."
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -557,48 +746,6 @@ export default function ArticleEditorPage() {
                         type="button"
                         onClick={() => removeArrayItem('notes', index)}
                         className="hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Target Roles */}
-              <div className="space-y-2">
-                <Label>الفئات المستهدفة</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                    placeholder="مثال: مدير المحتوى..."
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addArrayItem('target_roles', newRole, setNewRole);
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => addArrayItem('target_roles', newRole, setNewRole)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {formData.target_roles.map((item, index) => (
-                    <Badge key={index} className="gap-1 bg-primary/10 text-primary">
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem('target_roles', index)}
-                        className="hover:opacity-70"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -633,7 +780,7 @@ export default function ArticleEditorPage() {
                   <SelectContent>
                     {modules.map((module) => (
                       <div key={module.id}>
-                        <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                        <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50">
                           {module.title}
                         </div>
                         {module.submodules.map((submodule) => (
@@ -665,9 +812,24 @@ export default function ArticleEditorPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">مسودة</SelectItem>
-                    <SelectItem value="published">منشور</SelectItem>
-                    <SelectItem value="archived">مؤرشف</SelectItem>
+                    <SelectItem value="draft">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                        مسودة
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="published">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                        منشور
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="archived">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-gray-500" />
+                        مؤرشف
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -684,9 +846,21 @@ export default function ArticleEditorPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="beginner">مبتدئ</SelectItem>
-                    <SelectItem value="intermediate">متوسط</SelectItem>
-                    <SelectItem value="advanced">متقدم</SelectItem>
+                    <SelectItem value="beginner">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">مبتدئ</Badge>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="intermediate">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">متوسط</Badge>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="advanced">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">متقدم</Badge>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -696,16 +870,36 @@ export default function ArticleEditorPage() {
           {/* Quick Tips */}
           <Card>
             <CardHeader>
-              <CardTitle>نصائح</CardTitle>
+              <CardTitle>نصائح سريعة</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
-              <p>• استخدم عناوين واضحة ومختصرة</p>
-              <p>• أضف وصفاً يوضح محتوى المقال</p>
-              <p>• حدد المتطلبات المسبقة للقارئ</p>
-              <p>• اختر مستوى الصعوبة المناسب</p>
-              <p>• استخدم المحرر الغني للتنسيق</p>
+              <p>• العنوان يُولّد الرابط تلقائياً</p>
+              <p>• يمكنك تعديل الرابط يدوياً عند الحاجة</p>
+              <p>• المحتوى مطلوب لحفظ المقال</p>
+              <p>• اختر القسم المناسب للمقال</p>
+              <p>• استخدم المحرر الغني لإضافة صور وفيديو</p>
             </CardContent>
           </Card>
+
+          {/* Sticky Save Buttons on Mobile */}
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-background border-t shadow-lg z-50">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleSave(false)}
+                disabled={saving}
+                className="flex-1"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
+                <Save className="h-4 w-4 ml-2" />
+                حفظ كمسودة
+              </Button>
+              <Button onClick={() => handleSave(true)} disabled={saving} className="flex-1">
+                {saving && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
+                نشر
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
