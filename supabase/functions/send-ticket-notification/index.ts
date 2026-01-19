@@ -45,12 +45,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending ${type} notification for ticket ${ticketNumber} to ${email}`);
 
-    // Initialize Supabase client to get settings
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get system settings
     const { data: settings } = await supabase
       .from('system_settings')
       .select('key, value');
@@ -61,7 +59,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     const companyName = settingsMap['company_name'] || 'ويبيان';
-    const responseTime = settingsMap['support_response_time'] || '48';
+    const responseTime = settingsMap['support_response_time'] || '48 ساعة';
     const baseUrl = siteUrl || 'https://webyan-guide-hub.lovable.app';
     const clientName = customerName || 'عزيزنا العميل';
 
@@ -83,9 +81,8 @@ const handler = async (req: Request): Promise<Response> => {
           name: clientName,
           ticketNumber,
           subject,
-          replyMessage: message || 'تم الرد على تذكرتك',
-          replierName: 'فريق الدعم الفني',
-          viewUrl: `${baseUrl}/portal/tickets`
+          replyText: message || 'تم الرد على تذكرتك',
+          trackUrl: `${baseUrl}/portal/tickets`
         });
         break;
 
@@ -94,8 +91,8 @@ const handler = async (req: Request): Promise<Response> => {
           name: clientName,
           ticketNumber,
           subject,
-          closureMessage: message,
-          viewUrl: `${baseUrl}/portal/tickets`
+          resolution: message,
+          feedbackUrl: `${baseUrl}/portal/tickets`
         });
         break;
 
@@ -119,7 +116,7 @@ const handler = async (req: Request): Promise<Response> => {
         template = alertTemplate({
           name: 'مسؤول النظام',
           title: `تذكرة دعم جديدة #${ticketNumber}`,
-          message: `تم استلام تذكرة دعم جديدة من ${clientName}.\n\nالموضوع: ${subject}\n\nيرجى مراجعتها والتعامل معها.`,
+          message: `تم استلام تذكرة دعم جديدة من ${clientName}. الموضوع: ${subject}. يرجى مراجعتها والتعامل معها.`,
           actionUrl: `${baseUrl}/admin/tickets`,
           actionText: 'عرض التذكرة'
         });
@@ -132,7 +129,6 @@ const handler = async (req: Request): Promise<Response> => {
         };
     }
 
-    // Send email to customer
     const emailResponse = await resend.emails.send({
       from: `${companyName} <support@webyan.net>`,
       to: [email],
@@ -142,12 +138,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Email sent successfully:", emailResponse);
 
-    // If this is a new ticket, also notify admin
     if (type === 'created' && adminEmail) {
       const adminTemplate = alertTemplate({
         name: 'مسؤول النظام',
         title: `تذكرة دعم جديدة #${ticketNumber}`,
-        message: `تم استلام تذكرة دعم جديدة من ${clientName}.\n\nالموضوع: ${subject}\n\nيرجى مراجعتها وتوجيهها للموظف المناسب.`,
+        message: `تم استلام تذكرة دعم جديدة من ${clientName}. الموضوع: ${subject}. يرجى مراجعتها وتوجيهها للموظف المناسب.`,
         actionUrl: `${baseUrl}/admin/tickets`,
         actionText: 'عرض التذكرة'
       });

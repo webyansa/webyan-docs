@@ -28,7 +28,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { ticketId, closedBy, closureMessage }: TicketClosureRequest = await req.json();
 
-    // Get ticket details
     const { data: ticket, error: ticketError } = await supabase
       .from("support_tickets")
       .select(`
@@ -46,7 +45,6 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Ticket not found");
     }
 
-    // Get staff member who closed it
     const { data: staffMember } = await supabase
       .from("staff_members")
       .select("full_name")
@@ -55,9 +53,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const staffName = staffMember?.full_name || "فريق الدعم";
 
-    // Add a system reply to the ticket indicating closure
     const closureReplyMessage = closureMessage || 
-      `تم إغلاق التذكرة بواسطة ${staffName}. نشكرك على تواصلك معنا ونتمنى أن تكون المشكلة قد تم حلها بشكل مرضٍ. إذا كان لديك أي استفسارات إضافية، لا تتردد في إنشاء تذكرة جديدة.`;
+      `تم إغلاق التذكرة بواسطة ${staffName}. نشكرك على تواصلك معنا ونتمنى أن تكون المشكلة قد تم حلها بشكل مرضٍ.`;
 
     await supabase
       .from("ticket_replies")
@@ -65,23 +62,21 @@ const handler = async (req: Request): Promise<Response> => {
         ticket_id: ticketId,
         message: closureReplyMessage,
         is_staff_reply: true,
-        user_id: null // System message
+        user_id: null
       });
 
-    // Create notification for client accounts
     const { data: clientAccounts } = await supabase
       .from("client_accounts")
       .select("user_id, full_name, email")
       .eq("organization_id", ticket.organization_id);
 
     if (clientAccounts && clientAccounts.length > 0) {
-      // Create in-app notifications
       const notifications = clientAccounts
         .filter(ca => ca.user_id)
         .map(ca => ({
           user_id: ca.user_id,
           title: `تم إغلاق التذكرة: ${ticket.subject}`,
-          message: `تم إغلاق التذكرة رقم ${ticket.ticket_number} بواسطة فريق الدعم. نشكرك على تواصلك معنا.`,
+          message: `تم إغلاق التذكرة رقم ${ticket.ticket_number} بواسطة فريق الدعم.`,
           type: "ticket_closed"
         }));
 
@@ -89,7 +84,6 @@ const handler = async (req: Request): Promise<Response> => {
         await supabase.from("user_notifications").insert(notifications);
       }
 
-      // Send email notification if Resend is configured
       if (resendApiKey) {
         const resend = new Resend(resendApiKey);
         
@@ -105,13 +99,12 @@ const handler = async (req: Request): Promise<Response> => {
         const uniqueEmails = [...new Set(allEmails)];
         const clientName = clientAccounts[0]?.full_name || ticket.organization?.name || 'عزيزنا العميل';
 
-        // Use the new unified template
         const template = ticketResolvedTemplate({
           name: clientName,
           ticketNumber: ticket.ticket_number,
           subject: ticket.subject,
-          closureMessage: closureReplyMessage,
-          viewUrl: 'https://webyan-guide-hub.lovable.app/portal/tickets'
+          resolution: closureReplyMessage,
+          feedbackUrl: 'https://webyan-guide-hub.lovable.app/portal/tickets'
         });
 
         for (const email of uniqueEmails) {
@@ -129,7 +122,6 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Log the activity
     await supabase.from("ticket_activity_log").insert({
       ticket_id: ticketId,
       action_type: "status_change",

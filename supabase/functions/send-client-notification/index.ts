@@ -6,7 +6,7 @@ import {
   meetingConfirmedTemplate, 
   meetingCancelledTemplate,
   subscriptionTemplate,
-  infoTemplate
+  alertTemplate
 } from "../_shared/email-templates.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
@@ -62,35 +62,18 @@ const handler = async (req: Request): Promise<Response> => {
           name: client_name,
           ticketNumber: data.ticket_number || '',
           subject: data.ticket_subject || '',
-          replyMessage: data.reply_message || '',
-          replierName: 'فريق الدعم الفني',
-          viewUrl: `${baseUrl}/portal/tickets`
+          replyText: data.reply_message || '',
+          trackUrl: `${baseUrl}/portal/tickets`
         });
         break;
 
       case 'ticket_status':
-        const statusLabels: Record<string, string> = {
-          open: 'مفتوحة',
-          in_progress: 'قيد المعالجة',
-          resolved: 'تم الحل',
-          closed: 'مغلقة'
-        };
-        if (data.new_status === 'resolved' || data.new_status === 'closed') {
-          template = ticketResolvedTemplate({
-            name: client_name,
-            ticketNumber: data.ticket_number || '',
-            subject: data.ticket_subject || '',
-            viewUrl: `${baseUrl}/portal/tickets`
-          });
-        } else {
-          template = infoTemplate({
-            name: client_name,
-            title: `تحديث حالة التذكرة ${data.ticket_number}`,
-            content: `<p>تم تحديث حالة تذكرتك "<strong>${data.ticket_subject}</strong>" إلى: <strong>${statusLabels[data.new_status || ''] || data.new_status}</strong></p>`,
-            actionUrl: `${baseUrl}/portal/tickets`,
-            actionText: 'عرض التذكرة'
-          });
-        }
+        template = ticketResolvedTemplate({
+          name: client_name,
+          ticketNumber: data.ticket_number || '',
+          subject: data.ticket_subject || '',
+          feedbackUrl: `${baseUrl}/portal/tickets`
+        });
         break;
 
       case 'meeting_confirmed':
@@ -99,9 +82,9 @@ const handler = async (req: Request): Promise<Response> => {
           meetingSubject: data.meeting_subject || '',
           meetingDate: data.meeting_date || '',
           meetingTime: data.meeting_time || '',
+          meetingDuration: '30 دقيقة',
           meetingLink: data.meeting_link,
-          staffName: data.staff_name || 'فريق ويبيان',
-          viewUrl: `${baseUrl}/portal/meetings`
+          staffName: data.staff_name || 'فريق ويبيان'
         });
         break;
 
@@ -109,23 +92,16 @@ const handler = async (req: Request): Promise<Response> => {
         template = meetingCancelledTemplate({
           name: client_name,
           meetingSubject: data.meeting_subject || '',
-          reason: data.admin_response,
-          newMeetingUrl: `${baseUrl}/portal/meetings/new`
+          meetingDate: data.meeting_date || '',
+          cancellationReason: data.admin_response
         });
         break;
 
       case 'meeting_completed':
-        template = infoTemplate({
+        template = alertTemplate({
           name: client_name,
           title: `تم إكمال الاجتماع: ${data.meeting_subject}`,
-          content: `
-            <p>تم إكمال اجتماعك وتسجيل التقرير بنجاح.</p>
-            ${data.outcome ? `<p><strong>النتيجة:</strong> ${data.outcome}</p>` : ''}
-            <p>نقدر تعاونك معنا ونتطلع لخدمتك دائماً!</p>
-            <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
-              <p style="margin: 0; color: #92400e;">⭐ شاركنا رأيك وقيّم الاجتماع لتحسين خدماتنا</p>
-            </div>
-          `,
+          message: `تم إكمال اجتماعك وتسجيل التقرير بنجاح. ${data.outcome ? `النتيجة: ${data.outcome}` : ''} نقدر تعاونك معنا!`,
           actionUrl: `${baseUrl}/portal/meetings`,
           actionText: 'تقييم الاجتماع'
         });
@@ -135,9 +111,8 @@ const handler = async (req: Request): Promise<Response> => {
         template = subscriptionTemplate({
           name: client_name,
           planName: data.subscription_plan || '',
-          status: 'approved',
-          adminMessage: data.admin_response,
-          viewUrl: `${baseUrl}/portal/subscription`
+          status: 'active',
+          actionUrl: `${baseUrl}/portal/subscription`
         });
         break;
 
@@ -145,17 +120,16 @@ const handler = async (req: Request): Promise<Response> => {
         template = subscriptionTemplate({
           name: client_name,
           planName: data.subscription_plan || '',
-          status: 'rejected',
-          adminMessage: data.admin_response,
-          viewUrl: `${baseUrl}/portal/subscription`
+          status: 'cancelled',
+          actionUrl: `${baseUrl}/portal/subscription`
         });
         break;
 
       default:
-        template = infoTemplate({
+        template = alertTemplate({
           name: client_name,
           title: 'إشعار من ويبيان',
-          content: '<p>لديك إشعار جديد. يرجى مراجعة حسابك للمزيد من التفاصيل.</p>',
+          message: 'لديك إشعار جديد. يرجى مراجعة حسابك للمزيد من التفاصيل.',
           actionUrl: `${baseUrl}/portal`,
           actionText: 'الذهاب للبوابة'
         });
