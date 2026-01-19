@@ -58,14 +58,14 @@ const handler = async (req: Request): Promise<Response> => {
     let template: { subject: string; html: string };
     
     // Base URLs for Webyan
-    const baseUrl = 'https://webyan-guide-hub.lovable.app';
-    const docsUrl = 'https://docs.webyan.net';
+    const staffPortalUrl = 'https://docs.webyan.net';
+    const clientPortalUrl = 'https://webyan-guide-hub.lovable.app';
 
     switch (type) {
       case 'resend_welcome':
         template = staffPasswordResetTemplate({
           staffName: staff_name,
-          resetUrl: `${baseUrl}/support/login`,
+          resetUrl: `${staffPortalUrl}/support/login`,
           expiryTime: 'غير محدد - استخدم نسيت كلمة المرور'
         });
         template.subject = `🔑 تذكير ببيانات الدخول - نظام ويبيان`;
@@ -79,7 +79,7 @@ const handler = async (req: Request): Promise<Response> => {
           priority: data?.priority || 'عادية',
           clientName: data?.client_name || data?.organization_name || 'العميل',
           adminNote: data?.admin_note,
-          dashboardUrl: `${baseUrl}/staff/tickets`
+          dashboardUrl: `${staffPortalUrl}/staff/tickets`
         });
         break;
 
@@ -91,7 +91,7 @@ const handler = async (req: Request): Promise<Response> => {
           meetingTime: data?.meeting_time || '',
           clientName: data?.client_name || 'العميل',
           organizationName: data?.organization_name || '',
-          dashboardUrl: `${baseUrl}/staff/meetings`
+          dashboardUrl: `${staffPortalUrl}/staff/meetings`
         });
         break;
 
@@ -102,7 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
           subject: data?.ticket_subject || '',
           clientName: data?.reply_from || 'العميل',
           replyPreview: data?.reply_message || '',
-          dashboardUrl: `${baseUrl}/staff/tickets`
+          dashboardUrl: `${staffPortalUrl}/staff/tickets`
         });
         break;
 
@@ -113,7 +113,7 @@ const handler = async (req: Request): Promise<Response> => {
           subject: data?.ticket_subject || '',
           hoursWaiting: data?.hours_waiting || 24,
           clientName: data?.client_name || 'العميل',
-          dashboardUrl: `${baseUrl}/staff/tickets`
+          dashboardUrl: `${staffPortalUrl}/staff/tickets`
         });
         break;
 
@@ -122,7 +122,7 @@ const handler = async (req: Request): Promise<Response> => {
           name: staff_name,
           title: 'إشعار من نظام ويبيان',
           message: 'لديك إشعار جديد. يرجى مراجعة لوحة التحكم للمزيد من التفاصيل.',
-          actionUrl: `${baseUrl}/staff`,
+          actionUrl: `${staffPortalUrl}/staff`,
           actionText: 'فتح لوحة التحكم'
         });
     }
