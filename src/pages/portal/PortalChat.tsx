@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat, Conversation, Message } from '@/hooks/useChat';
 import { supabase } from '@/integrations/supabase/client';
-import { CustomerChatWidget } from '@/components/chat/messenger/CustomerChatWidget';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -454,16 +454,14 @@ const PortalChat = () => {
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* Customer Chat Widget - Floating */}
-        <CustomerChatWidget />
       </div>
     );
   }
 
   // Conversation View
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col bg-card rounded-2xl border shadow-xl overflow-hidden">
+    <div className="p-6 lg:p-8">
+      <div className="h-[calc(100vh-200px)] flex flex-col bg-card rounded-2xl border shadow-xl overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 p-4 md:p-5 border-b bg-gradient-to-l from-primary/5 to-transparent">
         <div className="flex items-center gap-4">
@@ -621,6 +619,7 @@ const PortalChat = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
