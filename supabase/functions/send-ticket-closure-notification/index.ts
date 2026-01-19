@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
+import { ticketResolvedTemplate } from "../_shared/email-templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,6 +91,8 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Send email notification if Resend is configured
       if (resendApiKey) {
+        const resend = new Resend(resendApiKey);
+        
         const orgEmail = ticket.organization?.contact_email;
         const clientEmails = clientAccounts
           .filter(ca => ca.email)
@@ -99,55 +103,25 @@ const handler = async (req: Request): Promise<Response> => {
           : clientEmails;
 
         const uniqueEmails = [...new Set(allEmails)];
+        const clientName = clientAccounts[0]?.full_name || ticket.organization?.name || 'عزيزنا العميل';
+
+        // Use the new unified template
+        const template = ticketResolvedTemplate({
+          name: clientName,
+          ticketNumber: ticket.ticket_number,
+          subject: ticket.subject,
+          closureMessage: closureReplyMessage,
+          viewUrl: 'https://webyan-guide-hub.lovable.app/portal/tickets'
+        });
 
         for (const email of uniqueEmails) {
           try {
-            const res = await fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${resendApiKey}`,
-              },
-              body: JSON.stringify({
-                from: "Webyan Support <support@webyan.net>",
-                to: [email],
-                subject: `تم إغلاق التذكرة: ${ticket.ticket_number}`,
-                html: `
-                  <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <div style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-                      <h1 style="color: white; margin: 0; font-size: 24px;">تم إغلاق التذكرة ✓</h1>
-                    </div>
-                    <div style="background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-                      <p style="color: #334155; font-size: 16px; margin-bottom: 20px;">
-                        مرحباً،
-                      </p>
-                      <p style="color: #334155; font-size: 16px; margin-bottom: 20px;">
-                        نود إعلامك بأنه تم إغلاق التذكرة التالية:
-                      </p>
-                      <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-                        <p style="margin: 0 0 10px; color: #64748b;">رقم التذكرة:</p>
-                        <p style="margin: 0 0 20px; font-weight: bold; color: #0ea5e9; font-size: 18px;">${ticket.ticket_number}</p>
-                        <p style="margin: 0 0 10px; color: #64748b;">الموضوع:</p>
-                        <p style="margin: 0; font-weight: bold; color: #1e293b;">${ticket.subject}</p>
-                      </div>
-                      <p style="color: #334155; font-size: 16px; margin-bottom: 20px;">
-                        نشكرك على تواصلك معنا ونتمنى أن تكون المشكلة قد تم حلها بشكل مرضٍ. إذا كان لديك أي استفسارات إضافية، لا تتردد في إنشاء تذكرة جديدة.
-                      </p>
-                      <a href="https://webyan-guide-hub.lovable.app/portal/tickets" style="display: inline-block; background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold;">
-                        عرض التذاكر
-                      </a>
-                      <p style="color: #94a3b8; font-size: 14px; margin-top: 30px; text-align: center;">
-                        مع تحيات فريق دعم ويبيان
-                      </p>
-                    </div>
-                  </div>
-                `,
-              }),
+            await resend.emails.send({
+              from: "Webyan Support <support@webyan.net>",
+              to: [email],
+              subject: template.subject,
+              html: template.html,
             });
-
-            if (!res.ok) {
-              console.error("Email send error:", await res.text());
-            }
           } catch (emailError) {
             console.error("Error sending email to", email, emailError);
           }
