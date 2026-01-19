@@ -60,7 +60,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     const companyName = settingsMap['company_name'] || 'ويبيان';
     const responseTime = settingsMap['support_response_time'] || '48 ساعة';
-    const baseUrl = siteUrl || 'https://webyan-guide-hub.lovable.app';
+    
+    // Base URLs for Webyan - always use production URLs
+    const baseUrl = 'https://webyan-guide-hub.lovable.app';
+    const docsUrl = 'https://docs.webyan.net';
     const clientName = customerName || 'عزيزنا العميل';
 
     let template: { subject: string; html: string };

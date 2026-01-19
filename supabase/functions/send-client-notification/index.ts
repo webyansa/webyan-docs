@@ -54,7 +54,10 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Sending ${type} notification to ${client_email}`);
 
     let template: { subject: string; html: string };
+    
+    // Base URLs for Webyan
     const baseUrl = 'https://webyan-guide-hub.lovable.app';
+    const docsUrl = 'https://docs.webyan.net';
 
     switch (type) {
       case 'ticket_reply':
