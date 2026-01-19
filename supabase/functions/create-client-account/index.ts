@@ -154,6 +154,11 @@ Deno.serve(async (req) => {
 
     // Send welcome email with login credentials
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    
+    // Base URLs for Webyan
+    const portalBaseUrl = 'https://webyan-guide-hub.lovable.app';
+    const docsBaseUrl = 'https://docs.webyan.net';
+    
     if (resendApiKey) {
       try {
         await fetch('https://api.resend.com/emails', {
@@ -163,12 +168,12 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${resendApiKey}`,
           },
           body: JSON.stringify({
-            from: 'ويبيان <noreply@webyan.com>',
+            from: 'ويبيان <support@webyan.net>',
             to: [email],
             subject: 'مرحباً بك في بوابة عملاء ويبيان',
             html: `
               <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
                   <h1 style="color: white; margin: 0; font-size: 28px;">مرحباً بك في ويبيان</h1>
                 </div>
                 <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
@@ -192,9 +197,16 @@ Deno.serve(async (req) => {
                   </div>
                   
                   <div style="text-align: center; margin-top: 30px;">
-                    <a href="${req.headers.get('origin') || 'https://webyan.com'}/portal/login" 
-                       style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                    <a href="${portalBaseUrl}/portal/login" 
+                       style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
                       الدخول للبوابة
+                    </a>
+                  </div>
+                  
+                  <div style="text-align: center; margin-top: 15px;">
+                    <a href="${docsBaseUrl}" 
+                       style="color: #1e40af; font-size: 14px; text-decoration: underline;">
+                      📚 استعراض أدلة المستخدم
                     </a>
                   </div>
                   

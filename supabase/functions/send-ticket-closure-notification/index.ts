@@ -99,12 +99,15 @@ const handler = async (req: Request): Promise<Response> => {
         const uniqueEmails = [...new Set(allEmails)];
         const clientName = clientAccounts[0]?.full_name || ticket.organization?.name || 'عزيزنا العميل';
 
+        // Base URLs for Webyan
+        const baseUrl = 'https://webyan-guide-hub.lovable.app';
+
         const template = ticketResolvedTemplate({
           name: clientName,
           ticketNumber: ticket.ticket_number,
           subject: ticket.subject,
           resolution: closureReplyMessage,
-          feedbackUrl: 'https://webyan-guide-hub.lovable.app/portal/tickets'
+          feedbackUrl: `${baseUrl}/portal/tickets`
         });
 
         for (const email of uniqueEmails) {
