@@ -6,21 +6,23 @@ import {
   Ticket, 
   Plus, 
   Search,
-  Filter,
   Clock,
   CheckCircle2,
   AlertCircle,
-  MessageSquare,
   ArrowLeft,
-  Building2
+  MessageSquare,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { format, formatDistanceToNow } from 'date-fns';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { formatDistanceToNow, format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface SupportTicket {
   id: string;
@@ -33,20 +35,48 @@ interface SupportTicket {
   source: string | null;
   created_at: string;
   updated_at: string;
+  staff?: {
+    id: string;
+    full_name: string;
+  } | null;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any; color: string }> = {
-  open: { label: 'مفتوحة', variant: 'default', icon: AlertCircle, color: 'text-blue-600' },
-  in_progress: { label: 'قيد المعالجة', variant: 'secondary', icon: Clock, color: 'text-orange-600' },
-  resolved: { label: 'تم الحل', variant: 'outline', icon: CheckCircle2, color: 'text-green-600' },
-  closed: { label: 'مغلقة', variant: 'outline', icon: CheckCircle2, color: 'text-gray-600' },
+const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string; icon: any }> = {
+  open: { 
+    label: 'جديدة', 
+    bg: 'bg-blue-50 dark:bg-blue-900/20', 
+    text: 'text-blue-700 dark:text-blue-400',
+    dot: 'bg-blue-500',
+    icon: AlertCircle 
+  },
+  in_progress: { 
+    label: 'قيد المعالجة', 
+    bg: 'bg-amber-50 dark:bg-amber-900/20', 
+    text: 'text-amber-700 dark:text-amber-400',
+    dot: 'bg-amber-500',
+    icon: Clock 
+  },
+  resolved: { 
+    label: 'تم الحل', 
+    bg: 'bg-emerald-50 dark:bg-emerald-900/20', 
+    text: 'text-emerald-700 dark:text-emerald-400',
+    dot: 'bg-emerald-500',
+    icon: CheckCircle2 
+  },
+  closed: { 
+    label: 'مغلقة', 
+    bg: 'bg-gray-100 dark:bg-gray-800', 
+    text: 'text-gray-600 dark:text-gray-400',
+    dot: 'bg-gray-400',
+    icon: CheckCircle2 
+  },
 };
 
-const priorityConfig: Record<string, { label: string; color: string }> = {
-  low: { label: 'منخفضة', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
-  medium: { label: 'متوسطة', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  high: { label: 'عالية', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
-  urgent: { label: 'عاجلة', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+const priorityConfig: Record<string, { label: string; bg: string; text: string }> = {
+  low: { label: 'منخفضة', bg: 'bg-gray-100', text: 'text-gray-700' },
+  medium: { label: 'متوسطة', bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  high: { label: 'عالية', bg: 'bg-orange-100', text: 'text-orange-700' },
+  urgent: { label: 'عاجلة', bg: 'bg-red-100', text: 'text-red-700' },
 };
 
 const categoryLabels: Record<string, string> = {
@@ -81,7 +111,6 @@ const PortalTickets = () => {
 
   const fetchClientOrganization = async () => {
     try {
-      // Get client account to find organization_id
       const { data: clientAccount, error } = await supabase
         .from('client_accounts')
         .select('organization_id')
@@ -108,10 +137,15 @@ const PortalTickets = () => {
     }
 
     try {
-      // Fetch tickets by organization_id (includes both direct and embed tickets)
       const { data, error } = await supabase
         .from('support_tickets')
-        .select('*')
+        .select(`
+          *,
+          staff:staff_members!support_tickets_assigned_to_staff_fkey (
+            id,
+            full_name
+          )
+        `)
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
@@ -166,8 +200,11 @@ const PortalTickets = () => {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">جاري تحميل التذاكر...</p>
+        </div>
       </div>
     );
   }
@@ -178,12 +215,14 @@ const PortalTickets = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-3">
-            <Ticket className="w-8 h-8 text-primary" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Ticket className="w-5 h-5 text-primary" />
+            </div>
             تذاكر الدعم
           </h1>
           <p className="text-muted-foreground mt-1">تتبع وإدارة جميع طلبات الدعم الخاصة بك</p>
         </div>
-        <Button asChild size="lg" className="gap-2">
+        <Button asChild size="lg" className="gap-2 shadow-lg">
           <Link to="/portal/tickets/new">
             <Plus className="w-5 h-5" />
             تذكرة جديدة
@@ -191,60 +230,92 @@ const PortalTickets = () => {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-foreground">{stats.total}</p>
-            <p className="text-sm text-muted-foreground">إجمالي التذاكر</p>
+        <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Ticket className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">إجمالي التذاكر</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-orange-600">{stats.open}</p>
-            <p className="text-sm text-muted-foreground">مفتوحة</p>
+        <Card className="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-800/10 border-amber-200/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{stats.open}</p>
+                <p className="text-xs text-amber-600/80">مفتوحة</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">{stats.resolved}</p>
-            <p className="text-sm text-muted-foreground">تم حلها</p>
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/20 dark:to-emerald-800/10 border-emerald-200/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{stats.resolved}</p>
+                <p className="text-xs text-emerald-600/80">تم حلها</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input
-            placeholder="البحث في التذاكر..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pr-10"
-          />
-        </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        <Input
+          placeholder="البحث في التذاكر..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pr-10"
+        />
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="all">الكل ({stats.total})</TabsTrigger>
-          <TabsTrigger value="open">مفتوحة ({stats.open})</TabsTrigger>
-          <TabsTrigger value="resolved">تم حلها ({stats.resolved})</TabsTrigger>
+          <TabsTrigger value="all" className="gap-1.5">
+            الكل
+            <Badge variant="secondary" className="text-xs">{stats.total}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="open" className="gap-1.5">
+            مفتوحة
+            <Badge variant="secondary" className="text-xs">{stats.open}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="resolved" className="gap-1.5">
+            تم حلها
+            <Badge variant="secondary" className="text-xs">{stats.resolved}</Badge>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
           {filteredTickets.length === 0 ? (
-            <Card>
+            <Card className="border-dashed">
               <CardContent className="py-16 text-center">
-                <Ticket className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+                <div className="w-20 h-20 rounded-full bg-muted/50 mx-auto mb-4 flex items-center justify-center">
+                  <Ticket className="w-10 h-10 text-muted-foreground/50" />
+                </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">لا توجد تذاكر</h3>
-                <p className="text-muted-foreground mb-6">
-                  {activeTab === 'all' ? 'لم تقم بإنشاء أي تذاكر دعم بعد' : 'لا توجد تذاكر في هذا التصنيف'}
+                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                  {activeTab === 'all' 
+                    ? 'لم تقم بإنشاء أي تذاكر دعم بعد. ابدأ بإنشاء تذكرة جديدة للحصول على المساعدة.' 
+                    : 'لا توجد تذاكر في هذا التصنيف'}
                 </p>
-                <Button asChild>
-                  <Link to="/portal/tickets/new" className="gap-2">
+                <Button asChild className="gap-2">
+                  <Link to="/portal/tickets/new">
                     <Plus className="w-4 h-4" />
                     إنشاء تذكرة جديدة
                   </Link>
@@ -252,52 +323,80 @@ const PortalTickets = () => {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {filteredTickets.map((ticket) => {
-                const status = statusConfig[ticket.status];
-                const StatusIcon = status?.icon || AlertCircle;
-                const priority = priorityConfig[ticket.priority];
+                const status = statusConfig[ticket.status] || statusConfig.open;
+                const StatusIcon = status.icon;
+                const priority = priorityConfig[ticket.priority] || priorityConfig.medium;
 
                 return (
                   <Card 
                     key={ticket.id}
-                    className="hover:shadow-md transition-all cursor-pointer group"
+                    className="hover:shadow-md transition-all cursor-pointer group border-l-4"
+                    style={{ borderLeftColor: ticket.status === 'open' ? '#3b82f6' : ticket.status === 'in_progress' ? '#f59e0b' : '#10b981' }}
                     onClick={() => navigate(`/portal/tickets/${ticket.id}`)}
                   >
-                    <CardContent className="p-4 lg:p-6">
+                    <CardContent className="p-4">
                       <div className="flex items-start gap-4">
-                        <div className={`w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 ${status?.color}`}>
-                          <StatusIcon className="w-5 h-5" />
+                        {/* Status Icon */}
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                          status.bg
+                        )}>
+                          <StatusIcon className={cn("w-5 h-5", status.text)} />
                         </div>
+                        
+                        {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-4">
+                          {/* Header Row */}
+                          <div className="flex items-start justify-between gap-4 mb-2">
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-mono text-muted-foreground">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
                                   {ticket.ticket_number}
-                                </span>
-                                <Badge variant={status?.variant}>{status?.label}</Badge>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${priority?.color}`}>
-                                  {priority?.label}
+                                </code>
+                                <Badge className={cn("text-[10px]", status.bg, status.text, "border-0")}>
+                                  {status.label}
+                                </Badge>
+                                <span className={cn("text-[10px] px-2 py-0.5 rounded-full", priority.bg, priority.text)}>
+                                  {priority.label}
                                 </span>
                               </div>
-                              <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                              <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                                 {ticket.subject}
                               </h3>
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                                {ticket.description}
-                              </p>
                             </div>
-                            <ArrowLeft className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                            <ArrowLeft className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-1 transition-all flex-shrink-0" />
                           </div>
-                          <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-4 h-4" />
-                              {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true, locale: ar })}
-                            </span>
-                            <span>
-                              {categoryLabels[ticket.category] || ticket.category}
-                            </span>
+                          
+                          {/* Description */}
+                          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                            {ticket.description}
+                          </p>
+                          
+                          {/* Footer */}
+                          <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-4">
+                              <span className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5" />
+                                {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true, locale: ar })}
+                              </span>
+                              <span className="px-2 py-0.5 bg-muted rounded-full">
+                                {categoryLabels[ticket.category] || ticket.category}
+                              </span>
+                            </div>
+                            
+                            {/* Assigned Staff */}
+                            {ticket.staff && (
+                              <div className="flex items-center gap-1.5">
+                                <Avatar className="h-5 w-5">
+                                  <AvatarFallback className="text-[9px] bg-primary/10 text-primary">
+                                    {ticket.staff.full_name.charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs">{ticket.staff.full_name}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -16,6 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
+import { PortalChatWidget } from '@/components/chat/PortalChatWidget';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -372,6 +373,13 @@ const PortalLayout = () => {
           <Outlet context={{ clientInfo }} />
         </div>
       </main>
+
+      {/* Floating Chat Widget - Available on all pages */}
+      <PortalChatWidget
+        clientName={clientInfo.full_name}
+        clientEmail={clientInfo.email}
+        organizationId={clientInfo.organization_id}
+      />
     </div>
   );
 };
