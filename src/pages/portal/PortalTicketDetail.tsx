@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { 
@@ -11,16 +11,23 @@ import {
   Paperclip,
   User,
   Headphones,
-  ExternalLink
+  ExternalLink,
+  Loader2,
+  Calendar,
+  Tag,
+  FileText
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface TicketReply {
   id: string;
@@ -43,20 +50,49 @@ interface TicketDetail {
   screenshot_url: string | null;
   created_at: string;
   updated_at: string;
+  organization_id: string | null;
+  staff?: {
+    id: string;
+    full_name: string;
+  } | null;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any; color: string }> = {
-  open: { label: 'مفتوحة', variant: 'default', icon: AlertCircle, color: 'text-blue-600' },
-  in_progress: { label: 'قيد المعالجة', variant: 'secondary', icon: Clock, color: 'text-orange-600' },
-  resolved: { label: 'تم الحل', variant: 'outline', icon: CheckCircle2, color: 'text-green-600' },
-  closed: { label: 'مغلقة', variant: 'outline', icon: CheckCircle2, color: 'text-gray-600' },
+const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string; icon: any }> = {
+  open: { 
+    label: 'جديدة', 
+    bg: 'bg-blue-50 dark:bg-blue-900/20', 
+    text: 'text-blue-700 dark:text-blue-400',
+    dot: 'bg-blue-500',
+    icon: AlertCircle 
+  },
+  in_progress: { 
+    label: 'قيد المعالجة', 
+    bg: 'bg-amber-50 dark:bg-amber-900/20', 
+    text: 'text-amber-700 dark:text-amber-400',
+    dot: 'bg-amber-500',
+    icon: Clock 
+  },
+  resolved: { 
+    label: 'تم الحل', 
+    bg: 'bg-emerald-50 dark:bg-emerald-900/20', 
+    text: 'text-emerald-700 dark:text-emerald-400',
+    dot: 'bg-emerald-500',
+    icon: CheckCircle2 
+  },
+  closed: { 
+    label: 'مغلقة', 
+    bg: 'bg-gray-100 dark:bg-gray-800', 
+    text: 'text-gray-600 dark:text-gray-400',
+    dot: 'bg-gray-400',
+    icon: CheckCircle2 
+  },
 };
 
-const priorityConfig: Record<string, { label: string; color: string }> = {
-  low: { label: 'منخفضة', color: 'bg-gray-100 text-gray-700' },
-  medium: { label: 'متوسطة', color: 'bg-yellow-100 text-yellow-700' },
-  high: { label: 'عالية', color: 'bg-orange-100 text-orange-700' },
-  urgent: { label: 'عاجلة', color: 'bg-red-100 text-red-700' },
+const priorityConfig: Record<string, { label: string; bg: string; text: string }> = {
+  low: { label: 'منخفضة', bg: 'bg-gray-100', text: 'text-gray-700' },
+  medium: { label: 'متوسطة', bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  high: { label: 'عالية', bg: 'bg-orange-100', text: 'text-orange-700' },
+  urgent: { label: 'عاجلة', bg: 'bg-red-100', text: 'text-red-700' },
 };
 
 const categoryLabels: Record<string, string> = {
@@ -70,11 +106,13 @@ const categoryLabels: Record<string, string> = {
 const PortalTicketDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [replies, setReplies] = useState<TicketReply[]>([]);
   const [loading, setLoading] = useState(true);
   const [newReply, setNewReply] = useState('');
   const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (id && user) {
@@ -83,17 +121,46 @@ const PortalTicketDetail = () => {
     }
   }, [id, user]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [replies]);
+
   const fetchTicketDetails = async () => {
     try {
-      // Fetch ticket
-      const { data: ticketData, error: ticketError } = await supabase
-        .from('support_tickets')
-        .select('*')
-        .eq('id', id)
+      // First get client's organization
+      const { data: clientAccount } = await supabase
+        .from('client_accounts')
+        .select('organization_id')
         .eq('user_id', user?.id)
         .single();
 
-      if (ticketError) throw ticketError;
+      if (!clientAccount?.organization_id) {
+        toast.error('لا يمكن العثور على حساب العميل');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch ticket - check by organization_id instead of user_id
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('support_tickets')
+        .select(`
+          *,
+          staff:staff_members!support_tickets_assigned_to_staff_fkey (
+            id,
+            full_name
+          )
+        `)
+        .eq('id', id)
+        .eq('organization_id', clientAccount.organization_id)
+        .single();
+
+      if (ticketError) {
+        console.error('Ticket error:', ticketError);
+        setTicket(null);
+        setLoading(false);
+        return;
+      }
+      
       setTicket(ticketData);
 
       // Fetch replies
@@ -178,164 +245,297 @@ const PortalTicketDetail = () => {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">جاري تحميل التذكرة...</p>
+        </div>
       </div>
     );
   }
 
   if (!ticket) {
     return (
-      <div className="p-6 text-center">
-        <AlertCircle className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-        <h2 className="text-xl font-semibold mb-2">التذكرة غير موجودة</h2>
-        <Button asChild>
-          <Link to="/portal/tickets">العودة للتذاكر</Link>
-        </Button>
+      <div className="p-6 lg:p-8">
+        <Card className="max-w-md mx-auto text-center py-12">
+          <CardContent>
+            <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2">التذكرة غير موجودة</h2>
+            <p className="text-muted-foreground mb-6">
+              لا يمكن العثور على هذه التذكرة أو ليس لديك صلاحية الوصول إليها
+            </p>
+            <Button asChild>
+              <Link to="/portal/tickets" className="gap-2">
+                <ArrowRight className="w-4 h-4" />
+                العودة للتذاكر
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const status = statusConfig[ticket.status];
-  const StatusIcon = status?.icon || AlertCircle;
-  const priority = priorityConfig[ticket.priority];
+  const status = statusConfig[ticket.status] || statusConfig.open;
+  const StatusIcon = status.icon;
+  const priority = priorityConfig[ticket.priority] || priorityConfig.medium;
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
+    <div className="p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between">
         <Button variant="ghost" asChild className="gap-2">
           <Link to="/portal/tickets">
             <ArrowRight className="w-4 h-4" />
-            العودة
+            العودة للتذاكر
           </Link>
         </Button>
       </div>
 
-      {/* Ticket Info */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-mono text-muted-foreground">{ticket.ticket_number}</span>
-                <Badge variant={status?.variant}>{status?.label}</Badge>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${priority?.color}`}>
-                  {priority?.label}
-                </span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Ticket Header Card */}
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-start gap-4">
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+                  status.bg
+                )}>
+                  <StatusIcon className={cn("w-6 h-6", status.text)} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <code className="text-sm font-mono bg-muted px-2 py-0.5 rounded">
+                      {ticket.ticket_number}
+                    </code>
+                    <Badge className={cn("text-xs", status.bg, status.text, "border-0")}>
+                      {status.label}
+                    </Badge>
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full", priority.bg, priority.text)}>
+                      {priority.label}
+                    </span>
+                  </div>
+                  <CardTitle className="text-xl">{ticket.subject}</CardTitle>
+                </div>
               </div>
-              <CardTitle className="text-xl">{ticket.subject}</CardTitle>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-accent/50 rounded-lg p-4">
-            <p className="text-foreground whitespace-pre-wrap">{ticket.description}</p>
-          </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-muted/50 rounded-xl p-4">
+                <p className="text-foreground whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
+              </div>
 
-          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              {format(new Date(ticket.created_at), 'dd MMM yyyy - HH:mm', { locale: ar })}
-            </span>
-            <span>التصنيف: {categoryLabels[ticket.category]}</span>
-          </div>
-
-          {ticket.website_url && (
-            <a 
-              href={ticket.website_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-primary hover:underline"
-            >
-              <ExternalLink className="w-4 h-4" />
-              رابط الموقع
-            </a>
-          )}
-
-          {ticket.screenshot_url && (
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground mb-2">صورة مرفقة:</p>
-              <a href={ticket.screenshot_url} target="_blank" rel="noopener noreferrer">
-                <img 
-                  src={ticket.screenshot_url} 
-                  alt="Screenshot" 
-                  className="max-h-64 rounded-lg border border-border hover:opacity-90 transition-opacity"
-                />
-              </a>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Conversation */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Send className="w-5 h-5 text-primary" />
-            المحادثة
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {replies.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>لا توجد ردود بعد. سيتم الرد على تذكرتك قريباً.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {replies.map((reply) => (
-                <div 
-                  key={reply.id}
-                  className={`flex gap-3 ${reply.is_staff_reply ? '' : 'flex-row-reverse'}`}
+              {ticket.website_url && (
+                <a 
+                  href={ticket.website_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
                 >
-                  <Avatar className="flex-shrink-0">
-                    <AvatarFallback className={reply.is_staff_reply ? 'bg-primary/10 text-primary' : 'bg-accent'}>
-                      {reply.is_staff_reply ? <Headphones className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className={`flex-1 ${reply.is_staff_reply ? '' : 'text-left'}`}>
-                    <div 
-                      className={`inline-block p-4 rounded-lg max-w-[85%] ${
-                        reply.is_staff_reply 
-                          ? 'bg-primary/10 text-foreground' 
-                          : 'bg-accent text-foreground'
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap">{reply.message}</p>
+                  <ExternalLink className="w-4 h-4" />
+                  رابط الموقع
+                </a>
+              )}
+
+              {ticket.screenshot_url && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">صورة مرفقة:</p>
+                  <a href={ticket.screenshot_url} target="_blank" rel="noopener noreferrer">
+                    <img 
+                      src={ticket.screenshot_url} 
+                      alt="Screenshot" 
+                      className="max-h-64 rounded-lg border border-border hover:opacity-90 transition-opacity"
+                    />
+                  </a>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Conversation */}
+          <Card className="flex flex-col" style={{ height: 'calc(100vh - 500px)', minHeight: '400px' }}>
+            <CardHeader className="flex-shrink-0 pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Send className="w-5 h-5 text-primary" />
+                المحادثة
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col overflow-hidden">
+              <ScrollArea className="flex-1 -mx-6 px-6">
+                {replies.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <div className="w-16 h-16 rounded-full bg-muted/50 mx-auto mb-4 flex items-center justify-center">
+                      <Send className="w-8 h-8 text-muted-foreground/50" />
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true, locale: ar })}
-                    </p>
+                    <p>لا توجد ردود بعد</p>
+                    <p className="text-sm mt-1">سيتم الرد على تذكرتك قريباً</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 py-2">
+                    {replies.map((reply) => (
+                      <div 
+                        key={reply.id}
+                        className={cn(
+                          "flex gap-3",
+                          reply.is_staff_reply ? "flex-row" : "flex-row-reverse"
+                        )}
+                      >
+                        <Avatar className="flex-shrink-0 h-8 w-8">
+                          <AvatarFallback className={cn(
+                            "text-xs",
+                            reply.is_staff_reply 
+                              ? "bg-primary/10 text-primary" 
+                              : "bg-muted"
+                          )}>
+                            {reply.is_staff_reply ? <Headphones className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className={cn(
+                          "flex-1 max-w-[80%]",
+                          reply.is_staff_reply ? "" : "flex flex-col items-end"
+                        )}>
+                          <div 
+                            className={cn(
+                              "inline-block p-3 rounded-2xl",
+                              reply.is_staff_reply 
+                                ? "bg-muted rounded-tl-sm" 
+                                : "bg-primary text-primary-foreground rounded-tr-sm"
+                            )}
+                          >
+                            <p className="whitespace-pre-wrap text-sm">{reply.message}</p>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1 px-1">
+                            {format(new Date(reply.created_at), 'dd MMM - HH:mm', { locale: ar })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </ScrollArea>
+
+              {/* Reply Input */}
+              {ticket.status !== 'closed' && (
+                <div className="pt-4 border-t border-border mt-4 flex-shrink-0">
+                  <Textarea
+                    placeholder="اكتب ردك هنا..."
+                    value={newReply}
+                    onChange={(e) => setNewReply(e.target.value)}
+                    rows={3}
+                    className="mb-3 resize-none"
+                  />
+                  <div className="flex justify-end">
+                    <Button 
+                      onClick={handleSendReply} 
+                      disabled={sending || !newReply.trim()} 
+                      className="gap-2"
+                    >
+                      {sending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      إرسال الرد
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {/* Reply Input */}
-          {ticket.status !== 'closed' && (
-            <div className="pt-4 border-t border-border">
-              <Textarea
-                placeholder="اكتب ردك هنا..."
-                value={newReply}
-                onChange={(e) => setNewReply(e.target.value)}
-                rows={3}
-                className="mb-3"
-              />
-              <div className="flex justify-end">
-                <Button onClick={handleSendReply} disabled={sending} className="gap-2">
-                  {sending ? (
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  إرسال الرد
-                </Button>
+              {ticket.status === 'closed' && (
+                <div className="pt-4 border-t border-border mt-4 flex-shrink-0">
+                  <div className="text-center py-4 bg-muted/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">تم إغلاق هذه التذكرة</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">معلومات التذكرة</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">تاريخ الإنشاء</p>
+                  <p className="text-sm font-medium">
+                    {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: ar })}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+              <Separator />
+
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                  <Tag className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">التصنيف</p>
+                  <p className="text-sm font-medium">{categoryLabels[ticket.category]}</p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">آخر تحديث</p>
+                  <p className="text-sm font-medium">
+                    {formatDistanceToNow(new Date(ticket.updated_at), { addSuffix: true, locale: ar })}
+                  </p>
+                </div>
+              </div>
+
+              {ticket.staff && (
+                <>
+                  <Separator />
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                        {ticket.staff.full_name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-xs text-muted-foreground">الموظف المسؤول</p>
+                      <p className="text-sm font-medium">{ticket.staff.full_name}</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">إجراءات سريعة</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button variant="outline" className="w-full justify-start gap-2" asChild>
+                <Link to="/portal/tickets/new">
+                  <FileText className="w-4 h-4" />
+                  تذكرة جديدة
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
