@@ -21,89 +21,8 @@ const BRAND_COLORS = {
   surface: '#ffffff',
   text: '#1e293b',
   textMuted: '#64748b',
+  textDark: '#0f172a',
 };
-
-// شعار ويبيان SVG
-const WEBYAN_LOGO = `
-  <svg width="140" height="45" viewBox="0 0 140 45" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="140" height="45" rx="10" fill="#1e40af"/>
-    <text x="70" y="30" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">ويبيان</text>
-  </svg>
-`;
-
-// الأنماط الأساسية المشتركة
-const getBaseStyles = () => `
-  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
-  
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-  
-  body {
-    font-family: 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
-    direction: rtl;
-    background-color: ${BRAND_COLORS.background};
-    line-height: 1.6;
-    color: ${BRAND_COLORS.text};
-  }
-  
-  .email-wrapper {
-    max-width: 600px;
-    margin: 0 auto;
-    background: ${BRAND_COLORS.surface};
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
-  }
-  
-  .content {
-    padding: 32px;
-  }
-  
-  .button {
-    display: inline-block;
-    padding: 14px 36px;
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 700;
-    font-size: 16px;
-    text-align: center;
-    transition: all 0.3s ease;
-  }
-  
-  .button-primary {
-    background: linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.primaryLight});
-    color: white !important;
-  }
-  
-  .info-box {
-    background: ${BRAND_COLORS.background};
-    border-radius: 12px;
-    padding: 20px;
-    margin: 20px 0;
-    border-right: 4px solid ${BRAND_COLORS.primary};
-  }
-  
-  .footer {
-    background: linear-gradient(135deg, ${BRAND_COLORS.primaryDark}, ${BRAND_COLORS.primary});
-    padding: 30px;
-    text-align: center;
-    color: white;
-  }
-  
-  .footer p {
-    margin: 5px 0;
-    opacity: 0.9;
-  }
-  
-  .footer .copyright {
-    opacity: 0.7;
-    font-size: 12px;
-    margin-top: 15px;
-  }
-`;
 
 // قالب الترويسة حسب نوع الرسالة
 type EmailType = 
@@ -121,72 +40,72 @@ type EmailType =
   | 'subscription';
 
 interface HeaderConfig {
-  gradient: string;
+  gradient1: string;
+  gradient2: string;
   icon: string;
-  iconBg: string;
 }
 
 const getHeaderConfig = (type: EmailType): HeaderConfig => {
   const configs: Record<EmailType, HeaderConfig> = {
     welcome: {
-      gradient: `linear-gradient(135deg, #10b981, #059669)`,
+      gradient1: '#10b981',
+      gradient2: '#059669',
       icon: '🎉',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     password_reset: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.warning}, ${BRAND_COLORS.warningDark})`,
+      gradient1: BRAND_COLORS.warning,
+      gradient2: BRAND_COLORS.warningDark,
       icon: '🔐',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     ticket_created: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.primaryLight})`,
+      gradient1: BRAND_COLORS.primary,
+      gradient2: BRAND_COLORS.primaryLight,
       icon: '🎫',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     ticket_reply: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.info}, ${BRAND_COLORS.infoDark})`,
+      gradient1: BRAND_COLORS.info,
+      gradient2: BRAND_COLORS.infoDark,
       icon: '💬',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     ticket_resolved: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark})`,
+      gradient1: BRAND_COLORS.success,
+      gradient2: BRAND_COLORS.successDark,
       icon: '✅',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     ticket_closed: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.neutral}, ${BRAND_COLORS.neutralDark})`,
+      gradient1: BRAND_COLORS.neutral,
+      gradient2: BRAND_COLORS.neutralDark,
       icon: '📁',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     meeting_confirmed: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark})`,
+      gradient1: BRAND_COLORS.success,
+      gradient2: BRAND_COLORS.successDark,
       icon: '📅',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     meeting_cancelled: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.danger}, ${BRAND_COLORS.dangerDark})`,
+      gradient1: BRAND_COLORS.danger,
+      gradient2: BRAND_COLORS.dangerDark,
       icon: '❌',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     meeting_completed: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.secondary})`,
+      gradient1: BRAND_COLORS.primary,
+      gradient2: BRAND_COLORS.secondary,
       icon: '✨',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     alert: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.danger}, ${BRAND_COLORS.dangerDark})`,
+      gradient1: BRAND_COLORS.danger,
+      gradient2: BRAND_COLORS.dangerDark,
       icon: '🚨',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     info: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.secondary}, #0284c7)`,
+      gradient1: BRAND_COLORS.secondary,
+      gradient2: '#0284c7',
       icon: 'ℹ️',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
     subscription: {
-      gradient: `linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark})`,
+      gradient1: BRAND_COLORS.success,
+      gradient2: BRAND_COLORS.successDark,
       icon: '👑',
-      iconBg: 'rgba(255,255,255,0.2)',
     },
   };
   return configs[type];
@@ -195,25 +114,110 @@ const getHeaderConfig = (type: EmailType): HeaderConfig => {
 const createHeader = (type: EmailType, title: string, subtitle?: string): string => {
   const config = getHeaderConfig(type);
   return `
-    <div style="background: ${config.gradient}; padding: 45px 30px; text-align: center;">
-      <div style="width: 80px; height: 80px; background: ${config.iconBg}; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 40px;">
-        ${config.icon}
-      </div>
-      <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 800;">${title}</h1>
-      ${subtitle ? `<p style="color: rgba(255,255,255,0.9); margin: 12px 0 0; font-size: 16px;">${subtitle}</p>` : ''}
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, ${config.gradient1}, ${config.gradient2});">
+      <tr>
+        <td align="center" style="padding: 50px 30px;">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" style="padding-bottom: 20px;">
+                <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; line-height: 80px; text-align: center; font-size: 40px;">
+                  ${config.icon}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td align="center">
+                <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 800; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${title}</h1>
+              </td>
+            </tr>
+            ${subtitle ? `
+            <tr>
+              <td align="center" style="padding-top: 12px;">
+                <p style="color: rgba(255,255,255,0.9); margin: 0; font-size: 16px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${subtitle}</p>
+              </td>
+            </tr>
+            ` : ''}
+          </table>
+        </td>
+      </tr>
+    </table>
   `;
 };
 
 const createFooter = (): string => `
-  <div class="footer" style="background: linear-gradient(135deg, ${BRAND_COLORS.primaryDark}, ${BRAND_COLORS.primary}); padding: 30px; text-align: center; color: white;">
-    ${WEBYAN_LOGO}
-    <p style="margin: 15px 0 5px; font-size: 14px; opacity: 0.9;">فريق دعم ويبيان</p>
-    <p style="margin: 5px 0; font-size: 13px; opacity: 0.8;">support@webyan.net</p>
-    <p style="margin: 20px 0 0; font-size: 12px; opacity: 0.6;">
-      © ${new Date().getFullYear()} ويبيان - جميع الحقوق محفوظة
-    </p>
-  </div>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, ${BRAND_COLORS.primaryDark}, ${BRAND_COLORS.primary});">
+    <tr>
+      <td align="center" style="padding: 35px 30px;">
+        <table cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="center" style="padding-bottom: 15px;">
+              <table cellpadding="0" cellspacing="0" border="0" style="background: rgba(255,255,255,0.15); border-radius: 10px;">
+                <tr>
+                  <td style="padding: 10px 25px;">
+                    <span style="color: #ffffff; font-size: 22px; font-weight: bold; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">ويبيان</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center">
+              <p style="margin: 0 0 5px; font-size: 14px; color: rgba(255,255,255,0.9); font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">فريق دعم ويبيان</p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center">
+              <p style="margin: 0; font-size: 13px; color: rgba(255,255,255,0.8); font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">support@webyan.net</p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-top: 20px;">
+              <p style="margin: 0; font-size: 12px; color: rgba(255,255,255,0.6); font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                © ${new Date().getFullYear()} ويبيان - جميع الحقوق محفوظة
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+`;
+
+const createEmailWrapper = (content: string): string => `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>ويبيان</title>
+  <!--[if mso]>
+  <style type="text/css">
+    table {border-collapse:collapse;border-spacing:0;margin:0;}
+    div, td {padding:0;}
+    div {margin:0 !important;}
+  </style>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: ${BRAND_COLORS.background}; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${BRAND_COLORS.background};">
+    <tr>
+      <td align="center" style="padding: 30px 15px;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: ${BRAND_COLORS.surface}; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);">
+          ${content}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
 `;
 
 // =============================================================================
@@ -223,106 +227,154 @@ const createFooter = (): string => `
 // 1. قالب الترحيب
 export const welcomeTemplate = (data: { name: string; loginUrl: string }) => ({
   subject: '🎉 مرحباً بك في ويبيان!',
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('welcome', 'مرحباً بك في ويبيان!', 'نحن سعداء بانضمامك إلينا')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            أهلاً <strong style="color: ${BRAND_COLORS.primary};">${data.name}</strong>،
-          </p>
-          
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            يسعدنا انضمامك إلى منصة ويبيان للدعم الفني! نحن هنا لمساعدتك وتقديم أفضل تجربة دعم ممكنة.
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; padding: 25px; margin: 25px 0; border-right: 5px solid ${BRAND_COLORS.success};">
-            <h3 style="color: ${BRAND_COLORS.successDark}; margin: 0 0 15px; font-size: 17px;">🌟 ما يمكنك فعله الآن:</h3>
-            <ul style="margin: 0; padding-right: 20px; color: #065f46; line-height: 2;">
-              <li>استعراض أدلة المستخدم الشاملة</li>
-              <li>فتح تذاكر الدعم الفني ومتابعتها</li>
-              <li>حجز اجتماعات مع فريق الدعم</li>
-              <li>التواصل المباشر عبر المحادثات الفورية</li>
-            </ul>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.loginUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-              🚀 ابدأ رحلتك الآن
-            </a>
-          </div>
-          
-          <div style="background: ${BRAND_COLORS.background}; border-radius: 12px; padding: 20px; margin-top: 25px;">
-            <p style="color: ${BRAND_COLORS.textMuted}; font-size: 14px; margin: 0; text-align: center;">
-              إذا كان لديك أي استفسار، لا تتردد في التواصل معنا. نحن هنا لمساعدتك!
-            </p>
-          </div>
-        </div>
-        
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                أهلاً <strong style="color: ${BRAND_COLORS.primary};">${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                يسعدنا انضمامك إلى منصة ويبيان للدعم الفني! نحن هنا لمساعدتك وتقديم أفضل تجربة دعم ممكنة.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; border-right: 5px solid ${BRAND_COLORS.success};">
+                <tr>
+                  <td style="padding: 25px;">
+                    <h3 style="color: ${BRAND_COLORS.successDark}; margin: 0 0 15px; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">🌟 ما يمكنك فعله الآن:</h3>
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr><td style="padding: 8px 0; color: #065f46; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">• استعراض أدلة المستخدم الشاملة</td></tr>
+                      <tr><td style="padding: 8px 0; color: #065f46; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">• فتح تذاكر الدعم الفني ومتابعتها</td></tr>
+                      <tr><td style="padding: 8px 0; color: #065f46; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">• حجز اجتماعات مع فريق الدعم</td></tr>
+                      <tr><td style="padding: 8px 0; color: #065f46; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">• التواصل المباشر عبر المحادثات الفورية</td></tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 35px 0;">
+              <a href="${data.loginUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+                🚀 ابدأ رحلتك الآن
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${BRAND_COLORS.background}; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 20px;" align="center">
+                    <p style="color: ${BRAND_COLORS.textMuted}; font-size: 14px; margin: 0; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                      إذا كان لديك أي استفسار، لا تتردد في التواصل معنا. نحن هنا لمساعدتك!
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 2. قالب استعادة كلمة المرور
 export const passwordResetTemplate = (data: { name: string; resetUrl: string; expiryTime: string }) => ({
   subject: '🔐 طلب إعادة تعيين كلمة المرور',
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('password_reset', 'إعادة تعيين كلمة المرور', 'طلب تغيير كلمة المرور الخاصة بك')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك. إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة.
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; padding: 20px; margin: 20px 0; border-right: 5px solid ${BRAND_COLORS.warning};">
-            <p style="margin: 0; color: #92400e; display: flex; align-items: center; gap: 10px;">
-              <span style="font-size: 20px;">⏰</span>
-              <span>ينتهي صلاحية هذا الرابط خلال <strong>${data.expiryTime}</strong></span>
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.resetUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.warning}, ${BRAND_COLORS.warningDark}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);">
-              🔑 إعادة تعيين كلمة المرور
-            </a>
-          </div>
-          
-          <div style="background: #fef2f2; border-radius: 12px; padding: 20px; margin-top: 25px; border-right: 5px solid ${BRAND_COLORS.danger};">
-            <p style="color: #991b1b; font-size: 14px; margin: 0;">
-              <strong>⚠️ تنبيه أمني:</strong> لا تشارك هذا الرابط مع أي شخص. فريق ويبيان لن يطلب منك كلمة المرور أبداً.
-            </p>
-          </div>
-        </div>
-        
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك. إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; border-right: 5px solid ${BRAND_COLORS.warning};">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="vertical-align: middle; padding-left: 12px;">
+                          <span style="font-size: 24px;">⏰</span>
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <p style="margin: 0; color: #92400e; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                            ينتهي صلاحية هذا الرابط خلال <strong>${data.expiryTime}</strong>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 35px 0;">
+              <a href="${data.resetUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.warning}, ${BRAND_COLORS.warningDark}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);">
+                🔑 إعادة تعيين كلمة المرور
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #fef2f2; border-radius: 12px; border-right: 5px solid ${BRAND_COLORS.danger};">
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="color: #991b1b; font-size: 14px; margin: 0; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                      <strong>⚠️ تنبيه أمني:</strong> لا تشارك هذا الرابط مع أي شخص. فريق ويبيان لن يطلب منك كلمة المرور أبداً.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 3. قالب إنشاء تذكرة جديدة
@@ -334,64 +386,97 @@ export const ticketCreatedTemplate = (data: {
   trackUrl: string;
 }) => ({
   subject: `✅ تم استلام تذكرتك #${data.ticketNumber}`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('ticket_created', 'تم استلام تذكرتك بنجاح!', 'سيقوم فريقنا بمراجعتها قريباً')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            شكراً لتواصلك معنا! تم استلام تذكرة الدعم الفني وسيتم مراجعتها من قبل فريقنا المختص.
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 16px; padding: 25px; margin: 25px 0; border-right: 5px solid ${BRAND_COLORS.primary}; text-align: center;">
-            <p style="color: ${BRAND_COLORS.textMuted}; font-size: 14px; margin: 0 0 8px;">رقم التذكرة</p>
-            <p style="color: ${BRAND_COLORS.primary}; font-size: 28px; font-weight: 800; margin: 0; font-family: monospace;">${data.ticketNumber}</p>
-            <p style="color: ${BRAND_COLORS.text}; font-size: 15px; margin: 15px 0 0;">
-              <strong>الموضوع:</strong> ${data.subject}
-            </p>
-          </div>
-          
-          <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; padding: 20px; margin: 20px 0; display: flex; align-items: center; gap: 15px;">
-            <span style="font-size: 32px;">⏰</span>
-            <div>
-              <p style="margin: 0 0 5px; color: #92400e; font-weight: 700;">الوقت المتوقع للرد</p>
-              <p style="margin: 0; color: #78350f;">سيتم الرد خلال <strong>${data.responseTime} ساعة عمل</strong> بحد أقصى</p>
-            </div>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.trackUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.primaryLight}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(30, 64, 175, 0.4);">
-              📋 متابعة التذكرة
-            </a>
-          </div>
-          
-          <div style="background: ${BRAND_COLORS.background}; border-radius: 12px; padding: 20px;">
-            <h4 style="color: ${BRAND_COLORS.text}; margin: 0 0 12px; font-size: 15px;">💡 نصائح مفيدة:</h4>
-            <ul style="margin: 0; padding-right: 20px; color: ${BRAND_COLORS.textMuted}; font-size: 14px; line-height: 2;">
-              <li>احتفظ برقم التذكرة لمتابعة حالة طلبك</li>
-              <li>ستصلك رسالة عند أي تحديث على التذكرة</li>
-              <li>يمكنك إضافة معلومات إضافية من خلال الرد على التذكرة</li>
-            </ul>
-          </div>
-        </div>
-        
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                شكراً لتواصلك معنا! تم استلام تذكرة الدعم الفني وسيتم مراجعتها من قبل فريقنا المختص.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 16px; border-right: 5px solid ${BRAND_COLORS.primary};">
+                <tr>
+                  <td align="center" style="padding: 30px;">
+                    <p style="color: ${BRAND_COLORS.textMuted}; font-size: 14px; margin: 0 0 8px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">رقم التذكرة</p>
+                    <p style="color: ${BRAND_COLORS.primary}; font-size: 32px; font-weight: 800; margin: 0; font-family: 'Courier New', monospace;">${data.ticketNumber}</p>
+                    <p style="color: ${BRAND_COLORS.textDark}; font-size: 15px; margin: 18px 0 0; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                      <strong>الموضوع:</strong> ${data.subject}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 25px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="vertical-align: top; padding-left: 15px;">
+                          <span style="font-size: 32px;">⏰</span>
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <p style="margin: 0 0 5px; color: #92400e; font-weight: 700; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">الوقت المتوقع للرد</p>
+                          <p style="margin: 0; color: #78350f; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">سيتم الرد خلال <strong>${data.responseTime} ساعة عمل</strong> بحد أقصى</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 35px 0;">
+              <a href="${data.trackUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.primaryLight}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(30, 64, 175, 0.4);">
+                📋 متابعة التذكرة
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${BRAND_COLORS.background}; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h4 style="color: ${BRAND_COLORS.textDark}; margin: 0 0 12px; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">💡 نصائح مفيدة:</h4>
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr><td style="padding: 6px 0; color: ${BRAND_COLORS.text}; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">• احتفظ برقم التذكرة لمتابعة حالة طلبك</td></tr>
+                      <tr><td style="padding: 6px 0; color: ${BRAND_COLORS.text}; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">• ستصلك رسالة عند أي تحديث على التذكرة</td></tr>
+                      <tr><td style="padding: 6px 0; color: ${BRAND_COLORS.text}; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">• يمكنك إضافة معلومات إضافية من خلال الرد على التذكرة</td></tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 4. قالب رد على التذكرة
@@ -404,56 +489,87 @@ export const ticketReplyTemplate = (data: {
   viewUrl: string;
 }) => ({
   subject: `💬 رد جديد على تذكرتك #${data.ticketNumber}`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('ticket_reply', 'رد جديد على تذكرتك', 'فريق الدعم قام بالرد على استفسارك')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-radius: 12px; padding: 20px; margin: 20px 0; border-right: 5px solid ${BRAND_COLORS.info};">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <span style="color: ${BRAND_COLORS.info}; font-weight: 700;">رقم التذكرة: ${data.ticketNumber}</span>
-              <span style="background: #ddd6fe; color: #5b21b6; padding: 5px 12px; border-radius: 20px; font-size: 13px;">قيد المعالجة</span>
-            </div>
-            <p style="color: ${BRAND_COLORS.text}; margin: 0;"><strong>الموضوع:</strong> ${data.subject}</p>
-          </div>
-          
-          <div style="background: ${BRAND_COLORS.background}; border-radius: 12px; padding: 20px; margin: 25px 0;">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
-              <div style="width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, ${BRAND_COLORS.info}, ${BRAND_COLORS.infoDark}); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">👨‍💼</div>
-              <div>
-                <p style="margin: 0; font-weight: 700; color: ${BRAND_COLORS.text};">${data.replierName}</p>
-                <p style="margin: 3px 0 0; color: ${BRAND_COLORS.textMuted}; font-size: 13px;">فريق الدعم الفني</p>
-              </div>
-            </div>
-            <div style="background: white; border-radius: 10px; padding: 18px; border: 1px solid #e5e7eb;">
-              <p style="margin: 0; color: ${BRAND_COLORS.text}; line-height: 1.8; white-space: pre-wrap;">${data.replyMessage}</p>
-            </div>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.info}, ${BRAND_COLORS.infoDark}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
-              💬 عرض المحادثة والرد
-            </a>
-          </div>
-        </div>
-        
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-radius: 12px; border-right: 5px solid ${BRAND_COLORS.info};">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td>
+                          <span style="color: ${BRAND_COLORS.info}; font-weight: 700; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">رقم التذكرة: ${data.ticketNumber}</span>
+                        </td>
+                        <td align="left">
+                          <span style="background: #ddd6fe; color: #5b21b6; padding: 5px 12px; border-radius: 20px; font-size: 13px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">قيد المعالجة</span>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="color: ${BRAND_COLORS.textDark}; margin: 12px 0 0; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>الموضوع:</strong> ${data.subject}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 25px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${BRAND_COLORS.background}; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 15px;">
+                      <tr>
+                        <td style="vertical-align: middle; padding-left: 12px;">
+                          <div style="width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, ${BRAND_COLORS.info}, ${BRAND_COLORS.infoDark}); line-height: 45px; text-align: center; color: white; font-size: 18px;">👨‍💼</div>
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <p style="margin: 0; font-weight: 700; color: ${BRAND_COLORS.textDark}; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.replierName}</p>
+                          <p style="margin: 3px 0 0; color: ${BRAND_COLORS.textMuted}; font-size: 13px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">فريق الدعم الفني</p>
+                        </td>
+                      </tr>
+                    </table>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #ffffff; border-radius: 10px; border: 1px solid #e5e7eb;">
+                      <tr>
+                        <td style="padding: 18px;">
+                          <p style="margin: 0; color: ${BRAND_COLORS.textDark}; line-height: 1.8; white-space: pre-wrap; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.replyMessage}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 35px 0 0;">
+              <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.info}, ${BRAND_COLORS.infoDark}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                💬 عرض المحادثة والرد
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 5. قالب حل التذكرة
@@ -465,64 +581,95 @@ export const ticketResolvedTemplate = (data: {
   viewUrl: string;
 }) => ({
   subject: `✅ تم حل تذكرتك #${data.ticketNumber}`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('ticket_resolved', 'تم حل تذكرتك بنجاح! 🎉', 'نأمل أن نكون قد ساعدناك')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            يسعدنا إبلاغك بأنه تم حل تذكرتك وإغلاقها. نشكرك على تواصلك معنا ونتمنى أن تكون المشكلة قد تم حلها بشكل مرضٍ.
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; padding: 25px; margin: 25px 0; border-right: 5px solid ${BRAND_COLORS.success};">
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-              <div style="width: 50px; height: 50px; background: ${BRAND_COLORS.success}; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                <span style="color: white; font-size: 24px;">✓</span>
-              </div>
-              <div>
-                <p style="margin: 0; color: #065f46; font-weight: 700; font-size: 18px;">تم الحل بنجاح</p>
-                <p style="margin: 5px 0 0; color: #047857; font-size: 14px;">رقم التذكرة: ${data.ticketNumber}</p>
-              </div>
-            </div>
-            <p style="color: #065f46; margin: 0;"><strong>الموضوع:</strong> ${data.subject}</p>
-          </div>
-          
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                يسعدنا إبلاغك بأنه تم حل تذكرتك وإغلاقها. نشكرك على تواصلك معنا ونتمنى أن تكون المشكلة قد تم حلها بشكل مرضٍ.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; border-right: 5px solid ${BRAND_COLORS.success};">
+                <tr>
+                  <td style="padding: 25px;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 15px;">
+                      <tr>
+                        <td style="vertical-align: middle; padding-left: 15px;">
+                          <div style="width: 50px; height: 50px; background: ${BRAND_COLORS.success}; border-radius: 50%; line-height: 50px; text-align: center;">
+                            <span style="color: white; font-size: 24px;">✓</span>
+                          </div>
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <p style="margin: 0; color: #065f46; font-weight: 700; font-size: 18px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">تم الحل بنجاح</p>
+                          <p style="margin: 5px 0 0; color: #047857; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">رقم التذكرة: ${data.ticketNumber}</p>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="color: #065f46; margin: 0; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>الموضوع:</strong> ${data.subject}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
           ${data.closureMessage ? `
-          <div style="background: ${BRAND_COLORS.background}; border-radius: 12px; padding: 20px; margin: 20px 0;">
-            <p style="color: ${BRAND_COLORS.textMuted}; font-size: 14px; margin: 0 0 10px;"><strong>رسالة الإغلاق:</strong></p>
-            <p style="color: ${BRAND_COLORS.text}; margin: 0; line-height: 1.8;">${data.closureMessage}</p>
-          </div>
+          <tr>
+            <td style="padding-top: 20px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${BRAND_COLORS.background}; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="color: ${BRAND_COLORS.textMuted}; font-size: 14px; margin: 0 0 10px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>رسالة الإغلاق:</strong></p>
+                    <p style="color: ${BRAND_COLORS.textDark}; margin: 0; line-height: 1.8; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.closureMessage}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
           ` : ''}
-          
-          <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
-            <p style="margin: 0 0 8px; color: #92400e; font-weight: 700; font-size: 16px;">⭐ نقدر رأيك!</p>
-            <p style="margin: 0; color: #78350f; font-size: 14px;">شاركنا تجربتك لنستمر في تحسين خدماتنا</p>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-              📋 عرض تفاصيل التذكرة
-            </a>
-          </div>
-        </div>
-        
+          <tr>
+            <td style="padding-top: 25px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px;">
+                <tr>
+                  <td align="center" style="padding: 20px;">
+                    <p style="margin: 0 0 8px; color: #92400e; font-weight: 700; font-size: 16px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">⭐ نقدر رأيك!</p>
+                    <p style="margin: 0; color: #78350f; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">شاركنا تجربتك لنستمر في تحسين خدماتنا</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 35px 0 0;">
+              <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+                📋 عرض تفاصيل التذكرة
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 6. قالب تأكيد الاجتماع
@@ -536,72 +683,92 @@ export const meetingConfirmedTemplate = (data: {
   viewUrl: string;
 }) => ({
   subject: `📅 تم تأكيد موعد اجتماعك: ${data.meetingSubject}`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('meeting_confirmed', 'تم تأكيد موعد اجتماعك! ✅', 'نتطلع للقائك')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            تم تأكيد موعد اجتماعك مع فريق ويبيان. يرجى التحضير والحضور في الموعد المحدد.
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; padding: 25px; margin: 25px 0; border-right: 5px solid ${BRAND_COLORS.success};">
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 10px 0; color: #065f46; width: 100px;"><strong>📋 الموضوع:</strong></td>
-                <td style="padding: 10px 0; color: #065f46; font-size: 17px; font-weight: 700;">${data.meetingSubject}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px 0; color: #065f46;"><strong>📅 التاريخ:</strong></td>
-                <td style="padding: 10px 0; color: #065f46;">${data.meetingDate}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px 0; color: #065f46;"><strong>⏰ الوقت:</strong></td>
-                <td style="padding: 10px 0; color: #065f46;">${data.meetingTime}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px 0; color: #065f46;"><strong>👤 مع:</strong></td>
-                <td style="padding: 10px 0; color: #065f46;">${data.staffName}</td>
-              </tr>
-              ${data.meetingLink ? `
-              <tr>
-                <td style="padding: 10px 0; color: #065f46;"><strong>🔗 الرابط:</strong></td>
-                <td style="padding: 10px 0;"><a href="${data.meetingLink}" style="color: ${BRAND_COLORS.success}; text-decoration: underline;">${data.meetingLink}</a></td>
-              </tr>
-              ` : ''}
-            </table>
-          </div>
-          
-          <div style="background: #fef3c7; border-radius: 12px; padding: 18px; margin: 20px 0;">
-            <p style="margin: 0; color: #92400e; font-size: 14px;">
-              <strong>💡 تذكير:</strong> يُرجى الحضور قبل الموعد بـ 5 دقائق على الأقل للتأكد من جاهزية الاتصال.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-              📅 عرض تفاصيل الاجتماع
-            </a>
-          </div>
-        </div>
-        
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                تم تأكيد موعد اجتماعك مع فريق ويبيان. يرجى التحضير والحضور في الموعد المحدد.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; border-right: 5px solid ${BRAND_COLORS.success};">
+                <tr>
+                  <td style="padding: 25px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding: 10px 0; color: #065f46; width: 100px; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>📋 الموضوع:</strong></td>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 17px; font-weight: 700; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.meetingSubject}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>📅 التاريخ:</strong></td>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.meetingDate}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>⏰ الوقت:</strong></td>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.meetingTime}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>👤 مع:</strong></td>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.staffName}</td>
+                      </tr>
+                      ${data.meetingLink ? `
+                      <tr>
+                        <td style="padding: 10px 0; color: #065f46; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>🔗 الرابط:</strong></td>
+                        <td style="padding: 10px 0;"><a href="${data.meetingLink}" style="color: ${BRAND_COLORS.success}; text-decoration: underline; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.meetingLink}</a></td>
+                      </tr>
+                      ` : ''}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 20px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #fef3c7; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 18px;">
+                    <p style="margin: 0; color: #92400e; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                      <strong>💡 تذكير:</strong> يُرجى الحضور قبل الموعد بـ 5 دقائق على الأقل للتأكد من جاهزية الاتصال.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 35px 0 0;">
+              <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.success}, ${BRAND_COLORS.successDark}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+                📅 عرض تفاصيل الاجتماع
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 7. قالب إلغاء الاجتماع
@@ -612,48 +779,64 @@ export const meetingCancelledTemplate = (data: {
   newMeetingUrl: string;
 }) => ({
   subject: `❌ تم إلغاء الاجتماع: ${data.meetingSubject}`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('meeting_cancelled', 'تم إلغاء الاجتماع', 'نأسف لهذا الإزعاج')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            نأسف لإبلاغك بأنه تم إلغاء الاجتماع المجدول. نعتذر عن أي إزعاج قد يسببه هذا الأمر.
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #fef2f2, #fecaca); border-radius: 16px; padding: 25px; margin: 25px 0; border-right: 5px solid ${BRAND_COLORS.danger};">
-            <p style="color: #991b1b; margin: 0 0 10px;"><strong>الموضوع:</strong> ${data.meetingSubject}</p>
-            ${data.reason ? `<p style="color: #991b1b; margin: 10px 0 0;"><strong>السبب:</strong> ${data.reason}</p>` : ''}
-          </div>
-          
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 15px; margin: 20px 0;">
-            يمكنك طلب موعد جديد في أي وقت يناسبك من خلال الرابط أدناه.
-          </p>
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.newMeetingUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.primaryLight}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(30, 64, 175, 0.4);">
-              📅 طلب موعد جديد
-            </a>
-          </div>
-        </div>
-        
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                نأسف لإبلاغك بأنه تم إلغاء الاجتماع المجدول. نعتذر عن أي إزعاج قد يسببه هذا الأمر.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #fef2f2, #fecaca); border-radius: 16px; border-right: 5px solid ${BRAND_COLORS.danger};">
+                <tr>
+                  <td style="padding: 25px;">
+                    <p style="color: #991b1b; margin: 0 0 10px; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>الموضوع:</strong> ${data.meetingSubject}</p>
+                    ${data.reason ? `<p style="color: #991b1b; margin: 10px 0 0; font-size: 14px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;"><strong>السبب:</strong> ${data.reason}</p>` : ''}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 20px;">
+              <p style="color: ${BRAND_COLORS.text}; font-size: 15px; margin: 0; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                يمكنك طلب موعد جديد في أي وقت يناسبك من خلال الرابط أدناه.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 35px 0 0;">
+              <a href="${data.newMeetingUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.primary}, ${BRAND_COLORS.primaryLight}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(30, 64, 175, 0.4);">
+                📅 طلب موعد جديد
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 8. قالب التنبيهات المهمة
@@ -665,41 +848,51 @@ export const alertTemplate = (data: {
   actionText?: string;
 }) => ({
   subject: `🚨 ${data.title}`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('alert', data.title, 'يرجى الاطلاع على هذا التنبيه المهم')}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #fef2f2, #fecaca); border-radius: 16px; padding: 25px; margin: 25px 0; border-right: 5px solid ${BRAND_COLORS.danger};">
-            <p style="color: #991b1b; margin: 0; font-size: 16px; line-height: 1.8;">${data.message}</p>
-          </div>
-          
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #fef2f2, #fecaca); border-radius: 16px; border-right: 5px solid ${BRAND_COLORS.danger};">
+                <tr>
+                  <td style="padding: 25px;">
+                    <p style="color: #991b1b; margin: 0; font-size: 16px; line-height: 1.8; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.message}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
           ${data.actionUrl ? `
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.actionUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.danger}, ${BRAND_COLORS.dangerDark}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);">
-              ${data.actionText || 'اتخذ إجراء الآن'}
-            </a>
-          </div>
+          <tr>
+            <td align="center" style="padding: 35px 0 0;">
+              <a href="${data.actionUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.danger}, ${BRAND_COLORS.dangerDark}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);">
+                ${data.actionText || 'اتخذ إجراء الآن'}
+              </a>
+            </td>
+          </tr>
           ` : ''}
-        </div>
-        
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 9. قالب المعلومات العامة
@@ -711,41 +904,47 @@ export const infoTemplate = (data: {
   actionText?: string;
 }) => ({
   subject: `ℹ️ ${data.title}`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader('info', data.title)}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
-          <div style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.9;">
-            ${data.content}
-          </div>
-          
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.9; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                ${data.content}
+              </div>
+            </td>
+          </tr>
           ${data.actionUrl ? `
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.actionUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.secondary}, #0284c7); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);">
-              ${data.actionText || 'المزيد'}
-            </a>
-          </div>
+          <tr>
+            <td align="center" style="padding: 35px 0 0;">
+              <a href="${data.actionUrl}" style="display: inline-block; background: linear-gradient(135deg, ${BRAND_COLORS.secondary}, #0284c7); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);">
+                ${data.actionText || 'المزيد'}
+              </a>
+            </td>
+          </tr>
           ` : ''}
-        </div>
-        
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // 10. قالب الاشتراك
@@ -759,60 +958,84 @@ export const subscriptionTemplate = (data: {
   subject: data.status === 'approved' 
     ? `🎉 تم الموافقة على اشتراكك في ${data.planName}` 
     : `📋 تحديث على طلب اشتراكك`,
-  html: `
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>${getBaseStyles()}</style>
-    </head>
-    <body style="background: ${BRAND_COLORS.background}; padding: 20px;">
-      <div class="email-wrapper" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+  html: createEmailWrapper(`
+    <tr>
+      <td>
         ${createHeader(
           data.status === 'approved' ? 'subscription' : 'info',
           data.status === 'approved' ? 'تم تفعيل اشتراكك! 🎉' : 'تحديث على طلب الاشتراك',
           data.status === 'approved' ? 'شكراً لثقتك بنا' : undefined
         )}
-        
-        <div style="padding: 32px;">
-          <p style="font-size: 18px; color: ${BRAND_COLORS.text}; margin-bottom: 20px;">
-            مرحباً <strong>${data.name}</strong>،
-          </p>
-          
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 35px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <p style="font-size: 18px; color: ${BRAND_COLORS.textDark}; margin: 0 0 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                مرحباً <strong>${data.name}</strong>،
+              </p>
+            </td>
+          </tr>
           ${data.status === 'approved' ? `
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            يسعدنا إبلاغك بأنه تم الموافقة على طلب اشتراكك وتفعيل الخدمة!
-          </p>
-          
-          <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; padding: 30px; margin: 25px 0; text-align: center;">
-            <p style="color: #065f46; font-size: 14px; margin: 0 0 10px;">الباقة المفعلة</p>
-            <p style="color: ${BRAND_COLORS.success}; font-size: 28px; font-weight: 800; margin: 0;">${data.planName}</p>
-          </div>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                يسعدنا إبلاغك بأنه تم الموافقة على طلب اشتراكك وتفعيل الخدمة!
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px;">
+                <tr>
+                  <td align="center" style="padding: 30px;">
+                    <p style="color: #065f46; font-size: 14px; margin: 0 0 10px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">الباقة المفعلة</p>
+                    <p style="color: ${BRAND_COLORS.success}; font-size: 28px; font-weight: 800; margin: 0; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.planName}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
           ` : `
-          <p style="color: ${BRAND_COLORS.textMuted}; font-size: 16px; line-height: 1.8; margin-bottom: 25px;">
-            نأسف لإبلاغك بأنه لم نتمكن من الموافقة على طلب اشتراكك في الوقت الحالي.
-          </p>
+          <tr>
+            <td>
+              <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.8; margin: 0 0 25px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+                نأسف لإبلاغك بأنه لم نتمكن من الموافقة على طلب اشتراكك في الوقت الحالي.
+              </p>
+            </td>
+          </tr>
           `}
-          
           ${data.adminMessage ? `
-          <div style="background: ${data.status === 'approved' ? BRAND_COLORS.background : '#fef3c7'}; border-radius: 12px; padding: 20px; margin: 20px 0; border-right: 5px solid ${data.status === 'approved' ? BRAND_COLORS.primary : BRAND_COLORS.warning};">
-            <p style="color: ${data.status === 'approved' ? BRAND_COLORS.text : '#92400e'}; margin: 0; line-height: 1.8;">${data.adminMessage}</p>
-          </div>
+          <tr>
+            <td style="padding-top: 20px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${data.status === 'approved' ? BRAND_COLORS.background : '#fef3c7'}; border-radius: 12px; border-right: 5px solid ${data.status === 'approved' ? BRAND_COLORS.primary : BRAND_COLORS.warning};">
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="color: ${data.status === 'approved' ? BRAND_COLORS.textDark : '#92400e'}; margin: 0; line-height: 1.8; font-size: 15px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">${data.adminMessage}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
           ` : ''}
-          
-          <div style="text-align: center; margin: 35px 0;">
-            <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${data.status === 'approved' ? BRAND_COLORS.success : BRAND_COLORS.primary}, ${data.status === 'approved' ? BRAND_COLORS.successDark : BRAND_COLORS.primaryLight}); color: white; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 14px rgba(0,0,0,0.2);">
-              📋 عرض تفاصيل الاشتراك
-            </a>
-          </div>
-        </div>
-        
+          <tr>
+            <td align="center" style="padding: 35px 0 0;">
+              <a href="${data.viewUrl}" style="display: inline-block; background: linear-gradient(135deg, ${data.status === 'approved' ? BRAND_COLORS.success : BRAND_COLORS.primary}, ${data.status === 'approved' ? BRAND_COLORS.successDark : BRAND_COLORS.primaryLight}); color: #ffffff; padding: 16px 45px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,0.2);">
+                📋 عرض تفاصيل الاشتراك
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
         ${createFooter()}
-      </div>
-    </body>
-    </html>
-  `,
+      </td>
+    </tr>
+  `),
 });
 
 // دالة مساعدة للحصول على القالب المناسب
