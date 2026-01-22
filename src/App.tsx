@@ -54,6 +54,7 @@ import ChatEmbedSettingsPage from "./pages/admin/ChatEmbedSettingsPage";
 import ArchivedChatsPage from "./pages/admin/ArchivedChatsPage";
 import RolesManagementPage from "./pages/admin/RolesManagementPage";
 import ActivityLogPage from "./pages/admin/ActivityLogPage";
+import SmtpSettingsPage from "./pages/admin/SmtpSettingsPage";
 
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
@@ -188,6 +189,7 @@ const App = () => (
                 <Route path="archived-chats" element={<ArchivedChatsPage />} />
                 <Route path="roles" element={<RolesManagementPage />} />
                 <Route path="activity-log" element={<ActivityLogPage />} />
+                <Route path="smtp-settings" element={<SmtpSettingsPage />} />
               </Route>
               
               {/* Unauthorized Page */}
