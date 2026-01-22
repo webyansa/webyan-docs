@@ -25,8 +25,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending welcome email to ${email}`);
 
-    // Base URLs for Webyan
-    const portalBaseUrl = 'https://webyan-guide-hub.lovable.app';
+    // Base URLs for Webyan - always use the official domain
+    const portalBaseUrl = 'https://docs.webyan.net';
     const docsBaseUrl = 'https://docs.webyan.net';
 
     const template = welcomeTemplate({
@@ -35,7 +35,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     const emailResponse = await resend.emails.send({
-      from: "ويبيان <onboarding@resend.dev>",
+      from: "ويبيان <support@webyan.net>",
       to: [email],
       subject: template.subject,
       html: template.html,

@@ -55,8 +55,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     let template: { subject: string; html: string };
     
-    // Base URLs for Webyan
-    const baseUrl = 'https://webyan-guide-hub.lovable.app';
+    // Base URLs for Webyan - always use the official domain
+    const baseUrl = 'https://docs.webyan.net';
     const docsUrl = 'https://docs.webyan.net';
 
     switch (type) {

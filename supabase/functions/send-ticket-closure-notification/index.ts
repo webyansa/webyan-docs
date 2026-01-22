@@ -99,8 +99,8 @@ const handler = async (req: Request): Promise<Response> => {
         const uniqueEmails = [...new Set(allEmails)];
         const clientName = clientAccounts[0]?.full_name || ticket.organization?.name || 'عزيزنا العميل';
 
-        // Base URLs for Webyan
-        const baseUrl = 'https://webyan-guide-hub.lovable.app';
+        // Base URLs for Webyan - always use the official domain
+        const baseUrl = 'https://docs.webyan.net';
 
         const template = ticketResolvedTemplate({
           name: clientName,
