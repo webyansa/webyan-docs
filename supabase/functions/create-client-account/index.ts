@@ -79,6 +79,35 @@ Deno.serve(async (req) => {
       if (existingAccount) {
         throw new Error('هذا البريد الإلكتروني مسجل بالفعل كحساب عميل');
       }
+
+      // Ensure profile exists
+      const { data: existingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('id', existingUser.id)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        await supabaseAdmin.from('profiles').insert({
+          id: existingUser.id,
+          email,
+          full_name
+        });
+      }
+
+      // Ensure client role is assigned
+      const { data: existingRole } = await supabaseAdmin
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', existingUser.id)
+        .maybeSingle();
+
+      if (!existingRole) {
+        await supabaseAdmin.from('user_roles').insert({
+          user_id: existingUser.id,
+          role: 'client'
+        });
+      }
       
       // Link existing user to client account
       const { error: accountError } = await supabaseAdmin
@@ -124,6 +153,32 @@ Deno.serve(async (req) => {
 
     if (!authData.user) {
       throw new Error('Failed to create user');
+    }
+
+    // Create profile record for the user
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        email,
+        full_name
+      });
+
+    if (profileError) {
+      console.error('Error creating profile:', profileError);
+      // Continue anyway, profile might be created by trigger
+    }
+
+    // Assign client role
+    const { error: roleError } = await supabaseAdmin
+      .from('user_roles')
+      .insert({
+        user_id: authData.user.id,
+        role: 'client'
+      });
+
+    if (roleError) {
+      console.error('Error assigning role:', roleError);
     }
 
     // Create client account record
