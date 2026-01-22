@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { 
   ticketCreatedTemplate, 
@@ -7,8 +6,7 @@ import {
   ticketResolvedTemplate,
   alertTemplate 
 } from "../_shared/email-templates.ts";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+import { sendEmail, getBaseUrl, getSmtpSettings } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,9 +59,8 @@ const handler = async (req: Request): Promise<Response> => {
     const companyName = settingsMap['company_name'] || 'ويبيان';
     const responseTime = settingsMap['support_response_time'] || '48 ساعة';
     
-    // Base URLs for Webyan - always use the official domain
-    const baseUrl = 'https://docs.webyan.net';
-    const docsUrl = 'https://docs.webyan.net';
+    // Get base URL from settings
+    const baseUrl = await getBaseUrl();
     const clientName = customerName || 'عزيزنا العميل';
 
     let template: { subject: string; html: string };
@@ -132,15 +129,16 @@ const handler = async (req: Request): Promise<Response> => {
         };
     }
 
-    const emailResponse = await resend.emails.send({
-      from: `${companyName} <support@webyan.net>`,
-      to: [email],
+    // Send main email
+    const result = await sendEmail({
+      to: email,
       subject: template.subject,
       html: template.html,
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log(`Email sent via ${result.method}:`, result);
 
+    // Send admin notification if needed
     if (type === 'created' && adminEmail) {
       const adminTemplate = alertTemplate({
         name: 'مسؤول النظام',
@@ -150,16 +148,15 @@ const handler = async (req: Request): Promise<Response> => {
         actionText: 'عرض التذكرة'
       });
 
-      await resend.emails.send({
-        from: `${companyName} <support@webyan.net>`,
-        to: [adminEmail],
+      await sendEmail({
+        to: adminEmail,
         subject: adminTemplate.subject,
         html: adminTemplate.html,
       });
     }
 
-    return new Response(JSON.stringify(emailResponse), {
-      status: 200,
+    return new Response(JSON.stringify({ success: result.success, method: result.method }), {
+      status: result.success ? 200 : 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   } catch (error: unknown) {

@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 import { 
   ticketReplyTemplate, 
   ticketResolvedTemplate, 
@@ -8,8 +7,7 @@ import {
   subscriptionTemplate,
   alertTemplate
 } from "../_shared/email-templates.ts";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+import { sendEmail, getBaseUrl } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,11 +51,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending ${type} notification to ${client_email}`);
 
+    // Get base URL from settings
+    const baseUrl = await getBaseUrl();
+
     let template: { subject: string; html: string };
-    
-    // Base URLs for Webyan - always use the official domain
-    const baseUrl = 'https://docs.webyan.net';
-    const docsUrl = 'https://docs.webyan.net';
 
     switch (type) {
       case 'ticket_reply':
@@ -138,17 +135,16 @@ const handler = async (req: Request): Promise<Response> => {
         });
     }
 
-    const emailResponse = await resend.emails.send({
-      from: "ويبيان <support@webyan.net>",
-      to: [client_email],
+    const result = await sendEmail({
+      to: client_email,
       subject: template.subject,
       html: template.html,
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log(`Email sent via ${result.method}:`, result);
 
-    return new Response(JSON.stringify(emailResponse), {
-      status: 200,
+    return new Response(JSON.stringify({ success: result.success, method: result.method }), {
+      status: result.success ? 200 : 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   } catch (error: unknown) {

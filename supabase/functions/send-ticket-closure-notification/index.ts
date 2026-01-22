@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 import { ticketResolvedTemplate } from "../_shared/email-templates.ts";
+import { sendEmail, getBaseUrl } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +22,6 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -84,43 +83,38 @@ const handler = async (req: Request): Promise<Response> => {
         await supabase.from("user_notifications").insert(notifications);
       }
 
-      if (resendApiKey) {
-        const resend = new Resend(resendApiKey);
-        
-        const orgEmail = ticket.organization?.contact_email;
-        const clientEmails = clientAccounts
-          .filter(ca => ca.email)
-          .map(ca => ca.email);
+      // Get base URL from settings
+      const baseUrl = await getBaseUrl();
+      
+      const orgEmail = ticket.organization?.contact_email;
+      const clientEmails = clientAccounts
+        .filter(ca => ca.email)
+        .map(ca => ca.email);
 
-        const allEmails = orgEmail 
-          ? [orgEmail, ...clientEmails.filter(e => e !== orgEmail)]
-          : clientEmails;
+      const allEmails = orgEmail 
+        ? [orgEmail, ...clientEmails.filter(e => e !== orgEmail)]
+        : clientEmails;
 
-        const uniqueEmails = [...new Set(allEmails)];
-        const clientName = clientAccounts[0]?.full_name || ticket.organization?.name || 'عزيزنا العميل';
+      const uniqueEmails = [...new Set(allEmails)];
+      const clientName = clientAccounts[0]?.full_name || ticket.organization?.name || 'عزيزنا العميل';
 
-        // Base URLs for Webyan - always use the official domain
-        const baseUrl = 'https://docs.webyan.net';
+      const template = ticketResolvedTemplate({
+        name: clientName,
+        ticketNumber: ticket.ticket_number,
+        subject: ticket.subject,
+        resolution: closureReplyMessage,
+        feedbackUrl: `${baseUrl}/portal/tickets`
+      });
 
-        const template = ticketResolvedTemplate({
-          name: clientName,
-          ticketNumber: ticket.ticket_number,
-          subject: ticket.subject,
-          resolution: closureReplyMessage,
-          feedbackUrl: `${baseUrl}/portal/tickets`
-        });
-
-        for (const email of uniqueEmails) {
-          try {
-            await resend.emails.send({
-              from: "Webyan Support <support@webyan.net>",
-              to: [email],
-              subject: template.subject,
-              html: template.html,
-            });
-          } catch (emailError) {
-            console.error("Error sending email to", email, emailError);
-          }
+      for (const email of uniqueEmails) {
+        try {
+          await sendEmail({
+            to: email,
+            subject: template.subject,
+            html: template.html,
+          });
+        } catch (emailError) {
+          console.error("Error sending email to", email, emailError);
         }
       }
     }

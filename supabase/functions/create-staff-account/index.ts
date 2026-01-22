@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { sendEmail, getBaseUrl, getSmtpSettings } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -222,11 +223,10 @@ Deno.serve(async (req) => {
       support_agent: { name: 'بوابة الدعم الفني', path: '/support' }
     };
 
-    // Send welcome email with login credentials
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (resendApiKey && isNewUser) {
+    // Send welcome email with login credentials using unified email sender
+    if (isNewUser) {
       try {
-        const origin = req.headers.get('origin') || 'https://webyan.com';
+        const baseUrl = await getBaseUrl();
         const portalInfo = rolePortals[staffRole];
         
         const permissions = [];
@@ -240,77 +240,69 @@ Deno.serve(async (req) => {
           permissions.push('حضور الاجتماعات');
         }
 
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${resendApiKey}`,
-          },
-          body: JSON.stringify({
-            from: 'ويبيان <noreply@webyan.com>',
-            to: [cleanEmail],
-            subject: 'مرحباً بك في فريق ويبيان - بيانات الدخول',
-            html: `
-              <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-                  <h1 style="color: white; margin: 0; font-size: 28px;">مرحباً بك في فريق ويبيان</h1>
-                </div>
-                <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-                  <p style="font-size: 18px; color: #1f2937; margin-bottom: 20px;">
-                    مرحباً <strong>${cleanName}</strong>،
-                  </p>
-                  <p style="color: #4b5563; line-height: 1.8; margin-bottom: 20px;">
-                    تم إنشاء حسابك بنجاح كـ <strong>${roleNames[staffRole]}</strong> في نظام ويبيان.
-                  </p>
-                  
-                  <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <p style="margin: 0; color: #0369a1;"><strong>البوابة:</strong> ${portalInfo.name}</p>
-                    ${job_title ? `<p style="margin: 10px 0 0 0; color: #0369a1;"><strong>المنصب:</strong> ${job_title}</p>` : ''}
-                  </div>
-                  
-                  ${permissions.length > 0 ? `
-                  <div style="background: #ecfdf5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <p style="margin: 0 0 10px 0; color: #065f46;"><strong>الصلاحيات:</strong></p>
-                    <ul style="margin: 0; padding-right: 20px; color: #047857;">
-                      ${permissions.map(p => `<li style="margin: 5px 0;">${p}</li>`).join('')}
-                    </ul>
-                  </div>
-                  ` : ''}
-                  
-                  <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
-                    <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 16px;">🔐 بيانات الدخول:</h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr>
-                        <td style="padding: 8px 0; color: #78350f; font-weight: bold;">البريد الإلكتروني:</td>
-                        <td style="padding: 8px 0; color: #1f2937; direction: ltr; text-align: left;">${cleanEmail}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #78350f; font-weight: bold;">كلمة المرور:</td>
-                        <td style="padding: 8px 0; color: #1f2937; direction: ltr; text-align: left; font-family: monospace; letter-spacing: 1px;">${password}</td>
-                      </tr>
-                    </table>
-                  </div>
-                  
-                  <div style="text-align: center; margin-top: 30px;">
-                    <a href="${origin}${portalInfo.path}" 
-                       style="display: inline-block; background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%); color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
-                      الدخول إلى ${portalInfo.name}
-                    </a>
-                  </div>
-                  
-                  <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                    <p style="color: #ef4444; font-size: 14px; margin: 0;">
-                      ⚠️ <strong>هام:</strong> ننصحك بتغيير كلمة المرور بعد أول تسجيل دخول من صفحة الإعدادات.
-                    </p>
-                  </div>
+        await sendEmail({
+          to: cleanEmail,
+          subject: 'مرحباً بك في فريق ويبيان - بيانات الدخول',
+          html: `
+            <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 28px;">مرحباً بك في فريق ويبيان</h1>
+              </div>
+              <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+                <p style="font-size: 18px; color: #1f2937; margin-bottom: 20px;">
+                  مرحباً <strong>${cleanName}</strong>،
+                </p>
+                <p style="color: #4b5563; line-height: 1.8; margin-bottom: 20px;">
+                  تم إنشاء حسابك بنجاح كـ <strong>${roleNames[staffRole]}</strong> في نظام ويبيان.
+                </p>
+                
+                <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                  <p style="margin: 0; color: #0369a1;"><strong>البوابة:</strong> ${portalInfo.name}</p>
+                  ${job_title ? `<p style="margin: 10px 0 0 0; color: #0369a1;"><strong>المنصب:</strong> ${job_title}</p>` : ''}
                 </div>
                 
-                <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
-                  <p style="margin: 0;">© ${new Date().getFullYear()} ويبيان - جميع الحقوق محفوظة</p>
+                ${permissions.length > 0 ? `
+                <div style="background: #ecfdf5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                  <p style="margin: 0 0 10px 0; color: #065f46;"><strong>الصلاحيات:</strong></p>
+                  <ul style="margin: 0; padding-right: 20px; color: #047857;">
+                    ${permissions.map(p => `<li style="margin: 5px 0;">${p}</li>`).join('')}
+                  </ul>
+                </div>
+                ` : ''}
+                
+                <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                  <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 16px;">🔐 بيانات الدخول:</h3>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 8px 0; color: #78350f; font-weight: bold;">البريد الإلكتروني:</td>
+                      <td style="padding: 8px 0; color: #1f2937; direction: ltr; text-align: left;">${cleanEmail}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #78350f; font-weight: bold;">كلمة المرور:</td>
+                      <td style="padding: 8px 0; color: #1f2937; direction: ltr; text-align: left; font-family: monospace; letter-spacing: 1px;">${password}</td>
+                    </tr>
+                  </table>
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                  <a href="${baseUrl}${portalInfo.path}" 
+                     style="display: inline-block; background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%); color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                    الدخول إلى ${portalInfo.name}
+                  </a>
+                </div>
+                
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                  <p style="color: #ef4444; font-size: 14px; margin: 0;">
+                    ⚠️ <strong>هام:</strong> ننصحك بتغيير كلمة المرور بعد أول تسجيل دخول من صفحة الإعدادات.
+                  </p>
                 </div>
               </div>
-            `,
-          }),
+              
+              <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+                <p style="margin: 0;">© ${new Date().getFullYear()} ويبيان - جميع الحقوق محفوظة</p>
+              </div>
+            </div>
+          `,
         });
       } catch (emailError) {
         console.error('Failed to send welcome email:', emailError);
