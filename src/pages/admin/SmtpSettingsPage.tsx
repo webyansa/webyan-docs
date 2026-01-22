@@ -286,7 +286,14 @@ export default function SmtpSettingsPage() {
               <Label htmlFor="smtp-port">المنفذ (Port)</Label>
               <Select 
                 value={settings.smtp_port} 
-                onValueChange={(value) => setSettings({ ...settings, smtp_port: value })}
+                onValueChange={(value) => {
+                  // Keep port/encryption in a compatible pairing to reduce SMTP test failures
+                  const next: SmtpSettings = { ...settings, smtp_port: value };
+                  if (value === '465') next.smtp_encryption = 'ssl';
+                  else if (value === '587') next.smtp_encryption = 'tls';
+                  else if (value === '25') next.smtp_encryption = 'none';
+                  setSettings(next);
+                }}
                 disabled={!settings.smtp_enabled}
               >
                 <SelectTrigger>
