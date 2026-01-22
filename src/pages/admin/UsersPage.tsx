@@ -288,11 +288,24 @@ export default function UsersPage() {
 
     setPasswordLoading(true);
     try {
-      toast.info('تغيير كلمة المرور لمستخدم آخر يتطلب صلاحيات إدارية متقدمة');
+      const { data, error } = await supabase.functions.invoke('admin-update-user', {
+        body: {
+          user_id: passwordUserId,
+          action: 'update_password',
+          new_password: newPassword
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('تم تغيير كلمة المرور بنجاح');
       setPasswordDialogOpen(false);
-    } catch (error) {
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
       console.error('Error changing password:', error);
-      toast.error('حدث خطأ أثناء تغيير كلمة المرور');
+      toast.error(error.message || 'حدث خطأ أثناء تغيير كلمة المرور');
     } finally {
       setPasswordLoading(false);
     }
@@ -313,23 +326,23 @@ export default function UsersPage() {
 
     setDeleteLoading(true);
     try {
-      await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', deletingUser.id);
+      const { data, error } = await supabase.functions.invoke('admin-update-user', {
+        body: {
+          user_id: deletingUser.id,
+          action: 'delete_user'
+        }
+      });
 
-      await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', deletingUser.id);
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id));
-      toast.success('تم حذف المستخدم بنجاح');
+      toast.success('تم حذف المستخدم وجميع بياناته بنجاح');
       setDeleteDialogOpen(false);
       setDeletingUser(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting user:', error);
-      toast.error('حدث خطأ أثناء حذف المستخدم');
+      toast.error(error.message || 'حدث خطأ أثناء حذف المستخدم');
     } finally {
       setDeleteLoading(false);
     }

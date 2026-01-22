@@ -21,7 +21,8 @@ const PortalForgotPasswordPage = () => {
     setLoading(true);
 
     try {
-      const redirectUrl = `${window.location.origin}/portal/reset-password`;
+      // Use official Webyan URL for password reset redirect
+      const redirectUrl = 'https://webyan-guide-hub.lovable.app/portal/reset-password';
       
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,

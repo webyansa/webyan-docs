@@ -328,20 +328,45 @@ const ClientsPage = () => {
   };
 
   const handleDeleteOrganization = async (org: ClientOrganization) => {
-    if (!confirm(`هل أنت متأكد من حذف ${org.name}؟`)) return;
+    if (!confirm(`هل أنت متأكد من حذف ${org.name} مع جميع حساباتها وتذاكرها ومحادثاتها؟\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
 
     try {
-      const { error } = await supabase
-        .from('client_organizations')
-        .delete()
-        .eq('id', org.id);
+      const { data, error } = await supabase.functions.invoke('delete-client', {
+        body: {
+          organization_id: org.id,
+          delete_organization: true
+        }
+      });
 
       if (error) throw error;
-      toast.success('تم حذف المؤسسة');
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('تم حذف المؤسسة وجميع بياناتها بنجاح');
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting organization:', error);
-      toast.error('حدث خطأ أثناء الحذف');
+      toast.error(error.message || 'حدث خطأ أثناء الحذف');
+    }
+  };
+
+  const handleDeleteAccount = async (account: ClientAccount) => {
+    if (!confirm(`هل أنت متأكد من حذف حساب ${account.full_name} مع جميع بياناته؟\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-client', {
+        body: {
+          client_account_id: account.id
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('تم حذف حساب العميل بنجاح');
+      fetchData();
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      toast.error(error.message || 'حدث خطأ أثناء حذف الحساب');
     }
   };
 
@@ -857,7 +882,7 @@ const ClientsPage = () => {
             {filteredAccounts.map(account => {
               const org = organizations.find(o => o.id === account.organization_id);
               return (
-                <Card key={account.id} className="hover:shadow-md transition-shadow">
+              <Card key={account.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4">
@@ -878,22 +903,39 @@ const ClientsPage = () => {
                           </p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => {
-                        setEditingAccount(account);
-                        setAccountForm({
-                          organization_id: account.organization_id,
-                          full_name: account.full_name,
-                          email: account.email,
-                          phone: account.phone || '',
-                          job_title: account.job_title || '',
-                          is_primary_contact: account.is_primary_contact,
-                          password: '',
-                          useOrgEmail: false
-                        });
-                        setAccountDialogOpen(true);
-                      }}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => {
+                            setEditingAccount(account);
+                            setAccountForm({
+                              organization_id: account.organization_id,
+                              full_name: account.full_name,
+                              email: account.email,
+                              phone: account.phone || '',
+                              job_title: account.job_title || '',
+                              is_primary_contact: account.is_primary_contact,
+                              password: '',
+                              useOrgEmail: false
+                            });
+                            setAccountDialogOpen(true);
+                          }}>
+                            <Edit className="w-4 h-4 ml-2" />
+                            تعديل
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteAccount(account)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 ml-2" />
+                            حذف الحساب
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardContent>
                 </Card>
