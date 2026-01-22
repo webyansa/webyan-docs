@@ -210,8 +210,8 @@ Deno.serve(async (req) => {
     // Send welcome email with login credentials
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     
-    // Base URLs for Webyan
-    const portalBaseUrl = 'https://webyan-guide-hub.lovable.app';
+    // Base URLs for Webyan - always use the official domain
+    const portalBaseUrl = 'https://docs.webyan.net';
     const docsBaseUrl = 'https://docs.webyan.net';
     
     if (resendApiKey) {
