@@ -81,6 +81,10 @@ export default function UsersPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<AppRole>('client');
+  const [newUserOrgId, setNewUserOrgId] = useState('');
+  
+  // Organizations list for client selection
+  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
 
   // Edit User Dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -103,7 +107,23 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetchOrganizations();
   }, []);
+
+  const fetchOrganizations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('client_organizations')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      setOrganizations(data || []);
+    } catch (error) {
+      console.error('Error fetching organizations:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -185,42 +205,71 @@ export default function UsersPage() {
       return;
     }
 
+    // If role is client, organization is required
+    if (newUserRole === 'client' && !newUserOrgId) {
+      toast.error('يرجى اختيار المؤسسة للعميل');
+      return;
+    }
+
     setAddLoading(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newUserEmail,
-        password: newUserPassword,
-        options: {
-          data: {
+      // If role is client, use the client account creation edge function
+      if (newUserRole === 'client') {
+        const { data, error } = await supabase.functions.invoke('create-client-account', {
+          body: {
+            organization_id: newUserOrgId,
             full_name: newUserName,
-            role: newUserRole,
+            email: newUserEmail,
+            password: newUserPassword,
+            phone: null,
+            job_title: null,
+            is_primary_contact: false
+          }
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        
+        toast.success('تم إضافة حساب العميل بنجاح');
+      } else {
+        // For non-client users, use regular signup
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: newUserEmail,
+          password: newUserPassword,
+          options: {
+            data: {
+              full_name: newUserName,
+              role: newUserRole,
+            },
+            emailRedirectTo: `${window.location.origin}/`,
           },
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
+        });
 
-      if (authError) throw authError;
+        if (authError) throw authError;
 
-      if (authData.user) {
-        await supabase
-          .from('profiles')
-          .update({ full_name: newUserName, email: newUserEmail })
-          .eq('id', authData.user.id);
-
+        if (authData.user) {
+          await supabase
+            .from('profiles')
+            .update({ full_name: newUserName, email: newUserEmail })
+            .eq('id', authData.user.id);
+        }
+        
         toast.success('تم إضافة المستخدم بنجاح');
-        setAddDialogOpen(false);
-        setNewUserEmail('');
-        setNewUserPassword('');
-        setNewUserName('');
-        setNewUserRole('client');
-        fetchUsers();
       }
+      
+      setAddDialogOpen(false);
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserName('');
+      setNewUserRole('client');
+      setNewUserOrgId('');
+      fetchUsers();
     } catch (error: any) {
       console.error('Error adding user:', error);
       if (error.message?.includes('already registered')) {
         toast.error('البريد الإلكتروني مسجل مسبقاً');
       } else {
-        toast.error('حدث خطأ أثناء إضافة المستخدم');
+        toast.error(error.message || 'حدث خطأ أثناء إضافة المستخدم');
       }
     } finally {
       setAddLoading(false);
@@ -506,7 +555,12 @@ export default function UsersPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-role">الصلاحية</Label>
-                  <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as AppRole)}>
+                  <Select value={newUserRole} onValueChange={(v) => {
+                    setNewUserRole(v as AppRole);
+                    if (v !== 'client') {
+                      setNewUserOrgId('');
+                    }
+                  }}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -520,6 +574,31 @@ export default function UsersPage() {
                   </Select>
                 </div>
               </div>
+              
+              {/* Organization selection for clients */}
+              {newUserRole === 'client' && (
+                <div className="space-y-2">
+                  <Label htmlFor="new-org">المؤسسة *</Label>
+                  <Select value={newUserOrgId} onValueChange={setNewUserOrgId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر المؤسسة..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizations.map(org => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {organizations.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      لا توجد مؤسسات نشطة. يرجى إضافة مؤسسة أولاً من صفحة إدارة العملاء.
+                    </p>
+                  )}
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="new-email">البريد الإلكتروني</Label>
                 <Input
