@@ -817,6 +817,45 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          created_at: string
+          email_type: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          method: string
+          recipient_email: string
+          sent_by: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email_type?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          method: string
+          recipient_email: string
+          sent_by?: string | null
+          status: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email_type?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          method?: string
+          recipient_email?: string
+          sent_by?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       embed_tokens: {
         Row: {
           allowed_domains: string[] | null

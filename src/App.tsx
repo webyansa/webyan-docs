@@ -55,6 +55,7 @@ import ArchivedChatsPage from "./pages/admin/ArchivedChatsPage";
 import RolesManagementPage from "./pages/admin/RolesManagementPage";
 import ActivityLogPage from "./pages/admin/ActivityLogPage";
 import SmtpSettingsPage from "./pages/admin/SmtpSettingsPage";
+import EmailLogsPage from "./pages/admin/EmailLogsPage";
 
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
@@ -190,6 +191,7 @@ const App = () => (
                 <Route path="roles" element={<RolesManagementPage />} />
                 <Route path="activity-log" element={<ActivityLogPage />} />
                 <Route path="smtp-settings" element={<SmtpSettingsPage />} />
+                <Route path="email-logs" element={<EmailLogsPage />} />
               </Route>
               
               {/* Unauthorized Page */}
