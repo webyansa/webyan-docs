@@ -23,6 +23,7 @@ export interface EmailParams {
   subject: string;
   html: string;
   from?: string;
+  emailType?: string;
 }
 
 export interface EmailResult {
@@ -33,6 +34,45 @@ export interface EmailResult {
 
 // Cache for settings to avoid repeated DB calls within same function execution
 let cachedSettings: SmtpSettings | null = null;
+let supabaseClient: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (!supabaseClient) {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    supabaseClient = createClient(supabaseUrl, supabaseKey);
+  }
+  return supabaseClient;
+}
+
+/**
+ * Log email send attempt to database
+ */
+async function logEmailSend(params: {
+  recipientEmail: string;
+  subject: string;
+  emailType?: string;
+  method: 'smtp' | 'resend';
+  status: 'success' | 'failed' | 'fallback';
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    await supabase.from('email_logs').insert({
+      recipient_email: params.recipientEmail,
+      subject: params.subject,
+      email_type: params.emailType || 'general',
+      method: params.method,
+      status: params.status,
+      error_message: params.errorMessage || null,
+      metadata: params.metadata || {},
+    });
+  } catch (error) {
+    console.error('Failed to log email:', error);
+    // Don't throw - logging failure shouldn't break email sending
+  }
+}
 
 /**
  * Get SMTP settings from system_settings table
@@ -40,9 +80,7 @@ let cachedSettings: SmtpSettings | null = null;
 export async function getSmtpSettings(): Promise<SmtpSettings> {
   if (cachedSettings) return cachedSettings;
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = getSupabaseClient();
 
   const { data: settings } = await supabase
     .from('system_settings')
@@ -293,6 +331,7 @@ async function sendViaResend(params: EmailParams, senderName: string = "ويبي
  */
 export async function sendEmail(params: EmailParams): Promise<EmailResult> {
   const settings = await getSmtpSettings();
+  const recipientEmail = Array.isArray(params.to) ? params.to[0] : params.to;
   
   // If custom SMTP is enabled
   if (settings.smtp_enabled && settings.smtp_host && settings.smtp_username && settings.smtp_password) {
@@ -300,20 +339,58 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
       console.log(`Attempting to send email via custom SMTP (${settings.smtp_host}:${settings.smtp_port})`);
       await sendViaSmtp(settings, params);
       console.log("Email sent successfully via custom SMTP");
+      
+      // Log success
+      await logEmailSend({
+        recipientEmail,
+        subject: params.subject,
+        emailType: params.emailType,
+        method: 'smtp',
+        status: 'success',
+        metadata: { smtp_host: settings.smtp_host, smtp_port: settings.smtp_port }
+      });
+      
       return { success: true, method: 'smtp' };
     } catch (smtpError) {
-      console.error("SMTP failed, falling back to Resend:", smtpError);
+      const smtpErrorMsg = smtpError instanceof Error ? smtpError.message : String(smtpError);
+      console.error("SMTP failed, falling back to Resend:", smtpErrorMsg);
+      
       // Fallback to Resend
       try {
         await sendViaResend(params, settings.smtp_sender_name);
         console.log("Email sent successfully via Resend (fallback)");
-        return { success: true, method: 'resend', error: `SMTP failed: ${smtpError}` };
+        
+        // Log fallback success
+        await logEmailSend({
+          recipientEmail,
+          subject: params.subject,
+          emailType: params.emailType,
+          method: 'resend',
+          status: 'fallback',
+          errorMessage: `SMTP failed: ${smtpErrorMsg}`,
+          metadata: { smtp_host: settings.smtp_host, original_error: smtpErrorMsg }
+        });
+        
+        return { success: true, method: 'resend', error: `SMTP failed: ${smtpErrorMsg}` };
       } catch (resendError) {
-        console.error("Resend fallback also failed:", resendError);
+        const resendErrorMsg = resendError instanceof Error ? resendError.message : String(resendError);
+        console.error("Resend fallback also failed:", resendErrorMsg);
+        
+        // Log complete failure
+        await logEmailSend({
+          recipientEmail,
+          subject: params.subject,
+          emailType: params.emailType,
+          method: 'resend',
+          status: 'failed',
+          errorMessage: `SMTP: ${smtpErrorMsg}. Resend: ${resendErrorMsg}`,
+          metadata: { smtp_error: smtpErrorMsg, resend_error: resendErrorMsg }
+        });
+        
         return { 
           success: false, 
           method: 'resend', 
-          error: `SMTP failed: ${smtpError}. Resend fallback also failed: ${resendError}` 
+          error: `SMTP failed: ${smtpErrorMsg}. Resend fallback also failed: ${resendErrorMsg}` 
         };
       }
     }
@@ -324,10 +401,32 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
     console.log("Sending email via Resend (SMTP not enabled)");
     await sendViaResend(params, settings.smtp_sender_name);
     console.log("Email sent successfully via Resend");
+    
+    // Log success
+    await logEmailSend({
+      recipientEmail,
+      subject: params.subject,
+      emailType: params.emailType,
+      method: 'resend',
+      status: 'success',
+    });
+    
     return { success: true, method: 'resend' };
   } catch (error) {
-    console.error("Resend failed:", error);
-    return { success: false, method: 'resend', error: String(error) };
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("Resend failed:", errorMsg);
+    
+    // Log failure
+    await logEmailSend({
+      recipientEmail,
+      subject: params.subject,
+      emailType: params.emailType,
+      method: 'resend',
+      status: 'failed',
+      errorMessage: errorMsg,
+    });
+    
+    return { success: false, method: 'resend', error: errorMsg };
   }
 }
 

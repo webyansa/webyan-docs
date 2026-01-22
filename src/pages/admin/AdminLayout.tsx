@@ -147,6 +147,7 @@ const settingsSection: NavSection = {
     { title: 'الأدوار والصلاحيات', href: '/admin/roles', icon: Shield, permission: 'canManageRoles' },
     { title: 'سجل النشاط', href: '/admin/activity-log', icon: History, permission: 'canViewActivityLogs' },
     { title: 'سجل البحث', href: '/admin/search-logs', icon: Search, permission: 'canViewSearchLogs' },
+    { title: 'سجل البريد', href: '/admin/email-logs', icon: Mail, permission: 'canManageSystemSettings' },
     { title: 'إعدادات SMTP', href: '/admin/smtp-settings', icon: Mail, permission: 'canManageSystemSettings' },
     { title: 'الإعدادات العامة', href: '/admin/settings', icon: Settings, permission: 'canManageSystemSettings' },
   ]
