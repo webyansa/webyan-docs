@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { sendEmail, getBaseUrl, getSmtpSettings } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -207,76 +208,64 @@ Deno.serve(async (req) => {
       .eq('id', organization_id)
       .single();
 
-    // Send welcome email with login credentials
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    
-    // Base URLs for Webyan - always use the official domain
-    const portalBaseUrl = 'https://docs.webyan.net';
-    const docsBaseUrl = 'https://docs.webyan.net';
-    
-    if (resendApiKey) {
-      try {
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${resendApiKey}`,
-          },
-          body: JSON.stringify({
-            from: 'ويبيان <support@webyan.net>',
-            to: [email],
-            subject: 'مرحباً بك في بوابة عملاء ويبيان',
-            html: `
-              <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-                  <h1 style="color: white; margin: 0; font-size: 28px;">مرحباً بك في ويبيان</h1>
-                </div>
-                <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-                  <p style="font-size: 18px; color: #1f2937; margin-bottom: 20px;">
-                    مرحباً <strong>${full_name}</strong>،
-                  </p>
-                  <p style="color: #4b5563; line-height: 1.8; margin-bottom: 20px;">
-                    تم إنشاء حسابك في بوابة عملاء ويبيان بنجاح. يمكنك الآن الوصول إلى البوابة لإدارة تذاكر الدعم، طلب الاجتماعات، ومتابعة اشتراكك.
-                  </p>
-                  
-                  ${orgData ? `
-                  <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <p style="margin: 0; color: #374151;"><strong>المؤسسة:</strong> ${orgData.name}</p>
-                  </div>
-                  ` : ''}
-                  
-                  <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
-                    <h3 style="color: #1e40af; margin: 0 0 15px 0;">بيانات الدخول:</h3>
-                    <p style="margin: 5px 0; color: #1e3a8a;"><strong>البريد الإلكتروني:</strong> ${email}</p>
-                    <p style="margin: 5px 0; color: #1e3a8a;"><strong>كلمة المرور:</strong> ${password}</p>
-                  </div>
-                  
-                  <div style="text-align: center; margin-top: 30px;">
-                    <a href="${portalBaseUrl}/portal/login" 
-                       style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
-                      الدخول للبوابة
-                    </a>
-                  </div>
-                  
-                  <div style="text-align: center; margin-top: 15px;">
-                    <a href="${docsBaseUrl}" 
-                       style="color: #1e40af; font-size: 14px; text-decoration: underline;">
-                      📚 استعراض أدلة المستخدم
-                    </a>
-                  </div>
-                  
-                  <p style="color: #6b7280; font-size: 14px; margin-top: 30px; text-align: center;">
-                    ننصحك بتغيير كلمة المرور بعد أول تسجيل دخول من صفحة الإعدادات.
-                  </p>
-                </div>
+    // Get base URL and settings
+    const baseUrl = await getBaseUrl();
+    const settings = await getSmtpSettings();
+
+    // Send welcome email with login credentials using unified email sender
+    try {
+      await sendEmail({
+        to: email,
+        subject: 'مرحباً بك في بوابة عملاء ويبيان',
+        html: `
+          <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 28px;">مرحباً بك في ويبيان</h1>
+            </div>
+            <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 18px; color: #1f2937; margin-bottom: 20px;">
+                مرحباً <strong>${full_name}</strong>،
+              </p>
+              <p style="color: #4b5563; line-height: 1.8; margin-bottom: 20px;">
+                تم إنشاء حسابك في بوابة عملاء ويبيان بنجاح. يمكنك الآن الوصول إلى البوابة لإدارة تذاكر الدعم، طلب الاجتماعات، ومتابعة اشتراكك.
+              </p>
+              
+              ${orgData ? `
+              <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 0; color: #374151;"><strong>المؤسسة:</strong> ${orgData.name}</p>
               </div>
-            `,
-          }),
-        });
-      } catch (emailError) {
-        console.error('Failed to send welcome email:', emailError);
-        // Don't fail the request if email fails
-      }
+              ` : ''}
+              
+              <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                <h3 style="color: #1e40af; margin: 0 0 15px 0;">بيانات الدخول:</h3>
+                <p style="margin: 5px 0; color: #1e3a8a;"><strong>البريد الإلكتروني:</strong> ${email}</p>
+                <p style="margin: 5px 0; color: #1e3a8a;"><strong>كلمة المرور:</strong> ${password}</p>
+              </div>
+              
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="${baseUrl}/portal/login" 
+                   style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                  الدخول للبوابة
+                </a>
+              </div>
+              
+              <div style="text-align: center; margin-top: 15px;">
+                <a href="${baseUrl}" 
+                   style="color: #1e40af; font-size: 14px; text-decoration: underline;">
+                  📚 استعراض أدلة المستخدم
+                </a>
+              </div>
+              
+              <p style="color: #6b7280; font-size: 14px; margin-top: 30px; text-align: center;">
+                ننصحك بتغيير كلمة المرور بعد أول تسجيل دخول من صفحة الإعدادات.
+              </p>
+            </div>
+          </div>
+        `,
+      });
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError);
+      // Don't fail the request if email fails
     }
 
     return new Response(
