@@ -42,6 +42,10 @@ import SettingsPage from "./pages/admin/SettingsPage";
 import AdminTicketsPage from "./pages/admin/AdminTicketsPage";
 import ClientsPage from "./pages/admin/ClientsPage";
 import CustomerProfilePage from "./pages/admin/crm/CustomerProfilePage";
+import SalesPipelinePage from "./pages/admin/crm/SalesPipelinePage";
+import DeliveryPipelinePage from "./pages/admin/crm/DeliveryPipelinePage";
+import LeadsPage from "./pages/admin/crm/LeadsPage";
+import DealsPage from "./pages/admin/crm/DealsPage";
 import AdminMeetingsPage from "./pages/admin/AdminMeetingsPage";
 import MeetingSettingsPage from "./pages/admin/MeetingSettingsPage";
 import StaffPage from "./pages/admin/StaffPage";
@@ -179,6 +183,10 @@ const App = () => (
                 <Route path="tickets" element={<AdminTicketsPage />} />
                 <Route path="clients" element={<ClientsPage />} />
                 <Route path="clients/:id" element={<CustomerProfilePage />} />
+                <Route path="crm/leads" element={<LeadsPage />} />
+                <Route path="crm/deals" element={<DealsPage />} />
+                <Route path="crm/sales" element={<SalesPipelinePage />} />
+                <Route path="crm/delivery" element={<DeliveryPipelinePage />} />
                 <Route path="meetings" element={<AdminMeetingsPage />} />
                 <Route path="meeting-settings" element={<MeetingSettingsPage />} />
                 <Route path="staff" element={<StaffPage />} />

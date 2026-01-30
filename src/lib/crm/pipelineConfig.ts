@@ -1,29 +1,20 @@
 // =====================================================
-// CRM Pipeline Configuration
+// CRM Pipeline Configuration - Simplified Version
 // =====================================================
 
 import { 
-  UserPlus, Phone, UserCheck, Calendar, CalendarCheck,
+  UserPlus, Phone, ThumbsUp, X,
   FileText, Handshake, CheckCircle2, XCircle,
   Clock, Rocket, Wrench, TestTube, Eye, Radio, Gift,
-  Target, TrendingUp, Award, AlertTriangle, Pause, RefreshCw, XOctagon
+  Target, TrendingUp, Award, AlertTriangle, XOctagon, Calendar
 } from 'lucide-react';
 
 // =====================================================
-// Lead Pipeline Stages
+// Lead Status (Simplified - 4 statuses only)
 // =====================================================
-export type LeadStage = 
-  | 'new' 
-  | 'contacted' 
-  | 'qualified' 
-  | 'meeting_scheduled' 
-  | 'meeting_done' 
-  | 'proposal_sent' 
-  | 'negotiation' 
-  | 'won' 
-  | 'lost';
+export type LeadStatus = 'new' | 'contacted' | 'interested' | 'not_interested';
 
-export const leadStages: Record<LeadStage, {
+export const leadStatuses: Record<LeadStatus, {
   label: string;
   labelEn: string;
   color: string;
@@ -34,89 +25,49 @@ export const leadStages: Record<LeadStage, {
   new: {
     label: 'جديد',
     labelEn: 'New',
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-100',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100',
     icon: UserPlus,
     order: 1,
   },
   contacted: {
     label: 'تم التواصل',
     labelEn: 'Contacted',
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100',
+    color: 'text-yellow-600',
+    bgColor: 'bg-yellow-100',
     icon: Phone,
     order: 2,
   },
-  qualified: {
-    label: 'مؤهل',
-    labelEn: 'Qualified',
-    color: 'text-indigo-600',
-    bgColor: 'bg-indigo-100',
-    icon: UserCheck,
-    order: 3,
-  },
-  meeting_scheduled: {
-    label: 'اجتماع مجدول',
-    labelEn: 'Meeting Scheduled',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-100',
-    icon: Calendar,
-    order: 4,
-  },
-  meeting_done: {
-    label: 'تم الاجتماع',
-    labelEn: 'Meeting Done',
-    color: 'text-violet-600',
-    bgColor: 'bg-violet-100',
-    icon: CalendarCheck,
-    order: 5,
-  },
-  proposal_sent: {
-    label: 'عرض مرسل',
-    labelEn: 'Proposal Sent',
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-100',
-    icon: FileText,
-    order: 6,
-  },
-  negotiation: {
-    label: 'تفاوض',
-    labelEn: 'Negotiation',
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-100',
-    icon: Handshake,
-    order: 7,
-  },
-  won: {
-    label: 'فوز',
-    labelEn: 'Won',
+  interested: {
+    label: 'مهتم',
+    labelEn: 'Interested',
     color: 'text-green-600',
     bgColor: 'bg-green-100',
-    icon: CheckCircle2,
-    order: 8,
+    icon: ThumbsUp,
+    order: 3,
   },
-  lost: {
-    label: 'خسارة',
-    labelEn: 'Lost',
-    color: 'text-red-600',
-    bgColor: 'bg-red-100',
-    icon: XCircle,
-    order: 9,
+  not_interested: {
+    label: 'غير مهتم',
+    labelEn: 'Not Interested',
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-100',
+    icon: X,
+    order: 4,
   },
 };
 
 // =====================================================
-// Opportunity Pipeline Stages
+// Deal/Opportunity Stages (Simplified - 6 stages)
 // =====================================================
-export type OpportunityStage = 
-  | 'qualification' 
-  | 'needs_analysis' 
-  | 'proposal' 
-  | 'negotiation' 
-  | 'closed_won' 
-  | 'closed_lost';
+export type DealStage = 
+  | 'new_opportunity' 
+  | 'meeting_done' 
+  | 'proposal_sent' 
+  | 'pending_approval' 
+  | 'approved' 
+  | 'rejected';
 
-export const opportunityStages: Record<OpportunityStage, {
+export const dealStages: Record<DealStage, {
   label: string;
   labelEn: string;
   color: string;
@@ -125,12 +76,93 @@ export const opportunityStages: Record<OpportunityStage, {
   order: number;
   probability: number;
 }> = {
+  new_opportunity: {
+    label: 'فرصة جديدة',
+    labelEn: 'New Opportunity',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100',
+    icon: Target,
+    order: 1,
+    probability: 10,
+  },
+  meeting_done: {
+    label: 'اجتماع تم',
+    labelEn: 'Meeting Done',
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-100',
+    icon: Calendar,
+    order: 2,
+    probability: 30,
+  },
+  proposal_sent: {
+    label: 'عرض مرسل',
+    labelEn: 'Proposal Sent',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-100',
+    icon: FileText,
+    order: 3,
+    probability: 50,
+  },
+  pending_approval: {
+    label: 'بانتظار الاعتماد',
+    labelEn: 'Pending Approval',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-100',
+    icon: Handshake,
+    order: 4,
+    probability: 75,
+  },
+  approved: {
+    label: 'معتمد',
+    labelEn: 'Approved',
+    color: 'text-green-600',
+    bgColor: 'bg-green-100',
+    icon: CheckCircle2,
+    order: 5,
+    probability: 100,
+  },
+  rejected: {
+    label: 'مرفوض',
+    labelEn: 'Rejected',
+    color: 'text-red-600',
+    bgColor: 'bg-red-100',
+    icon: XCircle,
+    order: 6,
+    probability: 0,
+  },
+};
+
+// Legacy support - map old types to new ones
+export type LeadStage = LeadStatus;
+export const leadStages = leadStatuses;
+
+export type OpportunityStage = 
+  | 'qualification' 
+  | 'needs_analysis' 
+  | 'proposal' 
+  | 'negotiation' 
+  | 'closed_won' 
+  | 'closed_lost'
+  | DealStage;
+
+export const opportunityStages: Record<string, {
+  label: string;
+  labelEn: string;
+  color: string;
+  bgColor: string;
+  icon: any;
+  order: number;
+  probability: number;
+}> = {
+  // New simplified stages
+  ...dealStages,
+  // Legacy stages for backward compatibility
   qualification: {
     label: 'تأهيل',
     labelEn: 'Qualification',
     color: 'text-blue-600',
     bgColor: 'bg-blue-100',
-    icon: UserCheck,
+    icon: Target,
     order: 1,
     probability: 20,
   },
@@ -357,6 +389,81 @@ export const successStages: Record<SuccessStage, {
 };
 
 // =====================================================
+// Lead Sources (Simplified)
+// =====================================================
+export type LeadSource = 'form' | 'call' | 'referral';
+
+export const leadSources: Record<LeadSource, {
+  label: string;
+  color: string;
+  bgColor: string;
+}> = {
+  form: { label: 'نموذج', color: 'text-blue-600', bgColor: 'bg-blue-100' },
+  call: { label: 'اتصال', color: 'text-green-600', bgColor: 'bg-green-100' },
+  referral: { label: 'إحالة', color: 'text-purple-600', bgColor: 'bg-purple-100' },
+};
+
+// =====================================================
+// Service Types
+// =====================================================
+export type ServiceType = 'subscription' | 'custom_platform';
+
+export const serviceTypes: Record<ServiceType, {
+  label: string;
+  color: string;
+  bgColor: string;
+}> = {
+  subscription: { label: 'اشتراك ويبيان', color: 'text-blue-600', bgColor: 'bg-blue-100' },
+  custom_platform: { label: 'منصة مخصصة', color: 'text-purple-600', bgColor: 'bg-purple-100' },
+};
+
+// Legacy support
+export type LeadType = ServiceType;
+export const leadTypes = serviceTypes;
+
+// =====================================================
+// System Types
+// =====================================================
+export type SystemType = 
+  | 'website' 
+  | 'admin_panel' 
+  | 'client_portal' 
+  | 'api' 
+  | 'database' 
+  | 'email' 
+  | 'other';
+
+export const systemTypes: Record<SystemType, {
+  label: string;
+  icon: string;
+}> = {
+  website: { label: 'الموقع الإلكتروني', icon: '🌐' },
+  admin_panel: { label: 'لوحة التحكم', icon: '🔐' },
+  client_portal: { label: 'بوابة العملاء', icon: '👥' },
+  api: { label: 'API', icon: '🔗' },
+  database: { label: 'قاعدة البيانات', icon: '🗄️' },
+  email: { label: 'البريد الإلكتروني', icon: '📧' },
+  other: { label: 'أخرى', icon: '📦' },
+};
+
+// =====================================================
+// Health Status
+// =====================================================
+export type HealthStatus = 'healthy' | 'neutral' | 'at_risk' | 'churning';
+
+export const healthStatuses: Record<HealthStatus, {
+  label: string;
+  color: string;
+  bgColor: string;
+  icon: string;
+}> = {
+  healthy: { label: 'ممتاز', color: 'text-green-600', bgColor: 'bg-green-100', icon: '🟢' },
+  neutral: { label: 'عادي', color: 'text-yellow-600', bgColor: 'bg-yellow-100', icon: '🟡' },
+  at_risk: { label: 'مهدد', color: 'text-orange-600', bgColor: 'bg-orange-100', icon: '🟠' },
+  churning: { label: 'متوقف', color: 'text-red-600', bgColor: 'bg-red-100', icon: '🔴' },
+};
+
+// =====================================================
 // Quote Status
 // =====================================================
 export type QuoteStatus = 
@@ -409,109 +516,36 @@ export const contractStatuses: Record<ContractStatus, {
 };
 
 // =====================================================
-// Lead Sources
-// =====================================================
-export type LeadSource = 
-  | 'website' 
-  | 'referral' 
-  | 'social_media' 
-  | 'event' 
-  | 'cold_outreach' 
-  | 'manual';
-
-export const leadSources: Record<LeadSource, {
-  label: string;
-  color: string;
-}> = {
-  website: { label: 'الموقع الإلكتروني', color: 'text-blue-600' },
-  referral: { label: 'توصية', color: 'text-green-600' },
-  social_media: { label: 'وسائل التواصل', color: 'text-purple-600' },
-  event: { label: 'فعالية/مؤتمر', color: 'text-orange-600' },
-  cold_outreach: { label: 'تواصل مباشر', color: 'text-gray-600' },
-  manual: { label: 'إدخال يدوي', color: 'text-slate-600' },
-};
-
-// =====================================================
-// Lead/Customer Types
-// =====================================================
-export type LeadType = 'subscription' | 'custom_platform' | 'services';
-
-export const leadTypes: Record<LeadType, {
-  label: string;
-  color: string;
-  bgColor: string;
-}> = {
-  subscription: { label: 'اشتراك ويبيان', color: 'text-blue-600', bgColor: 'bg-blue-100' },
-  custom_platform: { label: 'منصة مخصصة', color: 'text-purple-600', bgColor: 'bg-purple-100' },
-  services: { label: 'خدمات', color: 'text-green-600', bgColor: 'bg-green-100' },
-};
-
-// =====================================================
-// System Types
-// =====================================================
-export type SystemType = 
-  | 'website' 
-  | 'admin_panel' 
-  | 'client_portal' 
-  | 'api' 
-  | 'database' 
-  | 'email' 
-  | 'other';
-
-export const systemTypes: Record<SystemType, {
-  label: string;
-  icon: string;
-}> = {
-  website: { label: 'الموقع الإلكتروني', icon: '🌐' },
-  admin_panel: { label: 'لوحة التحكم', icon: '🔐' },
-  client_portal: { label: 'بوابة العملاء', icon: '👥' },
-  api: { label: 'API', icon: '🔗' },
-  database: { label: 'قاعدة البيانات', icon: '🗄️' },
-  email: { label: 'البريد الإلكتروني', icon: '📧' },
-  other: { label: 'أخرى', icon: '📦' },
-};
-
-// =====================================================
-// Health Status
-// =====================================================
-export type HealthStatus = 'healthy' | 'neutral' | 'at_risk' | 'churning';
-
-export const healthStatuses: Record<HealthStatus, {
-  label: string;
-  color: string;
-  bgColor: string;
-  icon: string;
-}> = {
-  healthy: { label: 'ممتاز', color: 'text-green-600', bgColor: 'bg-green-100', icon: '🟢' },
-  neutral: { label: 'عادي', color: 'text-yellow-600', bgColor: 'bg-yellow-100', icon: '🟡' },
-  at_risk: { label: 'مهدد', color: 'text-orange-600', bgColor: 'bg-orange-100', icon: '🟠' },
-  churning: { label: 'متوقف', color: 'text-red-600', bgColor: 'bg-red-100', icon: '🔴' },
-};
-
+// Helper Functions
 // =====================================================
 // Helper Functions
 // =====================================================
-export function getLeadStageLabel(stage: string): string {
-  return leadStages[stage as LeadStage]?.label || stage;
+export function formatCurrency(value: number, currency: string = 'SAR'): string {
+  return new Intl.NumberFormat('ar-SA', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
-export function getOpportunityStageLabel(stage: string): string {
-  return opportunityStages[stage as OpportunityStage]?.label || stage;
+export function getLeadStatusLabel(status: string): string {
+  return leadStatuses[status as LeadStatus]?.label || status;
+}
+
+export function getDealStageLabel(stage: string): string {
+  return dealStages[stage as DealStage]?.label || opportunityStages[stage]?.label || stage;
 }
 
 export function getImplementationStageLabel(stage: string): string {
   return implementationStages[stage as ImplementationStage]?.label || stage;
 }
 
-export function getSuccessStageLabel(stage: string): string {
-  return successStages[stage as SuccessStage]?.label || stage;
+// Legacy function names
+export function getLeadStageLabel(stage: string): string {
+  return getLeadStatusLabel(stage);
 }
 
-export function formatCurrency(amount: number, currency: string = 'SAR'): string {
-  return new Intl.NumberFormat('ar-SA', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+export function getOpportunityStageLabel(stage: string): string {
+  return opportunityStages[stage]?.label || getDealStageLabel(stage);
 }

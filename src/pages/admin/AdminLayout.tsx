@@ -29,7 +29,10 @@ import {
   Loader2,
   Archive,
   Shield,
-  Mail
+  Mail,
+  Target,
+  Rocket,
+  UserPlus
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { Button } from '@/components/ui/button';
@@ -117,12 +120,23 @@ const meetingsSection: NavSection = {
   ]
 };
 
-// Clients Section
-const clientsSection: NavSection = {
-  title: 'العملاء',
+// CRM Section
+const crmSection: NavSection = {
+  title: 'إدارة العملاء',
   sectionPermission: 'canManageClients',
   items: [
-    { title: 'إدارة العملاء', href: '/admin/clients', icon: Building2, permission: 'canManageClients' },
+    { title: 'العملاء المحتملون', href: '/admin/crm/leads', icon: UserPlus, permission: 'canManageClients' },
+    { title: 'الفرص', href: '/admin/crm/deals', icon: Target, permission: 'canManageClients' },
+    { title: 'العملاء', href: '/admin/clients', icon: Building2, permission: 'canManageClients' },
+    { title: 'مشاريع التنفيذ', href: '/admin/crm/delivery', icon: Rocket, permission: 'canManageClients' },
+  ]
+};
+
+// Clients Section (legacy - redirect to CRM)
+const clientsSection: NavSection = {
+  title: 'العملاء (قديم)',
+  sectionPermission: 'canManageClients',
+  items: [
     { title: 'التقييمات', href: '/admin/feedback', icon: ThumbsUp, permission: 'canManageClients' },
     { title: 'إعدادات التضمين', href: '/admin/embed-settings', icon: Code2, permission: 'canManageEmbedSettings' },
   ]
@@ -243,11 +257,11 @@ export default function AdminLayout() {
 
   const allSections = [
     dashboardSection,
+    crmSection,
     contentSection,
     chatSection,
     ticketsSection,
     meetingsSection,
-    clientsSection,
     staffSection,
     settingsSection
   ];

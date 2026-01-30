@@ -441,9 +441,6 @@ export default function DeliveryPipelinePage() {
           onConfirm={handleStageConfirm}
         />
       )}
-          onConfirm={handleStageConfirm}
-        />
-      )}
     </div>
   );
 }
