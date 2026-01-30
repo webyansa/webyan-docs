@@ -1,17 +1,34 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffAuth } from './useStaffAuth';
 import { toast } from 'sonner';
 
-// Notification sound URL (built-in web audio)
-const NOTIFICATION_SOUND_URL = 'data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU' + 
-  'tvT19' + 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
-  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
-
 export function useStaffNotifications() {
   const { permissions, isStaff } = useStaffAuth();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasPermission = useRef(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Initialize AudioContext on first user interaction
+  useEffect(() => {
+    const initAudioContext = () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+    };
+    
+    // Listen for first user interaction to initialize audio
+    const events = ['click', 'touchstart', 'keydown'];
+    const handleInteraction = () => {
+      initAudioContext();
+      events.forEach(e => document.removeEventListener(e, handleInteraction));
+    };
+    events.forEach(e => document.addEventListener(e, handleInteraction, { once: true }));
+    
+    return () => {
+      events.forEach(e => document.removeEventListener(e, handleInteraction));
+    };
+  }, []);
 
   // Request notification permission
   useEffect(() => {
@@ -24,79 +41,122 @@ export function useStaffNotifications() {
     }
   }, []);
 
-  // Play notification sound
+  // Play enhanced notification sound
   const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    
     try {
-      // Create audio context for a simple beep sound
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      const audioContext = audioContextRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContextRef.current) audioContextRef.current = audioContext;
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // Resume context if suspended (browser autoplay policy)
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
       
-      oscillator.frequency.value = 800; // Frequency in hertz
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
-      
-      // Play a second beep
-      setTimeout(() => {
-        const oscillator2 = audioContext.createOscillator();
-        const gainNode2 = audioContext.createGain();
+      // Create a more pleasant notification melody
+      const playTone = (freq: number, startTime: number, duration: number, volume: number = 0.3) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
         
-        oscillator2.connect(gainNode2);
-        gainNode2.connect(audioContext.destination);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
         
-        oscillator2.frequency.value = 1000;
-        oscillator2.type = 'sine';
+        oscillator.frequency.value = freq;
+        oscillator.type = 'sine';
         
-        gainNode2.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
         
-        oscillator2.start(audioContext.currentTime);
-        oscillator2.stop(audioContext.currentTime + 0.5);
-      }, 200);
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      };
+      
+      const now = audioContext.currentTime;
+      
+      // Pleasant ascending notification chime
+      playTone(523.25, now, 0.15, 0.25);        // C5
+      playTone(659.25, now + 0.1, 0.15, 0.3);   // E5
+      playTone(783.99, now + 0.2, 0.25, 0.35);  // G5
+      
     } catch (error) {
       console.log('Could not play notification sound:', error);
     }
-  }, []);
+  }, [soundEnabled]);
 
-  // Show browser notification
-  const showBrowserNotification = useCallback((title: string, body: string) => {
+  // Show browser notification with click handler
+  const showBrowserNotification = useCallback((title: string, body: string, onClick?: () => void) => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, {
+      const notification = new Notification(title, {
         body,
         icon: '/favicon.svg',
-        tag: 'staff-notification',
+        badge: '/favicon.svg',
+        tag: 'staff-notification-' + Date.now(),
         requireInteraction: true,
+        silent: true, // We play our own sound
       });
+      
+      if (onClick) {
+        notification.onclick = () => {
+          window.focus();
+          onClick();
+          notification.close();
+        };
+      }
+      
+      // Auto close after 10 seconds
+      setTimeout(() => notification.close(), 10000);
     }
   }, []);
 
-  // Handle new assignment notification
-  const handleNewAssignment = useCallback((type: 'ticket' | 'meeting', title: string, note?: string) => {
-    const notificationTitle = type === 'ticket' ? '🎫 تذكرة جديدة موجهة إليك' : '📅 اجتماع جديد موجه إليك';
+  // Handle new assignment notification with enhanced visuals
+  const handleNewAssignment = useCallback((
+    type: 'ticket' | 'meeting' | 'chat', 
+    title: string, 
+    note?: string,
+    onClick?: () => void
+  ) => {
+    const config = {
+      ticket: {
+        icon: '🎫',
+        title: 'تذكرة جديدة موجهة إليك',
+        color: 'text-blue-600',
+      },
+      meeting: {
+        icon: '📅',
+        title: 'اجتماع جديد موجه إليك',
+        color: 'text-emerald-600',
+      },
+      chat: {
+        icon: '💬',
+        title: 'محادثة جديدة موجهة إليك',
+        color: 'text-violet-600',
+      },
+    };
+    
+    const { icon, title: notificationTitle } = config[type];
     const notificationBody = note ? `${title}\n\nملاحظة: ${note}` : title;
 
     // Play sound
     playNotificationSound();
 
-    // Show toast
-    toast.info(notificationTitle, {
+    // Show enhanced toast with action
+    toast.info(`${icon} ${notificationTitle}`, {
       description: notificationBody,
-      duration: 10000,
+      duration: 15000,
+      action: onClick ? {
+        label: 'عرض',
+        onClick: onClick,
+      } : undefined,
+      className: 'rtl',
     });
 
     // Show browser notification
-    showBrowserNotification(notificationTitle, notificationBody);
+    showBrowserNotification(`${icon} ${notificationTitle}`, notificationBody, onClick);
   }, [playNotificationSound, showBrowserNotification]);
 
-  // Subscribe to ticket assignments
+  // Subscribe to ticket assignments with enhanced handling
   useEffect(() => {
     if (!isStaff || !permissions.staffId || !permissions.canReplyTickets) return;
 
@@ -117,8 +177,31 @@ export function useStaffNotifications() {
           // Check if this is a new assignment (assigned_to_staff changed to current staff)
           if (oldData.assigned_to_staff !== permissions.staffId && 
               newData.assigned_to_staff === permissions.staffId) {
-            handleNewAssignment('ticket', newData.subject, newData.admin_note);
+            handleNewAssignment(
+              'ticket', 
+              newData.subject, 
+              newData.admin_note,
+              () => window.location.href = `/support/tickets/${newData.id}`
+            );
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'support_tickets',
+          filter: `assigned_to_staff=eq.${permissions.staffId}`,
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          handleNewAssignment(
+            'ticket', 
+            newData.subject, 
+            newData.admin_note,
+            () => window.location.href = `/support/tickets/${newData.id}`
+          );
         }
       )
       .subscribe();
@@ -149,8 +232,31 @@ export function useStaffNotifications() {
           // Check if this is a new assignment
           if (oldData.assigned_staff !== permissions.staffId && 
               newData.assigned_staff === permissions.staffId) {
-            handleNewAssignment('meeting', newData.subject, newData.admin_notes);
+            handleNewAssignment(
+              'meeting', 
+              newData.subject, 
+              newData.admin_notes,
+              () => window.location.href = `/support/meetings/${newData.id}`
+            );
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'meeting_requests',
+          filter: `assigned_staff=eq.${permissions.staffId}`,
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          handleNewAssignment(
+            'meeting', 
+            newData.subject, 
+            newData.admin_notes,
+            () => window.location.href = `/support/meetings/${newData.id}`
+          );
         }
       )
       .subscribe();
@@ -160,7 +266,46 @@ export function useStaffNotifications() {
     };
   }, [isStaff, permissions.staffId, permissions.canAttendMeetings, handleNewAssignment]);
 
+  // Subscribe to chat assignments
+  useEffect(() => {
+    if (!isStaff || !permissions.staffId || !permissions.canReplyTickets) return;
+
+    const channel = supabase
+      .channel('staff-chat-assignments')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `assigned_agent_id=eq.${permissions.staffId}`,
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          const oldData = payload.old as any;
+          
+          // Check if this is a new assignment
+          if (oldData.assigned_agent_id !== permissions.staffId && 
+              newData.assigned_agent_id === permissions.staffId) {
+            handleNewAssignment(
+              'chat', 
+              newData.subject || 'محادثة جديدة',
+              undefined,
+              () => window.location.href = `/support/chat`
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isStaff, permissions.staffId, permissions.canReplyTickets, handleNewAssignment]);
+
   return {
+    soundEnabled,
+    setSoundEnabled,
     playNotificationSound,
     showBrowserNotification,
     handleNewAssignment,

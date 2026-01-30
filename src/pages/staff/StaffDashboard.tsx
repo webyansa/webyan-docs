@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffAuth } from '@/hooks/useStaffAuth';
-import { format, parseISO, isToday, isTomorrow, differenceInHours } from 'date-fns';
+import { format, parseISO, isToday, isTomorrow, differenceInHours, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import {
   Ticket,
@@ -22,7 +22,8 @@ import {
   Timer,
   Coffee,
   Target,
-  Activity
+  Activity,
+  BarChart3
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +31,8 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { PerformanceCharts } from '@/components/staff/PerformanceCharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface AssignedTicket {
   id: string;
@@ -55,9 +58,21 @@ interface AssignedMeeting {
 interface StaffStats {
   totalTickets: number;
   resolvedTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
   totalMeetings: number;
   completedMeetings: number;
+  pendingMeetings: number;
+  confirmedMeetings: number;
   activeChats: number;
+}
+
+interface MonthlyStats {
+  month: string;
+  tickets: number;
+  meetings: number;
+  resolved: number;
+  completed: number;
 }
 
 const priorityConfig: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -90,13 +105,19 @@ export default function StaffDashboard() {
   const [stats, setStats] = useState<StaffStats>({
     totalTickets: 0,
     resolvedTickets: 0,
+    openTickets: 0,
+    inProgressTickets: 0,
     totalMeetings: 0,
     completedMeetings: 0,
+    pendingMeetings: 0,
+    confirmedMeetings: 0,
     activeChats: 0,
   });
+  const [monthlyData, setMonthlyData] = useState<MonthlyStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [staffName, setStaffName] = useState('');
   const [greeting, setGreeting] = useState('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics'>('overview');
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -126,7 +147,9 @@ export default function StaffDashboard() {
       if (staffData) setStaffName(staffData.full_name);
 
       // Fetch statistics
-      let totalTickets = 0, resolvedTickets = 0, totalMeetings = 0, completedMeetings = 0, activeChats = 0;
+      let totalTickets = 0, resolvedTickets = 0, openTickets = 0, inProgressTickets = 0;
+      let totalMeetings = 0, completedMeetings = 0, pendingMeetings = 0, confirmedMeetings = 0;
+      let activeChats = 0;
 
       if (permissions.canReplyTickets) {
         // All assigned tickets
@@ -143,6 +166,22 @@ export default function StaffDashboard() {
           .eq('assigned_to_staff', permissions.staffId)
           .in('status', ['resolved', 'closed']);
         resolvedTickets = resolvedCount || 0;
+
+        // Open tickets
+        const { count: openCount } = await supabase
+          .from('support_tickets')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to_staff', permissions.staffId)
+          .eq('status', 'open');
+        openTickets = openCount || 0;
+
+        // In progress tickets
+        const { count: inProgressCount } = await supabase
+          .from('support_tickets')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to_staff', permissions.staffId)
+          .eq('status', 'in_progress');
+        inProgressTickets = inProgressCount || 0;
 
         // Active tickets for list
         const { data: ticketsData } = await supabase
@@ -196,6 +235,22 @@ export default function StaffDashboard() {
           .eq('status', 'completed');
         completedMeetings = completedCount || 0;
 
+        // Pending meetings
+        const { count: pendingCount } = await supabase
+          .from('meeting_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_staff', permissions.staffId)
+          .eq('status', 'pending');
+        pendingMeetings = pendingCount || 0;
+
+        // Confirmed meetings
+        const { count: confirmedCount } = await supabase
+          .from('meeting_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_staff', permissions.staffId)
+          .eq('status', 'confirmed');
+        confirmedMeetings = confirmedCount || 0;
+
         // Upcoming meetings for list
         const { data: meetingsData } = await supabase
           .from('meeting_requests')
@@ -220,7 +275,71 @@ export default function StaffDashboard() {
         }
       }
 
-      setStats({ totalTickets, resolvedTickets, totalMeetings, completedMeetings, activeChats });
+      // Fetch monthly statistics for the last 6 months
+      const monthlyStats: MonthlyStats[] = [];
+      const arabicMonths = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+      
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = subMonths(new Date(), i);
+        const monthStart = startOfMonth(monthDate);
+        const monthEnd = endOfMonth(monthDate);
+        const monthName = arabicMonths[monthDate.getMonth()];
+
+        let monthTickets = 0, monthResolved = 0, monthMeetings = 0, monthCompleted = 0;
+
+        if (permissions.canReplyTickets) {
+          const { count: tCount } = await supabase
+            .from('support_tickets')
+            .select('*', { count: 'exact', head: true })
+            .eq('assigned_to_staff', permissions.staffId)
+            .gte('created_at', monthStart.toISOString())
+            .lte('created_at', monthEnd.toISOString());
+          monthTickets = tCount || 0;
+
+          const { count: rCount } = await supabase
+            .from('support_tickets')
+            .select('*', { count: 'exact', head: true })
+            .eq('assigned_to_staff', permissions.staffId)
+            .in('status', ['resolved', 'closed'])
+            .gte('resolved_at', monthStart.toISOString())
+            .lte('resolved_at', monthEnd.toISOString());
+          monthResolved = rCount || 0;
+        }
+
+        if (permissions.canAttendMeetings) {
+          const { count: mCount } = await supabase
+            .from('meeting_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('assigned_staff', permissions.staffId)
+            .gte('created_at', monthStart.toISOString())
+            .lte('created_at', monthEnd.toISOString());
+          monthMeetings = mCount || 0;
+
+          const { count: cCount } = await supabase
+            .from('meeting_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('assigned_staff', permissions.staffId)
+            .eq('status', 'completed')
+            .gte('updated_at', monthStart.toISOString())
+            .lte('updated_at', monthEnd.toISOString());
+          monthCompleted = cCount || 0;
+        }
+
+        monthlyStats.push({
+          month: monthName,
+          tickets: monthTickets,
+          meetings: monthMeetings,
+          resolved: monthResolved,
+          completed: monthCompleted,
+        });
+      }
+
+      setMonthlyData(monthlyStats);
+      setStats({ 
+        totalTickets, resolvedTickets, openTickets, inProgressTickets,
+        totalMeetings, completedMeetings, pendingMeetings, confirmedMeetings, 
+        activeChats 
+      });
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -258,13 +377,13 @@ export default function StaffDashboard() {
     ? Math.round((stats.completedMeetings / stats.totalMeetings) * 100) 
     : 0;
 
-  const openTickets = tickets.length;
+  const activeOpenTickets = tickets.length;
   const upcomingMeetings = meetings.length;
   const urgentTickets = tickets.filter(t => t.priority === 'high').length;
 
   return (
     <div className="space-y-8">
-      {/* Hero Welcome Section */}
+      {/* Hero Welcome Section with Tab Navigation */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-8 text-primary-foreground">
         <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,black)]" />
         <div className="relative z-10">
@@ -286,31 +405,55 @@ export default function StaffDashboard() {
               </p>
             </div>
             
-            <div className="flex flex-wrap gap-3">
-              {permissions.canReplyTickets && openTickets > 0 && (
-                <Link to="/support/tickets">
-                  <Button variant="secondary" className="gap-2 shadow-lg">
-                    <Ticket className="h-4 w-4" />
-                    {openTickets} تذكرة نشطة
-                  </Button>
-                </Link>
-              )}
-              {permissions.canReplyTickets && stats.activeChats > 0 && (
-                <Link to="/support/chat">
-                  <Button variant="secondary" className="gap-2 shadow-lg">
-                    <MessageCircle className="h-4 w-4" />
-                    {stats.activeChats} محادثة
-                  </Button>
-                </Link>
-              )}
-              {permissions.canAttendMeetings && upcomingMeetings > 0 && (
-                <Link to="/support/meetings">
-                  <Button variant="secondary" className="gap-2 shadow-lg">
-                    <Calendar className="h-4 w-4" />
-                    {upcomingMeetings} اجتماع قادم
-                  </Button>
-                </Link>
-              )}
+            <div className="flex flex-col items-end gap-4">
+              {/* Tab Buttons */}
+              <div className="flex bg-white/10 rounded-lg p-1 gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setActiveTab('overview')}
+                  className={`gap-2 ${activeTab === 'overview' ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                >
+                  <Target className="h-4 w-4" />
+                  نظرة عامة
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setActiveTab('analytics')}
+                  className={`gap-2 ${activeTab === 'analytics' ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  التحليلات
+                </Button>
+              </div>
+              
+              <div className="flex flex-wrap gap-3">
+                {permissions.canReplyTickets && activeOpenTickets > 0 && (
+                  <Link to="/support/tickets">
+                    <Button variant="secondary" className="gap-2 shadow-lg">
+                      <Ticket className="h-4 w-4" />
+                      {activeOpenTickets} تذكرة نشطة
+                    </Button>
+                  </Link>
+                )}
+                {permissions.canReplyTickets && stats.activeChats > 0 && (
+                  <Link to="/support/chat">
+                    <Button variant="secondary" className="gap-2 shadow-lg">
+                      <MessageCircle className="h-4 w-4" />
+                      {stats.activeChats} محادثة
+                    </Button>
+                  </Link>
+                )}
+                {permissions.canAttendMeetings && upcomingMeetings > 0 && (
+                  <Link to="/support/meetings">
+                    <Button variant="secondary" className="gap-2 shadow-lg">
+                      <Calendar className="h-4 w-4" />
+                      {upcomingMeetings} اجتماع قادم
+                    </Button>
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -320,80 +463,101 @@ export default function StaffDashboard() {
         <div className="absolute -bottom-24 -right-24 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
       </div>
 
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {permissions.canReplyTickets && (
-          <>
-            <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-blue-50 to-blue-100/50">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-blue-600/80 font-medium">التذاكر النشطة</p>
-                    <p className="text-3xl font-bold text-blue-700 mt-1">{openTickets}</p>
-                  </div>
-                  <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Ticket className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-                {urgentTickets > 0 && (
-                  <div className="mt-3 flex items-center gap-1.5 text-xs text-rose-600 bg-rose-50 px-2 py-1 rounded-full w-fit">
-                    <AlertCircle className="h-3 w-3" />
-                    {urgentTickets} عاجلة
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {/* Analytics Tab */}
+      {activeTab === 'analytics' ? (
+        <PerformanceCharts
+          monthlyData={monthlyData}
+          ticketStats={{
+            total: stats.totalTickets,
+            resolved: stats.resolvedTickets,
+            open: stats.openTickets,
+            inProgress: stats.inProgressTickets,
+          }}
+          meetingStats={{
+            total: stats.totalMeetings,
+            completed: stats.completedMeetings,
+            pending: stats.pendingMeetings,
+            confirmed: stats.confirmedMeetings,
+          }}
+          showTickets={permissions.canReplyTickets}
+          showMeetings={permissions.canAttendMeetings}
+        />
+      ) : (
+        <>
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {permissions.canReplyTickets && (
+              <>
+                <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-blue-50 to-blue-100/50">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-blue-600/80 font-medium">التذاكر النشطة</p>
+                        <p className="text-3xl font-bold text-blue-700 mt-1">{activeOpenTickets}</p>
+                      </div>
+                      <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Ticket className="h-6 w-6 text-blue-600" />
+                      </div>
+                    </div>
+                    {urgentTickets > 0 && (
+                      <div className="mt-3 flex items-center gap-1.5 text-xs text-rose-600 bg-rose-50 px-2 py-1 rounded-full w-fit">
+                        <AlertCircle className="h-3 w-3" />
+                        {urgentTickets} عاجلة
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-            <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-violet-50 to-violet-100/50">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-violet-600/80 font-medium">المحادثات</p>
-                    <p className="text-3xl font-bold text-violet-700 mt-1">{stats.activeChats}</p>
-                  </div>
-                  <div className="h-12 w-12 rounded-xl bg-violet-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <MessageCircle className="h-6 w-6 text-violet-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
+                <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-violet-50 to-violet-100/50">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-violet-600/80 font-medium">المحادثات</p>
+                        <p className="text-3xl font-bold text-violet-700 mt-1">{stats.activeChats}</p>
+                      </div>
+                      <div className="h-12 w-12 rounded-xl bg-violet-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <MessageCircle className="h-6 w-6 text-violet-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
-        {permissions.canAttendMeetings && (
-          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-emerald-600/80 font-medium">الاجتماعات القادمة</p>
-                  <p className="text-3xl font-bold text-emerald-700 mt-1">{upcomingMeetings}</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Calendar className="h-6 w-6 text-emerald-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            {permissions.canAttendMeetings && (
+              <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-emerald-600/80 font-medium">الاجتماعات القادمة</p>
+                      <p className="text-3xl font-bold text-emerald-700 mt-1">{upcomingMeetings}</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Calendar className="h-6 w-6 text-emerald-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-        {permissions.canManageContent && (
-          <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-orange-50 to-orange-100/50">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-orange-600/80 font-medium">إدارة المحتوى</p>
-                  <Link to="/support/content" className="text-lg font-bold text-orange-700 mt-1 hover:underline">
-                    الانتقال ←
-                  </Link>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileText className="h-6 w-6 text-orange-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            {permissions.canManageContent && (
+              <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-orange-50 to-orange-100/50">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-orange-600/80 font-medium">إدارة المحتوى</p>
+                      <Link to="/support/content" className="text-lg font-bold text-orange-700 mt-1 hover:underline">
+                        الانتقال ←
+                      </Link>
+                    </div>
+                    <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <FileText className="h-6 w-6 text-orange-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
       {/* Performance Cards */}
       {(permissions.canReplyTickets || permissions.canAttendMeetings) && (
@@ -630,6 +794,8 @@ export default function StaffDashboard() {
           </Card>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
