@@ -11,6 +11,8 @@ import {
   Edit,
   Settings,
   Bell,
+  Receipt,
+  Banknote,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,8 +36,8 @@ const eventIcons: Record<string, typeof UserPlus> = {
   ticket_closed: CheckCircle2,
   meeting_scheduled: Calendar,
   meeting_completed: Calendar,
-  invoice_sent: FileText,
-  payment_received: CreditCard,
+  invoice_sent: Receipt,
+  payment_received: Banknote,
   note_added: Edit,
   system_accessed: Settings,
   default: Bell,
@@ -48,8 +50,8 @@ const eventColors: Record<string, string> = {
   ticket_closed: 'bg-green-100 text-green-600',
   meeting_scheduled: 'bg-purple-100 text-purple-600',
   meeting_completed: 'bg-emerald-100 text-emerald-600',
-  invoice_sent: 'bg-amber-100 text-amber-600',
-  payment_received: 'bg-green-100 text-green-600',
+  invoice_sent: 'bg-amber-100 text-amber-700',
+  payment_received: 'bg-teal-100 text-teal-700',
   note_added: 'bg-gray-100 text-gray-600',
   system_accessed: 'bg-indigo-100 text-indigo-600',
   default: 'bg-muted text-muted-foreground',

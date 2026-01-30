@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomerHeader } from '@/components/crm/CustomerHeader';
 import { BasicInfoTab } from '@/components/crm/tabs/BasicInfoTab';
 import { SubscriptionTab } from '@/components/crm/tabs/SubscriptionTab';
+import { InvoicesTab } from '@/components/crm/tabs/InvoicesTab';
 import { TicketsTab } from '@/components/crm/tabs/TicketsTab';
 import { MeetingsTab } from '@/components/crm/tabs/MeetingsTab';
 import { TimelineTab } from '@/components/crm/tabs/TimelineTab';
@@ -183,6 +184,7 @@ export default function CustomerProfilePage() {
         onDelete={handleDelete}
         onCreateTicket={() => navigate(`/admin/tickets?org=${organization.id}`)}
         onScheduleMeeting={() => navigate(`/admin/meetings?org=${organization.id}`)}
+        onLifecycleChange={fetchData}
       />
 
       {/* Tabs */}
@@ -199,6 +201,12 @@ export default function CustomerProfilePage() {
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
             الاشتراك
+          </TabsTrigger>
+          <TabsTrigger 
+            value="invoices"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            الفواتير
           </TabsTrigger>
           <TabsTrigger 
             value="tickets"
@@ -234,6 +242,10 @@ export default function CustomerProfilePage() {
             onUpgrade={() => toast.info('سيتم إضافة هذه الميزة قريباً')}
             onRenew={() => toast.info('سيتم إضافة هذه الميزة قريباً')}
           />
+        </TabsContent>
+
+        <TabsContent value="invoices" className="mt-6">
+          <InvoicesTab organizationId={organization.id} />
         </TabsContent>
 
         <TabsContent value="tickets" className="mt-6">
