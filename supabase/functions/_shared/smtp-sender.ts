@@ -59,7 +59,8 @@ async function logEmailSend(params: {
 }): Promise<void> {
   try {
     const supabase = getSupabaseClient();
-    await supabase.from('email_logs').insert({
+    // Use type assertion since edge functions don't have auto-generated types
+    await (supabase.from('email_logs') as any).insert({
       recipient_email: params.recipientEmail,
       subject: params.subject,
       email_type: params.emailType || 'general',

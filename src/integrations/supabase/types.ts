@@ -112,12 +112,21 @@ export type Database = {
       client_organizations: {
         Row: {
           address: string | null
+          assigned_account_manager: string | null
+          auto_renewal: boolean | null
           city: string | null
           contact_email: string
           contact_phone: string | null
           created_at: string
+          customer_type: Database["public"]["Enums"]["customer_type"] | null
+          customer_value: number | null
           id: string
+          internal_notes: string | null
           is_active: boolean
+          last_interaction_at: string | null
+          lifecycle_stage:
+            | Database["public"]["Enums"]["customer_lifecycle_stage"]
+            | null
           logo_url: string | null
           name: string
           notes: string | null
@@ -127,17 +136,27 @@ export type Database = {
           subscription_plan: string | null
           subscription_start_date: string | null
           subscription_status: Database["public"]["Enums"]["subscription_status"]
+          tags: string[] | null
           updated_at: string
           website_url: string | null
         }
         Insert: {
           address?: string | null
+          assigned_account_manager?: string | null
+          auto_renewal?: boolean | null
           city?: string | null
           contact_email: string
           contact_phone?: string | null
           created_at?: string
+          customer_type?: Database["public"]["Enums"]["customer_type"] | null
+          customer_value?: number | null
           id?: string
+          internal_notes?: string | null
           is_active?: boolean
+          last_interaction_at?: string | null
+          lifecycle_stage?:
+            | Database["public"]["Enums"]["customer_lifecycle_stage"]
+            | null
           logo_url?: string | null
           name: string
           notes?: string | null
@@ -147,17 +166,27 @@ export type Database = {
           subscription_plan?: string | null
           subscription_start_date?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          tags?: string[] | null
           updated_at?: string
           website_url?: string | null
         }
         Update: {
           address?: string | null
+          assigned_account_manager?: string | null
+          auto_renewal?: boolean | null
           city?: string | null
           contact_email?: string
           contact_phone?: string | null
           created_at?: string
+          customer_type?: Database["public"]["Enums"]["customer_type"] | null
+          customer_value?: number | null
           id?: string
+          internal_notes?: string | null
           is_active?: boolean
+          last_interaction_at?: string | null
+          lifecycle_stage?:
+            | Database["public"]["Enums"]["customer_lifecycle_stage"]
+            | null
           logo_url?: string | null
           name?: string
           notes?: string | null
@@ -167,10 +196,69 @@ export type Database = {
           subscription_plan?: string | null
           subscription_start_date?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          tags?: string[] | null
           updated_at?: string
           website_url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_organizations_assigned_account_manager_fkey"
+            columns: ["assigned_account_manager"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_timeline: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          organization_id: string
+          performed_by: string | null
+          performed_by_name: string | null
+          reference_id: string | null
+          reference_type: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          organization_id: string
+          performed_by?: string | null
+          performed_by_name?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          organization_id?: string
+          performed_by?: string | null
+          performed_by_name?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_timeline_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversation_events: {
         Row: {
@@ -1718,6 +1806,20 @@ export type Database = {
       is_client: { Args: { _user_id: string }; Returns: boolean }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       is_support_agent: { Args: { _user_id: string }; Returns: boolean }
+      log_client_timeline_event: {
+        Args: {
+          p_description?: string
+          p_event_type: string
+          p_metadata?: Json
+          p_organization_id: string
+          p_performed_by?: string
+          p_performed_by_name?: string
+          p_reference_id?: string
+          p_reference_type?: string
+          p_title: string
+        }
+        Returns: string
+      }
       log_user_activity: {
         Args: {
           p_action_details?: string
@@ -1736,6 +1838,14 @@ export type Database = {
       article_status: "draft" | "published" | "archived"
       auto_assign_mode: "disabled" | "round_robin" | "least_active" | "by_team"
       conversation_status: "unassigned" | "assigned" | "closed"
+      customer_lifecycle_stage:
+        | "prospect"
+        | "negotiating"
+        | "onboarding"
+        | "active"
+        | "suspended"
+        | "churned"
+      customer_type: "subscription" | "custom_platform" | "services"
       difficulty_level: "beginner" | "intermediate" | "advanced"
       meeting_status:
         | "pending"
@@ -1887,6 +1997,15 @@ export const Constants = {
       article_status: ["draft", "published", "archived"],
       auto_assign_mode: ["disabled", "round_robin", "least_active", "by_team"],
       conversation_status: ["unassigned", "assigned", "closed"],
+      customer_lifecycle_stage: [
+        "prospect",
+        "negotiating",
+        "onboarding",
+        "active",
+        "suspended",
+        "churned",
+      ],
+      customer_type: ["subscription", "custom_platform", "services"],
       difficulty_level: ["beginner", "intermediate", "advanced"],
       meeting_status: [
         "pending",
