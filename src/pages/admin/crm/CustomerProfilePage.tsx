@@ -11,6 +11,10 @@ import { InvoicesTab } from '@/components/crm/tabs/InvoicesTab';
 import { TicketsTab } from '@/components/crm/tabs/TicketsTab';
 import { MeetingsTab } from '@/components/crm/tabs/MeetingsTab';
 import { TimelineTab } from '@/components/crm/tabs/TimelineTab';
+import { OverviewTab } from '@/components/crm/tabs/OverviewTab';
+import { SalesTab } from '@/components/crm/tabs/SalesTab';
+import { HostingTab } from '@/components/crm/tabs/HostingTab';
+import { DeliveryTab } from '@/components/crm/tabs/DeliveryTab';
 import { CustomerType } from '@/components/crm/CustomerTypeBadge';
 import { LifecycleStage } from '@/components/crm/LifecycleBadge';
 
@@ -59,7 +63,7 @@ export default function CustomerProfilePage() {
   const [organization, setOrganization] = useState<OrganizationData | null>(null);
   const [contacts, setContacts] = useState<ContactData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState('overview');
 
   const fetchData = useCallback(async () => {
     if (!id) return;
@@ -189,12 +193,24 @@ export default function CustomerProfilePage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent">
+        <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent flex-wrap">
+          <TabsTrigger 
+            value="overview" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            ملخص
+          </TabsTrigger>
           <TabsTrigger 
             value="basic" 
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
             البيانات الأساسية
+          </TabsTrigger>
+          <TabsTrigger 
+            value="sales"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            المبيعات
           </TabsTrigger>
           <TabsTrigger 
             value="subscription"
@@ -203,10 +219,22 @@ export default function CustomerProfilePage() {
             الاشتراك
           </TabsTrigger>
           <TabsTrigger 
+            value="hosting"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            الاستضافة
+          </TabsTrigger>
+          <TabsTrigger 
             value="invoices"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
             الفواتير
+          </TabsTrigger>
+          <TabsTrigger 
+            value="delivery"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            التنفيذ
           </TabsTrigger>
           <TabsTrigger 
             value="tickets"
@@ -228,11 +256,27 @@ export default function CustomerProfilePage() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="overview" className="mt-6">
+          <OverviewTab 
+            organizationId={organization.id} 
+            organizationName={organization.name}
+            subscriptionEndDate={organization.subscription_end_date}
+            lastInteractionAt={organization.last_interaction_at}
+          />
+        </TabsContent>
+
         <TabsContent value="basic" className="mt-6">
           <BasicInfoTab 
             organization={organization} 
             contacts={contacts} 
             onUpdate={fetchData} 
+          />
+        </TabsContent>
+
+        <TabsContent value="sales" className="mt-6">
+          <SalesTab 
+            organizationId={organization.id}
+            organizationName={organization.name}
           />
         </TabsContent>
 
@@ -244,8 +288,16 @@ export default function CustomerProfilePage() {
           />
         </TabsContent>
 
+        <TabsContent value="hosting" className="mt-6">
+          <HostingTab organizationId={organization.id} />
+        </TabsContent>
+
         <TabsContent value="invoices" className="mt-6">
           <InvoicesTab organizationId={organization.id} />
+        </TabsContent>
+
+        <TabsContent value="delivery" className="mt-6">
+          <DeliveryTab organizationId={organization.id} />
         </TabsContent>
 
         <TabsContent value="tickets" className="mt-6">
