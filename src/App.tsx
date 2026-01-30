@@ -41,6 +41,7 @@ import UsersPage from "./pages/admin/UsersPage";
 import SettingsPage from "./pages/admin/SettingsPage";
 import AdminTicketsPage from "./pages/admin/AdminTicketsPage";
 import ClientsPage from "./pages/admin/ClientsPage";
+import CustomerProfilePage from "./pages/admin/crm/CustomerProfilePage";
 import AdminMeetingsPage from "./pages/admin/AdminMeetingsPage";
 import MeetingSettingsPage from "./pages/admin/MeetingSettingsPage";
 import StaffPage from "./pages/admin/StaffPage";
@@ -177,6 +178,7 @@ const App = () => (
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="tickets" element={<AdminTicketsPage />} />
                 <Route path="clients" element={<ClientsPage />} />
+                <Route path="clients/:id" element={<CustomerProfilePage />} />
                 <Route path="meetings" element={<AdminMeetingsPage />} />
                 <Route path="meeting-settings" element={<MeetingSettingsPage />} />
                 <Route path="staff" element={<StaffPage />} />
