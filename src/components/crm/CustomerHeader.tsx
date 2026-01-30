@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import {
   ArrowRight,
-  Building2,
   Mail,
   Phone,
   Globe,
@@ -13,7 +11,6 @@ import {
   MoreHorizontal,
   Ticket,
   Calendar,
-  MessageSquare,
   Power,
   Trash2,
 } from 'lucide-react';
@@ -26,8 +23,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LifecycleBadge, LifecycleStage } from './LifecycleBadge';
+import { LifecycleStage } from './LifecycleBadge';
 import { CustomerTypeBadge, CustomerType } from './CustomerTypeBadge';
+import { LifecycleStageSelector } from './LifecycleStageSelector';
 
 interface CustomerHeaderProps {
   organization: {
@@ -54,6 +52,7 @@ interface CustomerHeaderProps {
   onDelete?: () => void;
   onCreateTicket?: () => void;
   onScheduleMeeting?: () => void;
+  onLifecycleChange?: () => void;
 }
 
 export function CustomerHeader({
@@ -63,6 +62,7 @@ export function CustomerHeader({
   onDelete,
   onCreateTicket,
   onScheduleMeeting,
+  onLifecycleChange,
 }: CustomerHeaderProps) {
   const navigate = useNavigate();
   const initials = organization.name.slice(0, 2);
@@ -133,7 +133,11 @@ export function CustomerHeader({
             <h1 className="text-2xl font-bold text-foreground">{organization.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <CustomerTypeBadge type={organization.customer_type} />
-              <LifecycleBadge stage={organization.lifecycle_stage} />
+              <LifecycleStageSelector
+                organizationId={organization.id}
+                currentStage={organization.lifecycle_stage}
+                onStageChange={onLifecycleChange || (() => {})}
+              />
               {!organization.is_active && (
                 <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
                   معطّل
