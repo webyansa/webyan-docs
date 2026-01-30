@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { Link } from 'react-router-dom';
 
 interface ClientOrganization {
   id: string;
@@ -793,7 +794,12 @@ const ClientsPage = () => {
                         </div>
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-foreground">{org.name}</h3>
+                            <Link 
+                              to={`/admin/clients/${org.id}`}
+                              className="font-semibold text-foreground hover:text-primary hover:underline transition-colors"
+                            >
+                              {org.name}
+                            </Link>
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${status?.bgColor} ${status?.textColor} ${status?.borderColor}`}>
                               {status?.label}
                             </span>
