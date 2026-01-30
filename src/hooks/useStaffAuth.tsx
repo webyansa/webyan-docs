@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from 'react';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { TimeoutError, withTimeout } from '@/hooks/staffAuth/withTimeout';
 
 interface StaffPermissions {
   staffId: string | null;
@@ -13,11 +14,17 @@ interface StaffAuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  authStatus: StaffAuthStatus;
+  authError: StaffAuthError;
   isStaff: boolean;
   permissions: StaffPermissions;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  retryPermissions: () => Promise<void>;
 }
+
+type StaffAuthStatus = 'unknown' | 'authenticated' | 'unauthenticated' | 'error';
+type StaffAuthError = 'timeout' | 'session' | 'permissions' | null;
 
 const defaultPermissions: StaffPermissions = {
   staffId: null,
@@ -29,6 +36,7 @@ const defaultPermissions: StaffPermissions = {
 const StaffAuthContext = createContext<StaffAuthContextType | undefined>(undefined);
 
 const BOOTSTRAP_TIMEOUT_MS = 8000;
+const PERMISSIONS_TIMEOUT_MS = 5000;
 
 export function StaffAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -36,63 +44,133 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
   const [isStaff, setIsStaff] = useState(false);
   const [permissions, setPermissions] = useState<StaffPermissions>(defaultPermissions);
   const [loading, setLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState<StaffAuthStatus>('unknown');
+  const [authError, setAuthError] = useState<StaffAuthError>(null);
   
   // Track if initial bootstrap is complete
   const bootstrapCompleteRef = useRef(false);
   const mountedRef = useRef(true);
-  const permissionsFetchedForUserRef = useRef<string | null>(null);
+  const permissionsResolvedForUserIdRef = useRef<string | null>(null);
+  const permissionsResolvedStatusRef = useRef<'staff' | 'not_staff' | null>(null);
+  const permissionsInFlightForUserIdRef = useRef<string | null>(null);
+  const permissionsInFlightPromiseRef = useRef<Promise<boolean> | null>(null);
+  const explicitSignInRef = useRef(false);
+  const isStaffRef = useRef(isStaff);
 
-  const checkStaffPermissions = useCallback(async (userId: string): Promise<boolean> => {
-    // Skip if already fetched for this user
-    if (permissionsFetchedForUserRef.current === userId) {
-      return isStaff;
-    }
-
-    try {
-      console.log('[StaffAuth] Fetching permissions for user:', userId);
-      
-      const { data, error } = await supabase
-        .rpc('get_staff_permissions', { _user_id: userId });
-
-      if (!mountedRef.current) return false;
-
-      if (error) {
-        console.error('[StaffAuth] Error fetching staff permissions:', error);
-        setIsStaff(false);
-        setPermissions(defaultPermissions);
-        permissionsFetchedForUserRef.current = userId;
-        return false;
-      }
-      
-      if (data && data.length > 0) {
-        const staffData = data[0];
-        console.log('[StaffAuth] Staff permissions found:', staffData);
-        setIsStaff(true);
-        setPermissions({
-          staffId: staffData.staff_id,
-          canReplyTickets: staffData.can_reply_tickets,
-          canManageContent: staffData.can_manage_content,
-          canAttendMeetings: staffData.can_attend_meetings,
-        });
-        permissionsFetchedForUserRef.current = userId;
-        return true;
-      } else {
-        console.log('[StaffAuth] No staff permissions found');
-        setIsStaff(false);
-        setPermissions(defaultPermissions);
-        permissionsFetchedForUserRef.current = userId;
-        return false;
-      }
-    } catch (error) {
-      console.error('[StaffAuth] Error checking staff permissions:', error);
-      if (mountedRef.current) {
-        setIsStaff(false);
-        setPermissions(defaultPermissions);
-        permissionsFetchedForUserRef.current = userId;
-      }
-      return false;
-    }
+  useEffect(() => {
+    isStaffRef.current = isStaff;
   }, [isStaff]);
+
+  const checkStaffPermissions = useCallback(
+    async (userId: string, mode: 'strict' | 'soft' = 'strict'): Promise<boolean> => {
+      // If we already resolved staff/not_staff for this user, reuse it.
+      if (
+        permissionsResolvedForUserIdRef.current === userId &&
+        permissionsResolvedStatusRef.current
+      ) {
+        return permissionsResolvedStatusRef.current === 'staff';
+      }
+
+      // Deduplicate in-flight requests.
+      if (
+        permissionsInFlightPromiseRef.current &&
+        permissionsInFlightForUserIdRef.current === userId
+      ) {
+        return permissionsInFlightPromiseRef.current;
+      }
+
+      const promise = (async () => {
+        try {
+          console.log(`[StaffAuth] Fetching permissions (${mode}) for user:`, userId);
+
+          type StaffPermissionsRpcRow = {
+            can_attend_meetings: boolean;
+            can_manage_content: boolean;
+            can_reply_tickets: boolean;
+            staff_id: string;
+          };
+
+          const rpcResult = await withTimeout(
+            supabase.rpc('get_staff_permissions', { _user_id: userId }) as unknown as PromiseLike<{
+              data: StaffPermissionsRpcRow[] | null;
+              error: unknown;
+            }>,
+            PERMISSIONS_TIMEOUT_MS,
+            'get_staff_permissions'
+          );
+
+          const { data, error } = rpcResult;
+
+          if (!mountedRef.current) return false;
+
+          if (error) {
+            console.error('[StaffAuth] Error fetching staff permissions:', error);
+
+            // Soft refresh: keep the last known permissions to avoid blocking UI on tab return.
+            if (mode === 'soft') {
+              return isStaffRef.current;
+            }
+
+            // Strict: fail closed but surface an error state instead of infinite loading.
+            setIsStaff(false);
+            setPermissions(defaultPermissions);
+            setAuthStatus('error');
+            setAuthError('permissions');
+            return false;
+          }
+
+          if (data && data.length > 0) {
+            const staffData = data[0];
+            console.log('[StaffAuth] Staff permissions found:', staffData);
+            setAuthError(null);
+            setIsStaff(true);
+            setPermissions({
+              staffId: staffData.staff_id,
+              canReplyTickets: staffData.can_reply_tickets,
+              canManageContent: staffData.can_manage_content,
+              canAttendMeetings: staffData.can_attend_meetings,
+            });
+            permissionsResolvedForUserIdRef.current = userId;
+            permissionsResolvedStatusRef.current = 'staff';
+            return true;
+          }
+
+          console.log('[StaffAuth] No staff permissions found');
+          setAuthError(null);
+          setIsStaff(false);
+          setPermissions(defaultPermissions);
+          permissionsResolvedForUserIdRef.current = userId;
+          permissionsResolvedStatusRef.current = 'not_staff';
+          return false;
+        } catch (error) {
+          const isTimeout = error instanceof TimeoutError;
+          console.error('[StaffAuth] Error checking staff permissions:', error);
+          if (!mountedRef.current) return false;
+
+          if (mode === 'soft') {
+            // Keep last known permissions (do not block the UI on tab return)
+            return isStaffRef.current;
+          }
+
+          setIsStaff(false);
+          setPermissions(defaultPermissions);
+          setAuthStatus('error');
+          setAuthError(isTimeout ? 'timeout' : 'permissions');
+          return false;
+        } finally {
+          if (permissionsInFlightForUserIdRef.current === userId) {
+            permissionsInFlightForUserIdRef.current = null;
+            permissionsInFlightPromiseRef.current = null;
+          }
+        }
+      })();
+
+      permissionsInFlightForUserIdRef.current = userId;
+      permissionsInFlightPromiseRef.current = promise;
+      return promise;
+    },
+    []
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -112,6 +190,8 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       try {
         console.log('[StaffAuth] Starting initialization...');
+        setAuthStatus('unknown');
+        setAuthError(null);
         
         const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
@@ -119,6 +199,8 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
 
         if (error) {
           console.error('[StaffAuth] Error getting session:', error);
+          setAuthStatus('error');
+          setAuthError('session');
           bootstrapCompleteRef.current = true;
           setLoading(false);
           return;
@@ -128,11 +210,13 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
           console.log('[StaffAuth] Existing session found for:', existingSession.user.email);
           setSession(existingSession);
           setUser(existingSession.user);
+          setAuthStatus('authenticated');
           
           // Wait for permissions before completing bootstrap
-          await checkStaffPermissions(existingSession.user.id);
+          await checkStaffPermissions(existingSession.user.id, 'strict');
         } else {
           console.log('[StaffAuth] No existing session');
+          setAuthStatus('unauthenticated');
         }
         
         bootstrapCompleteRef.current = true;
@@ -142,6 +226,8 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('[StaffAuth] Error during initialization:', error);
         if (mountedRef.current) {
+          setAuthStatus('error');
+          setAuthError('session');
           bootstrapCompleteRef.current = true;
           setLoading(false);
         }
@@ -159,40 +245,53 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
+        if (!newSession?.user) {
+          setAuthStatus('unauthenticated');
+          setAuthError(null);
+        } else {
+          setAuthStatus('authenticated');
+        }
+
         // Handle different auth events
         if (event === 'SIGNED_IN' && newSession?.user) {
-          // On sign in, fetch permissions and ensure loading is shown during this
           if (!bootstrapCompleteRef.current) {
             // Still in bootstrap, handled by initializeAuth
             return;
           }
-          
-          // Post-bootstrap sign in (e.g., user logged in via form)
-          console.log('[StaffAuth] User signed in, fetching permissions...');
-          setLoading(true);
-          
-          // Clear previous user's permissions cache
-          permissionsFetchedForUserRef.current = null;
-          
-          await checkStaffPermissions(newSession.user.id);
-          
-          if (mountedRef.current) {
-            setLoading(false);
+
+          const isExplicitSignIn = explicitSignInRef.current;
+          explicitSignInRef.current = false;
+
+          // If this SIGNED_IN came from an explicit login form submission, block until permissions resolve.
+          // Otherwise (tab return / rehydrate), refresh permissions silently to avoid a full-screen overlay.
+          console.log('[StaffAuth] User signed in, refreshing permissions...', { isExplicitSignIn });
+
+          if (isExplicitSignIn) {
+            setLoading(true);
+            setAuthError(null);
+            setAuthStatus('authenticated');
+            permissionsResolvedForUserIdRef.current = null;
+            permissionsResolvedStatusRef.current = null;
+            await checkStaffPermissions(newSession.user.id, 'strict');
+            if (mountedRef.current) setLoading(false);
+          } else {
+            // Soft, non-blocking refresh
+            void checkStaffPermissions(newSession.user.id, 'soft');
           }
         } else if (event === 'SIGNED_OUT') {
           // Clear all state on sign out
           console.log('[StaffAuth] User signed out, clearing state');
+          setAuthStatus('unauthenticated');
+          setAuthError(null);
           setIsStaff(false);
           setPermissions(defaultPermissions);
-          permissionsFetchedForUserRef.current = null;
+          permissionsResolvedForUserIdRef.current = null;
+          permissionsResolvedStatusRef.current = null;
           setLoading(false);
         } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
           // Token refresh - silently update session without showing loading
           console.log('[StaffAuth] Token refreshed');
-          // Only fetch permissions if we haven't for this user
-          if (permissionsFetchedForUserRef.current !== newSession.user.id) {
-            await checkStaffPermissions(newSession.user.id);
-          }
+          void checkStaffPermissions(newSession.user.id, 'soft');
         }
       }
     );
@@ -209,11 +308,14 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     console.log('[StaffAuth] Attempting sign in for:', email);
+    explicitSignInRef.current = true;
     
     // Clear previous state
-    permissionsFetchedForUserRef.current = null;
+    permissionsResolvedForUserIdRef.current = null;
+    permissionsResolvedStatusRef.current = null;
     setIsStaff(false);
     setPermissions(defaultPermissions);
+    setAuthError(null);
     
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -233,9 +335,12 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     console.log('[StaffAuth] Signing out...');
     
     // Clear state immediately for responsive UI
+    setAuthStatus('unauthenticated');
+    setAuthError(null);
     setIsStaff(false);
     setPermissions(defaultPermissions);
-    permissionsFetchedForUserRef.current = null;
+    permissionsResolvedForUserIdRef.current = null;
+    permissionsResolvedStatusRef.current = null;
     setSession(null);
     setUser(null);
     setLoading(false);
@@ -248,16 +353,35 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const retryPermissions = useCallback(async () => {
+    const userId = user?.id;
+    if (!userId) return;
+
+    setAuthStatus('authenticated');
+    setAuthError(null);
+    setLoading(true);
+
+    permissionsResolvedForUserIdRef.current = null;
+    permissionsResolvedStatusRef.current = null;
+
+    await checkStaffPermissions(userId, 'strict');
+
+    if (mountedRef.current) setLoading(false);
+  }, [user?.id, checkStaffPermissions]);
+
   return (
     <StaffAuthContext.Provider
       value={{
         user,
         session,
         loading,
+        authStatus,
+        authError,
         isStaff,
         permissions,
         signIn,
         signOut,
+        retryPermissions,
       }}
     >
       {children}
