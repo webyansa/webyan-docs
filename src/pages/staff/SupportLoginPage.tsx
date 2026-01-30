@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useStaffAuth } from '@/hooks/useStaffAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,44 +9,39 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Mail, Lock, ArrowRight, Home, Headphones, Shield, Building2 } from 'lucide-react';
 import { z } from 'zod';
 import webyanLogo from '@/assets/webyan-logo.svg';
-import { rolesInfo, type AppRole } from '@/lib/permissions';
 
 const emailSchema = z.string().email('البريد الإلكتروني غير صالح');
 const passwordSchema = z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
 
 export default function SupportLoginPage() {
   const navigate = useNavigate();
-  const { user, loading, signIn } = useAuth();
+  const { user, loading, isStaff, signIn } = useStaffAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  // Redirect based on role after login
+  // Redirect effect - runs when auth state changes
   useEffect(() => {
-    if (user && !loading) {
-      setIsRedirecting(true);
-      
-      // Fetch user type and redirect accordingly
-      supabase.rpc('get_user_type', { _user_id: user.id })
-        .then(({ data, error: rpcError }) => {
-          if (rpcError || !data || data.length === 0) {
-            setIsRedirecting(false);
-            return;
-          }
-          
-          const userType = data[0]?.user_type as AppRole | null;
-          
-          if (userType && rolesInfo[userType]) {
-            const targetPath = rolesInfo[userType].dashboardPath;
-            navigate(targetPath, { replace: true });
-          } else {
-            setIsRedirecting(false);
-          }
-        });
+    // Only redirect when loading is complete
+    if (loading) {
+      console.log('[SupportLogin] Still loading auth...');
+      return;
     }
-  }, [user, loading, navigate]);
+
+    console.log('[SupportLogin] Auth loaded. User:', user?.email, 'isStaff:', isStaff);
+
+    // If user is logged in and is staff, redirect to dashboard
+    if (user && isStaff) {
+      console.log('[SupportLogin] Redirecting to /support dashboard');
+      navigate('/support', { replace: true });
+    } else if (user && !isStaff) {
+      // User is logged in but not staff
+      console.log('[SupportLogin] User is not staff, showing unauthorized message');
+      setError('هذا الحساب ليس حساب موظف دعم فني. يرجى استخدام البوابة المناسبة.');
+      setIsSubmitting(false);
+    }
+  }, [user, loading, isStaff, navigate]);
 
   const validateInputs = () => {
     try {
@@ -69,28 +63,32 @@ export default function SupportLoginPage() {
     if (!validateInputs()) return;
     
     setIsSubmitting(true);
-    const { error } = await signIn(email, password);
+    console.log('[SupportLogin] Attempting login...');
     
-    if (error) {
+    const { error: signInError } = await signIn(email, password);
+    
+    if (signInError) {
+      console.log('[SupportLogin] Login error:', signInError.message);
       setIsSubmitting(false);
-      if (error.message.includes('Invalid login credentials')) {
+      
+      if (signInError.message.includes('Invalid login credentials')) {
         setError('البريد الإلكتروني أو كلمة المرور غير صحيحة');
-      } else if (error.message.includes('Email not confirmed')) {
+      } else if (signInError.message.includes('Email not confirmed')) {
         setError('يرجى تأكيد بريدك الإلكتروني أولاً');
       } else {
         setError('حدث خطأ أثناء تسجيل الدخول');
       }
     }
+    // If no error, the useEffect will handle redirect when isStaff updates
   };
 
-  if (loading || isRedirecting) {
+  // Show loading only during initial bootstrap (not during form submission)
+  if (loading && !isSubmitting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">
-            {isRedirecting ? 'جاري التوجيه للبوابة المناسبة...' : 'جاري التحقق من الحساب...'}
-          </p>
+          <p className="text-muted-foreground">جاري التحقق من الحساب...</p>
         </div>
       </div>
     );
@@ -142,6 +140,7 @@ export default function SupportLoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pr-10"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -158,17 +157,27 @@ export default function SupportLoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="pr-10"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
 
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin ml-2" />
+              <Button 
+                type="submit" 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
+                disabled={isSubmitting || loading}
+              >
+                {isSubmitting || loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    جاري تسجيل الدخول...
+                  </>
                 ) : (
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                  <>
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                    تسجيل الدخول
+                  </>
                 )}
-                تسجيل الدخول
               </Button>
             </form>
 
