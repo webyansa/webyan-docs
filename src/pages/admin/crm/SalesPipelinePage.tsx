@@ -425,10 +425,6 @@ export default function SalesPipelinePage() {
           onConfirm={handleStageConfirm}
         />
       )}
-          toStage={opportunityStages[targetStage]?.label || targetStage}
-          onConfirm={handleStageConfirm}
-        />
-      )}
     </div>
   );
 }

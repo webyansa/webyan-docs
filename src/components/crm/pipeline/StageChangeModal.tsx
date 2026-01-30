@@ -13,11 +13,11 @@ import { Label } from '@/components/ui/label';
 import { ArrowRight, AlertTriangle } from 'lucide-react';
 import { opportunityStages, OpportunityStage, implementationStages, ImplementationStage } from '@/lib/crm/pipelineConfig';
 
-interface StageChangeModalProps {
+export interface StageChangeModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (reason: string, nextStep: string) => void;
-  opportunityName: string;
+  itemName: string;
   fromStage: string;
   toStage: string;
   pipelineType?: 'opportunity' | 'implementation';
@@ -27,7 +27,7 @@ export function StageChangeModal({
   open,
   onClose,
   onConfirm,
-  opportunityName,
+  itemName,
   fromStage,
   toStage,
   pipelineType = 'opportunity',
@@ -73,7 +73,7 @@ export function StageChangeModal({
             تغيير المرحلة
           </DialogTitle>
           <DialogDescription>
-            {opportunityName}
+            {itemName}
           </DialogDescription>
         </DialogHeader>
 

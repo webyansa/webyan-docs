@@ -287,7 +287,7 @@ export function PipelineBoard({ onOpportunityClick }: PipelineBoardProps) {
         open={stageChangeModal.open}
         onClose={() => setStageChangeModal({ open: false, opportunity: null, targetStage: null })}
         onConfirm={handleStageChange}
-        opportunityName={stageChangeModal.opportunity?.name || ''}
+        itemName={stageChangeModal.opportunity?.name || ''}
         fromStage={stageChangeModal.opportunity?.stage || 'qualification'}
         toStage={stageChangeModal.targetStage || 'qualification'}
       />

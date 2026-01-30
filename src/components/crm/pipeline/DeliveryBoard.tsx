@@ -291,7 +291,7 @@ export function DeliveryBoard({ onProjectClick }: DeliveryBoardProps) {
         open={stageChangeModal.open}
         onClose={() => setStageChangeModal({ open: false, implementation: null, targetStage: null })}
         onConfirm={handleStageChange}
-        opportunityName={stageChangeModal.implementation?.project_name || ''}
+        itemName={stageChangeModal.implementation?.project_name || ''}
         fromStage={stageChangeModal.implementation?.stage || 'pending'}
         toStage={stageChangeModal.targetStage || 'pending'}
         pipelineType="implementation"
