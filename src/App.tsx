@@ -21,6 +21,7 @@ import TicketDetailPage from "./pages/TicketDetailPage";
 import TrackTicketPage from "./pages/TrackTicketPage";
 import EmbedTicketPage from "./pages/embed/EmbedTicketPage";
 import EmbedChatPage from "./pages/embed/EmbedChatPage";
+import EmbedDemoRequestPage from "./pages/embed/EmbedDemoRequestPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 
 // Admin pages
@@ -66,6 +67,7 @@ import RolesManagementPage from "./pages/admin/RolesManagementPage";
 import ActivityLogPage from "./pages/admin/ActivityLogPage";
 import SmtpSettingsPage from "./pages/admin/SmtpSettingsPage";
 import EmailLogsPage from "./pages/admin/EmailLogsPage";
+import WebsiteRequestsPage from "./pages/admin/WebsiteRequestsPage";
 
 // Operations pages
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
@@ -134,6 +136,7 @@ const App = () => (
               <Route path="/track-ticket" element={<TrackTicketPage />} />
               <Route path="/embed/ticket" element={<EmbedTicketPage />} />
               <Route path="/embed/chat" element={<EmbedChatPage />} />
+              <Route path="/embed/demo-request" element={<EmbedDemoRequestPage />} />
               <Route path="/docs/:moduleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug/:articleSlug" element={<ArticlePage />} />
@@ -221,6 +224,7 @@ const App = () => (
                 <Route path="activity-log" element={<ActivityLogPage />} />
                 <Route path="smtp-settings" element={<SmtpSettingsPage />} />
                 <Route path="email-logs" element={<EmailLogsPage />} />
+                <Route path="website-requests" element={<WebsiteRequestsPage />} />
                 <Route path="operations" element={<OperationsDashboardPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:id" element={<ProjectDetailsPage />} />

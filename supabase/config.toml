@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.track-guest-ticket]
 verify_jwt = false
+
+[functions.submit-demo-request]
+verify_jwt = false
