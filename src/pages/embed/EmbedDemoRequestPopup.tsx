@@ -92,6 +92,22 @@ const sizeOptions = [
   { value: 'large', label: 'كبيرة', description: 'أكثر من 50 موظف' },
 ];
 
+const saudiRegions = [
+  { value: 'riyadh', label: 'الرياض' },
+  { value: 'makkah', label: 'مكة المكرمة' },
+  { value: 'madinah', label: 'المدينة المنورة' },
+  { value: 'eastern', label: 'المنطقة الشرقية' },
+  { value: 'qassim', label: 'القصيم' },
+  { value: 'asir', label: 'عسير' },
+  { value: 'tabuk', label: 'تبوك' },
+  { value: 'hail', label: 'حائل' },
+  { value: 'northern_borders', label: 'الحدود الشمالية' },
+  { value: 'jazan', label: 'جازان' },
+  { value: 'najran', label: 'نجران' },
+  { value: 'baha', label: 'الباحة' },
+  { value: 'jouf', label: 'الجوف' },
+];
+
 export default function EmbedDemoRequestPopup() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -353,11 +369,22 @@ export default function EmbedDemoRequestPopup() {
                         <FormItem>
                           <FormLabel className="flex items-center gap-2 text-sm">
                             <MapPin className="h-4 w-4 text-sky-500" />
-                            المدينة
+                            المنطقة
                           </FormLabel>
-                          <FormControl>
-                            <Input placeholder="الرياض، جدة، الدمام..." {...field} />
-                          </FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر المنطقة" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {saudiRegions.map((region) => (
+                                <SelectItem key={region.value} value={region.value}>
+                                  {region.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
