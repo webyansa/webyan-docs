@@ -115,36 +115,68 @@
     .webyan-demo-button {
       position: fixed;
       z-index: 999990;
-      padding: 14px 24px;
+      padding: 12px;
       border-radius: 50px;
       border: none;
       background: linear-gradient(135deg, ${config.buttonColor}, ${adjustColor(config.buttonColor, -20)});
       color: white;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);
       transition: all 0.3s ease;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
     .webyan-demo-button:hover {
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5);
     }
     .webyan-demo-button.bottom-left {
-      bottom: 24px;
-      left: 24px;
+      bottom: 20px;
+      left: 20px;
     }
     .webyan-demo-button.bottom-right {
-      bottom: 24px;
-      right: 24px;
+      bottom: 20px;
+      right: 20px;
     }
-    .webyan-demo-button svg {
-      width: 18px;
-      height: 18px;
+    .webyan-demo-button .btn-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .webyan-demo-button .btn-text {
+      white-space: nowrap;
+      overflow: hidden;
+      max-width: 200px;
+      transition: max-width 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    }
+    .webyan-demo-button.collapsed .btn-text {
+      max-width: 0;
+      opacity: 0;
+      padding: 0;
+    }
+    .webyan-demo-button .btn-collapse {
+      width: 16px;
+      height: 16px;
+      padding: 2px;
+      margin-right: -4px;
+      margin-left: 2px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.3s ease;
+      flex-shrink: 0;
+    }
+    .webyan-demo-button .btn-collapse:hover {
+      background: rgba(255,255,255,0.4);
+    }
+    .webyan-demo-button.collapsed .btn-collapse {
+      transform: rotate(45deg);
+      margin-right: 0;
+      margin-left: 0;
     }
     @media (max-width: 640px) {
       .webyan-demo-popup {
@@ -155,8 +187,8 @@
         height: 90vh;
       }
       .webyan-demo-button {
-        padding: 12px 20px;
-        font-size: 14px;
+        padding: 10px;
+        font-size: 12px;
       }
     }
   `;
@@ -206,14 +238,25 @@
     var button = document.createElement('button');
     button.className = 'webyan-demo-button ' + config.buttonPosition;
     button.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
       </svg>
-      ${config.buttonText}
+      <span class="btn-text">${config.buttonText}</span>
+      <svg class="btn-collapse" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
     `;
-    button.onclick = function() {
+    
+    // Handle click on main button area (not collapse button)
+    button.onclick = function(e) {
+      if (e.target.closest('.btn-collapse')) {
+        e.stopPropagation();
+        button.classList.toggle('collapsed');
+        return;
+      }
       window.WebyanDemo.open();
     };
+    
     document.body.appendChild(button);
   }
 
