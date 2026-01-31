@@ -239,6 +239,27 @@ export default function QuoteDetailsPage() {
     enabled: !!quoteId,
   });
 
+  // Check existing contract/project status
+  const { data: contractProjectStatus } = useQuery({
+    queryKey: ['quote-contract-status', quoteId],
+    queryFn: async () => {
+      const { data: contractDoc } = await supabase
+        .from('contract_documentation')
+        .select('id, status, signed_date')
+        .eq('quote_id', quoteId)
+        .maybeSingle();
+
+      const { data: project } = await supabase
+        .from('crm_implementations')
+        .select('id, project_name')
+        .eq('quote_id', quoteId)
+        .maybeSingle();
+
+      return { contractDoc, project };
+    },
+    enabled: !!quoteId && quote?.status === 'accepted',
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ status, additionalData }: { status: string; additionalData?: object }) => {
       const { error } = await supabase
@@ -636,10 +657,17 @@ export default function QuoteDetailsPage() {
               {/* Contract Documentation - only for accepted quotes */}
               {quote?.status === 'accepted' && (
                 <>
-                  <DropdownMenuItem onClick={() => setShowContractModal(true)}>
-                    <FolderKanban className="h-4 w-4 ml-2 text-green-600" />
-                    توثيق العقد وبدء المشروع
-                  </DropdownMenuItem>
+                  {contractProjectStatus?.project ? (
+                    <DropdownMenuItem onClick={() => navigate(`/admin/projects/${contractProjectStatus.project!.id}`)}>
+                      <CheckCircle className="h-4 w-4 ml-2 text-green-600" />
+                      تم التوثيق - فتح المشروع
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => setShowContractModal(true)}>
+                      <FolderKanban className="h-4 w-4 ml-2 text-green-600" />
+                      توثيق العقد وبدء المشروع
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                 </>
               )}
@@ -1428,6 +1456,8 @@ export default function QuoteDetailsPage() {
           open={showContractModal}
           onOpenChange={setShowContractModal}
           quoteId={quoteId!}
+          quoteNumber={quote.quote_number}
+          quoteTotal={quote.total_amount}
           opportunityId={quote.opportunity_id || undefined}
           accountId={quote.account_id}
           accountName={quote.account?.name || ''}
