@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,11 +24,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { 
-  FolderKanban, Search, Filter, Eye, Calendar, Building2, Users
+  FolderKanban, Search, Filter, Eye, Calendar, Building2, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { projectStatuses, priorities, projectPhases } from '@/lib/operations/projectConfig';
-import { format } from 'date-fns';
+import { format, isPast, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 export default function ProjectsPage() {
@@ -36,7 +36,7 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
 
-  // Fetch projects
+  // Fetch projects with staleTime: 0 to always get fresh data
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['projects-list'],
     queryFn: async () => {
@@ -55,6 +55,7 @@ export default function ProjectsPage() {
       if (error) throw error;
       return data;
     },
+    staleTime: 0, // Always refetch to ensure fresh data
   });
 
   // Filter projects
@@ -73,6 +74,20 @@ export default function ProjectsPage() {
     const phases = project.project_phases || [];
     const completedPhases = phases.filter((p: any) => p.status === 'completed').length;
     return phases.length > 0 ? Math.round((completedPhases / phases.length) * 100) : 0;
+  };
+
+  // Check if project is overdue
+  const isOverdue = (project: any) => {
+    if (!project.expected_delivery_date || project.status === 'completed') return false;
+    return isPast(new Date(project.expected_delivery_date));
+  };
+
+  // Get days until/since deadline
+  const getDaysInfo = (project: any) => {
+    if (!project.expected_delivery_date) return null;
+    const deliveryDate = new Date(project.expected_delivery_date);
+    const diff = differenceInDays(deliveryDate, new Date());
+    return diff;
   };
 
   if (isLoading) {
@@ -150,13 +165,13 @@ export default function ProjectsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>المشروع</TableHead>
-                <TableHead>العميل</TableHead>
-                <TableHead>المرحلة</TableHead>
+                <TableHead>تاريخ الاستلام</TableHead>
+                <TableHead>تاريخ التسليم</TableHead>
                 <TableHead>التقدم</TableHead>
                 <TableHead>الفريق</TableHead>
                 <TableHead>الأولوية</TableHead>
                 <TableHead>الحالة</TableHead>
-                <TableHead className="w-[100px]">الإجراءات</TableHead>
+                <TableHead className="w-[80px]">عرض</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -164,38 +179,63 @@ export default function ProjectsPage() {
                 const statusConfig = projectStatuses[project.status as keyof typeof projectStatuses];
                 const priorityConfig = priorities[project.priority as keyof typeof priorities];
                 const progress = getProjectProgress(project);
-                const currentPhase = projectPhases[project.stage as keyof typeof projectPhases];
+                const overdue = isOverdue(project);
+                const daysInfo = getDaysInfo(project);
 
                 return (
-                  <TableRow key={project.id}>
+                  <TableRow key={project.id} className={overdue ? 'bg-red-50/50' : ''}>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{project.project_name}</p>
-                        {project.received_date && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(project.received_date), 'PP', { locale: ar })}
-                          </p>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {overdue && (
+                            <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                          )}
+                          <p className="font-medium">{project.project_name}</p>
+                        </div>
+                        <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                          <Building2 className="h-3 w-3" />
+                          <span>{project.account?.name || '-'}</span>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span>{project.account?.name || '-'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {currentPhase ? (
-                        <Badge variant="outline" className={cn(currentPhase.color)}>
-                          {currentPhase.label}
-                        </Badge>
+                      {project.received_date ? (
+                        <span className="text-sm">
+                          {format(new Date(project.received_date), 'dd/MM/yyyy', { locale: ar })}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="w-24">
+                      {project.expected_delivery_date ? (
+                        <div className="flex flex-col">
+                          <span className={cn(
+                            "text-sm",
+                            overdue && "text-destructive font-medium"
+                          )}>
+                            {format(new Date(project.expected_delivery_date), 'dd/MM/yyyy', { locale: ar })}
+                          </span>
+                          {daysInfo !== null && project.status !== 'completed' && (
+                            <span className={cn(
+                              "text-xs",
+                              overdue ? "text-destructive" : "text-muted-foreground"
+                            )}>
+                              {overdue 
+                                ? `متأخر ${Math.abs(daysInfo)} يوم` 
+                                : daysInfo === 0 
+                                  ? 'اليوم'
+                                  : `باقي ${daysInfo} يوم`
+                              }
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="w-20">
                         <div className="flex justify-between text-xs text-muted-foreground mb-1">
                           <span>{progress}%</span>
                         </div>

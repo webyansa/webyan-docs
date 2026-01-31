@@ -72,6 +72,10 @@ export function ContractDocumentationModal({
   const [contractType, setContractType] = useState<string>('service');
   const [notes, setNotes] = useState('');
   
+  // Mandatory date fields
+  const [receivedDate, setReceivedDate] = useState<Date>(new Date());
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<Date | undefined>(undefined);
+  
   // Team assignment state
   const [implementerId, setImplementerId] = useState<string>('');
   const [csmId, setCsmId] = useState<string>('');
@@ -124,7 +128,8 @@ export function ContractDocumentationModal({
   const hasExistingContract = !!existingData?.contractDoc;
   const hasExistingProject = !!existingData?.project;
   const isTeamComplete = status !== 'signed' || (!!implementerId && !!csmId);
-  const canSubmit = !hasExistingContract && !hasExistingProject && isTeamComplete && (status !== 'signed' || !!signedDate);
+  const areDatesComplete = status !== 'signed' || (!!receivedDate && !!expectedDeliveryDate);
+  const canSubmit = !hasExistingContract && !hasExistingProject && isTeamComplete && areDatesComplete && (status !== 'signed' || !!signedDate);
 
   const getValidationMessage = () => {
     if (hasExistingContract) {
@@ -145,6 +150,13 @@ export function ContractDocumentationModal({
       return {
         type: 'warning' as const,
         message: 'يرجى تعيين مسؤول التنفيذ ومسؤول نجاح العميل قبل إنشاء المشروع.',
+        action: null,
+      };
+    }
+    if (status === 'signed' && !areDatesComplete) {
+      return {
+        type: 'warning' as const,
+        message: 'يرجى تحديد تاريخ الاستلام وتاريخ التسليم المتوقع.',
         action: null,
       };
     }
@@ -177,14 +189,8 @@ export function ContractDocumentationModal({
         throw new Error('PROJECT_ALREADY_EXISTS');
       }
 
-      // Get quote details for project name
-      const { data: quote } = await supabase
-        .from('crm_quotes')
-        .select('title')
-        .eq('id', quoteId)
-        .single();
-
-      const projectName = quote?.title || `مشروع ${accountName}`;
+      // Simple project name: مشروع - اسم العميل
+      const projectName = `مشروع - ${accountName}`;
 
       // 1. Create contract documentation
       const { data: contractDoc, error: contractError } = await supabase
@@ -218,7 +224,8 @@ export function ContractDocumentationModal({
             project_name: projectName,
             status: 'active',
             stage: 'kickoff',
-            received_date: format(new Date(), 'yyyy-MM-dd'),
+            received_date: format(receivedDate, 'yyyy-MM-dd'),
+            expected_delivery_date: expectedDeliveryDate ? format(expectedDeliveryDate, 'yyyy-MM-dd') : null,
             priority: 'medium',
             implementer_id: implementerId,
             csm_id: csmId,
@@ -339,6 +346,7 @@ export function ContractDocumentationModal({
       queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
       queryClient.invalidateQueries({ queryKey: ['quote'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['projects-list'] });
       queryClient.invalidateQueries({ queryKey: ['implementations'] });
       queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
       
@@ -393,6 +401,8 @@ export function ContractDocumentationModal({
     
     setStatus('signed');
     setSignedDate(new Date());
+    setReceivedDate(new Date());
+    setExpectedDeliveryDate(undefined);
     setContractType('service');
     setNotes('');
     setImplementerId('');
@@ -601,8 +611,64 @@ export function ContractDocumentationModal({
                     </div>
                   )}
 
+                  {/* Mandatory Project Dates */}
+                  {status === 'signed' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>تاريخ الاستلام *</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                'w-full justify-start text-right font-normal',
+                                !receivedDate && 'text-muted-foreground border-destructive'
+                              )}
+                            >
+                              <CalendarIcon className="ml-2 h-4 w-4" />
+                              {receivedDate ? format(receivedDate, 'PPP', { locale: ar }) : 'اختر التاريخ'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={receivedDate}
+                              onSelect={(date) => date && setReceivedDate(date)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>تاريخ التسليم المتوقع *</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                'w-full justify-start text-right font-normal',
+                                !expectedDeliveryDate && 'text-muted-foreground border-destructive'
+                              )}
+                            >
+                              <CalendarIcon className="ml-2 h-4 w-4" />
+                              {expectedDeliveryDate ? format(expectedDeliveryDate, 'PPP', { locale: ar }) : 'اختر التاريخ'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={expectedDeliveryDate}
+                              onSelect={(date) => date && setExpectedDeliveryDate(date)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
-                    <Label>ملاحظات (اختياري)</Label>
                     <Textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
@@ -672,7 +738,7 @@ export function ContractDocumentationModal({
                 )}
 
                 {/* Summary Section */}
-                {status === 'signed' && isTeamComplete && (
+                {status === 'signed' && isTeamComplete && areDatesComplete && (
                   <>
                     <Separator />
                     <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
