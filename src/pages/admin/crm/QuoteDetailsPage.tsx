@@ -1,20 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableFooter,
-} from '@/components/ui/table';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +24,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   FileText,
   ArrowRight,
   Building2,
@@ -44,32 +41,45 @@ import {
   XCircle,
   MoreHorizontal,
   Loader2,
-  Clock,
   Send,
-  Target,
+  Phone,
+  MapPin,
+  Printer,
+  Eye,
+  Package,
+  Receipt,
+  Percent,
+  CreditCard,
+  Clock,
+  FileCheck,
+  Hash,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
+import QuotePDFDocument from '@/components/crm/quotes/QuotePDFDocument';
 
 interface QuoteItem {
+  id?: string;
   name: string;
   description?: string;
-  type: string;
+  type: 'plan' | 'service' | 'custom';
   billing?: string;
   quantity: number;
   unit_price: number;
+  discount?: number;
   total: number;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  draft: { label: 'مسودة', variant: 'outline', icon: FileText },
-  sent: { label: 'مرسل', variant: 'default', icon: Send },
-  viewed: { label: 'تمت المشاهدة', variant: 'secondary', icon: Clock },
-  accepted: { label: 'معتمد', variant: 'default', icon: CheckCircle },
-  rejected: { label: 'مرفوض', variant: 'destructive', icon: XCircle },
-  expired: { label: 'منتهي', variant: 'secondary', icon: Clock },
+const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; color: string; bgColor: string }> = {
+  draft: { label: 'مسودة', variant: 'outline', color: 'text-slate-600', bgColor: 'bg-slate-100' },
+  sent: { label: 'مرسل', variant: 'default', color: 'text-blue-600', bgColor: 'bg-blue-100' },
+  viewed: { label: 'تمت المشاهدة', variant: 'secondary', color: 'text-purple-600', bgColor: 'bg-purple-100' },
+  accepted: { label: 'معتمد', variant: 'default', color: 'text-green-600', bgColor: 'bg-green-100' },
+  rejected: { label: 'مرفوض', variant: 'destructive', color: 'text-red-600', bgColor: 'bg-red-100' },
+  expired: { label: 'منتهي', variant: 'secondary', color: 'text-orange-600', bgColor: 'bg-orange-100' },
 };
 
 const quoteTypeLabels: Record<string, string> = {
@@ -78,30 +88,50 @@ const quoteTypeLabels: Record<string, string> = {
   services_only: 'خدمات فقط',
 };
 
+const billingCycleLabels: Record<string, string> = {
+  monthly: 'شهري',
+  yearly: 'سنوي',
+};
+
+// Company info - can be moved to settings later
+const COMPANY_INFO = {
+  name: 'ويبيان للحلول التقنية',
+  nameEn: 'Webyan Solutions',
+  email: 'support@webyan.net',
+  phone: '+966 50 123 4567',
+  address: 'المملكة العربية السعودية',
+  city: 'الرياض',
+  taxNumber: '310000000000003',
+  crNumber: '1010000000',
+  website: 'https://webyan.net',
+  logoUrl: '/webyan-logo.svg',
+};
+
 export default function QuoteDetailsPage() {
   const { quoteId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const { data: quote, isLoading, error } = useQuery({
-    queryKey: ['crm-quote', quoteId],
+    queryKey: ['crm-quote-details', quoteId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('crm_quotes')
         .select(`
           *,
-          account:account_id (id, name, contact_email, contact_phone),
+          account:account_id (id, name, contact_email, contact_phone, city, address),
           opportunity:opportunity_id (id, name, stage),
-          plan:plan_id (id, name)
+          plan:plan_id (id, name, description, monthly_price, yearly_price, features)
         `)
         .eq('id', quoteId)
         .single();
 
       if (error) throw error;
       
-      // Fetch staff name separately
       let staffName = null;
       if (data.created_by) {
         const { data: staffData } = await supabase
@@ -131,7 +161,7 @@ export default function QuoteDetailsPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['crm-quote', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
       queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
     },
   });
@@ -162,16 +192,35 @@ export default function QuoteDetailsPage() {
     }
   };
 
-  const handleResend = async () => {
-    try {
-      await updateStatusMutation.mutateAsync({
-        status: 'sent',
-        additionalData: { sent_at: new Date().toISOString() },
-      });
-      toast.success('تم إعادة إرسال عرض السعر');
-    } catch {
-      toast.error('حدث خطأ أثناء إعادة الإرسال');
+  const handleSend = async () => {
+    if (!quote?.account?.contact_email) {
+      toast.error('لا يوجد بريد إلكتروني للعميل');
+      return;
     }
+
+    try {
+      const { error: sendError } = await supabase.functions.invoke('send-quote-email', {
+        body: {
+          quoteId: quoteId,
+          recipientEmail: quote.account.contact_email,
+          recipientName: quote.account.name,
+        },
+      });
+
+      if (sendError) {
+        throw sendError;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
+      toast.success('تم إرسال عرض السعر بنجاح');
+    } catch (err) {
+      console.error('Send error:', err);
+      toast.error('حدث خطأ أثناء إرسال العرض');
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   if (isLoading) {
@@ -198,40 +247,57 @@ export default function QuoteDetailsPage() {
 
   const items: QuoteItem[] = Array.isArray(quote.items) ? (quote.items as unknown as QuoteItem[]) : [];
   const statusInfo = statusConfig[quote.status || 'draft'] || statusConfig.draft;
-  const StatusIcon = statusInfo.icon;
+  
+  // Calculate totals
+  const subtotalBeforeDiscount = items.reduce((sum, item) => sum + item.total, 0);
+  const discountAmount = quote.discount_value || 0;
+  const discountType = quote.discount_type || 'fixed';
+  const calculatedDiscount = discountType === 'percentage' 
+    ? (subtotalBeforeDiscount * discountAmount / 100) 
+    : discountAmount;
+  const subtotalAfterDiscount = subtotalBeforeDiscount - calculatedDiscount;
+  const taxRate = quote.tax_rate || 15;
+  const taxAmount = quote.tax_amount || (subtotalAfterDiscount * taxRate / 100);
+  const totalAmount = quote.total_amount || (subtotalAfterDiscount + taxAmount);
+
+  const quoteData = {
+    ...quote,
+    items,
+    company: COMPANY_INFO,
+    subtotalBeforeDiscount,
+    calculatedDiscount,
+    discountType,
+    discountAmount,
+    subtotalAfterDiscount,
+    taxRate,
+    taxAmount,
+    totalAmount,
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 print:space-y-4">
+      {/* Header Section */}
+      <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/admin/crm/quotes')}>
             <ArrowRight className="h-4 w-4 ml-2" />
             العودة
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <FileText className="h-6 w-6 text-primary" />
-              عرض سعر #{quote.quote_number}
-            </h1>
-            <p className="text-muted-foreground">{quote.title}</p>
-          </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant={statusInfo.variant} className="gap-1">
-            <StatusIcon className="h-3 w-3" />
+          <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border-0 px-3 py-1`}>
             {statusInfo.label}
           </Badge>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" size="sm">
                 إجراءات
                 <MoreHorizontal className="h-4 w-4 mr-2" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-48">
               {quote.status !== 'accepted' && quote.status !== 'rejected' && (
                 <>
                   <DropdownMenuItem onClick={() => setShowAcceptDialog(true)}>
@@ -245,257 +311,382 @@ export default function QuoteDetailsPage() {
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem onClick={handleResend}>
-                <Mail className="h-4 w-4 ml-2" />
-                إعادة الإرسال
+              <DropdownMenuItem onClick={handleSend}>
+                <Send className="h-4 w-4 ml-2" />
+                إرسال بالبريد
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Download className="h-4 w-4 ml-2" />
-                تحميل PDF
+              <DropdownMenuItem onClick={() => setShowPDFPreview(true)}>
+                <Eye className="h-4 w-4 ml-2" />
+                معاينة PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handlePrint}>
+                <Printer className="h-4 w-4 ml-2" />
+                طباعة
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <PDFDownloadLink
+            document={<QuotePDFDocument data={quoteData} />}
+            fileName={`Quote-${quote.quote_number}.pdf`}
+          >
+            {({ loading }) => (
+              <Button disabled={loading}>
+                {loading ? (
+                  <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 ml-2" />
+                )}
+                تحميل PDF
+              </Button>
+            )}
+          </PDFDownloadLink>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Quote Items */}
-          <Card>
-            <CardHeader>
-              <CardTitle>بنود العرض</CardTitle>
-              <CardDescription>
-                {quoteTypeLabels[quote.quote_type || 'subscription']}
-                {quote.billing_cycle && (
-                  <span className="mr-2">
-                    ({quote.billing_cycle === 'monthly' ? 'شهري' : 'سنوي'})
-                  </span>
-                )}
-              </CardDescription>
+      {/* Main Quote Document */}
+      <div ref={printRef} className="bg-card border rounded-xl shadow-sm overflow-hidden print:shadow-none print:border-0">
+        {/* Document Header */}
+        <div className="bg-gradient-to-l from-primary/10 via-primary/5 to-transparent p-6 border-b">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <FileText className="h-6 w-6 text-primary" />
+                <h1 className="text-2xl font-bold text-primary">عرض سعر</h1>
+              </div>
+              <p className="text-lg font-semibold text-foreground">{quote.title}</p>
+            </div>
+            <div className="text-left space-y-1">
+              <div className="flex items-center gap-2 text-primary">
+                <Hash className="h-4 w-4" />
+                <span className="text-xl font-bold font-mono">{quote.quote_number}</span>
+              </div>
+              <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border-0`}>
+                {statusInfo.label}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Company & Client Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-muted/30">
+          {/* Company Info */}
+          <Card className="border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                من
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">#</TableHead>
-                    <TableHead className="text-right">البند</TableHead>
-                    <TableHead className="text-right">المدة</TableHead>
-                    <TableHead className="text-right">الكمية</TableHead>
-                    <TableHead className="text-right">السعر</TableHead>
-                    <TableHead className="text-right">الإجمالي</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          {item.description && (
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{item.billing || '-'}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell>{formatCurrency(item.unit_price)}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(item.total)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-left">المجموع الفرعي</TableCell>
-                    <TableCell className="font-medium">{formatCurrency(quote.subtotal)}</TableCell>
-                  </TableRow>
-                  {quote.tax_rate && quote.tax_rate > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-left">
-                        ضريبة القيمة المضافة ({quote.tax_rate}%)
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {formatCurrency(quote.tax_amount || 0)}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  <TableRow className="bg-muted/50">
-                    <TableCell colSpan={5} className="text-left font-bold">الإجمالي</TableCell>
-                    <TableCell className="font-bold text-primary text-lg">
-                      {formatCurrency(quote.total_amount)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
+            <CardContent className="space-y-2">
+              <h3 className="font-bold text-lg">{COMPANY_INFO.name}</h3>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p className="flex items-center gap-2">
+                  <Mail className="h-3 w-3" />
+                  {COMPANY_INFO.email}
+                </p>
+                <p className="flex items-center gap-2">
+                  <Phone className="h-3 w-3" />
+                  {COMPANY_INFO.phone}
+                </p>
+                <p className="flex items-center gap-2">
+                  <MapPin className="h-3 w-3" />
+                  {COMPANY_INFO.city}، {COMPANY_INFO.address}
+                </p>
+              </div>
+              <Separator className="my-2" />
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>الرقم الضريبي: {COMPANY_INFO.taxNumber}</p>
+                <p>السجل التجاري: {COMPANY_INFO.crNumber}</p>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Notes */}
-          {quote.notes && (
-            <Card>
-              <CardHeader>
-                <CardTitle>ملاحظات</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground whitespace-pre-wrap">{quote.notes}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Terms */}
-          {quote.terms_and_conditions && (
-            <Card>
-              <CardHeader>
-                <CardTitle>الشروط والأحكام</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground whitespace-pre-wrap">
-                  {quote.terms_and_conditions}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
           {/* Client Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                بيانات العميل
+          <Card className="border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <User className="h-4 w-4" />
+                إلى (العميل)
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2">
               {quote.account ? (
                 <>
                   <Link
                     to={`/admin/clients/${quote.account.id}`}
-                    className="font-medium hover:text-primary block"
+                    className="font-bold text-lg hover:text-primary transition-colors block"
                   >
                     {quote.account.name}
                   </Link>
-                  {quote.account.contact_email && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      {quote.account.contact_email}
-                    </div>
-                  )}
-                  {quote.account.contact_phone && (
-                    <p className="text-sm text-muted-foreground">{quote.account.contact_phone}</p>
-                  )}
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    {quote.account.contact_email && (
+                      <p className="flex items-center gap-2">
+                        <Mail className="h-3 w-3" />
+                        {quote.account.contact_email}
+                      </p>
+                    )}
+                    {quote.account.contact_phone && (
+                      <p className="flex items-center gap-2">
+                        <Phone className="h-3 w-3" />
+                        {quote.account.contact_phone}
+                      </p>
+                    )}
+                    {quote.account.city && (
+                      <p className="flex items-center gap-2">
+                        <MapPin className="h-3 w-3" />
+                        {quote.account.city}
+                        {quote.account.address && ` - ${quote.account.address}`}
+                      </p>
+                    )}
+                  </div>
                 </>
               ) : (
                 <p className="text-muted-foreground">لا يوجد عميل مرتبط</p>
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* Opportunity Info */}
-          {quote.opportunity && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  الفرصة المرتبطة
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Link
-                  to={`/admin/crm/deals/${quote.opportunity.id}`}
-                  className="font-medium hover:text-primary block"
-                >
-                  {quote.opportunity.name}
-                </Link>
-                <Badge variant="outline" className="mt-2">
-                  {quote.opportunity.stage}
-                </Badge>
-              </CardContent>
-            </Card>
+        {/* Quote Meta Info */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 border-b bg-muted/20">
+          <div className="text-center p-3 rounded-lg bg-card">
+            <p className="text-xs text-muted-foreground mb-1">تاريخ الإصدار</p>
+            <p className="font-semibold">{format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}</p>
+          </div>
+          {quote.sent_at && (
+            <div className="text-center p-3 rounded-lg bg-card">
+              <p className="text-xs text-muted-foreground mb-1">تاريخ الإرسال</p>
+              <p className="font-semibold">{format(new Date(quote.sent_at), 'dd MMM yyyy', { locale: ar })}</p>
+            </div>
           )}
+          {quote.valid_until && (
+            <div className="text-center p-3 rounded-lg bg-card">
+              <p className="text-xs text-muted-foreground mb-1">صالح حتى</p>
+              <p className="font-semibold">{format(new Date(quote.valid_until), 'dd MMM yyyy', { locale: ar })}</p>
+            </div>
+          )}
+          <div className="text-center p-3 rounded-lg bg-card">
+            <p className="text-xs text-muted-foreground mb-1">نوع العرض</p>
+            <p className="font-semibold">{quoteTypeLabels[quote.quote_type || 'subscription']}</p>
+          </div>
+        </div>
 
-          {/* Quote Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                معلومات العرض
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">تاريخ الإنشاء</span>
-                <span>{format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}</span>
+        {/* Plan Details (if subscription) */}
+        {quote.plan && (
+          <div className="p-6 border-b bg-primary/5">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-primary/10">
+                <Package className="h-6 w-6 text-primary" />
               </div>
-              {quote.sent_at && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">تاريخ الإرسال</span>
-                  <span>{format(new Date(quote.sent_at), 'dd MMM yyyy', { locale: ar })}</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-bold text-lg">{quote.plan.name}</h3>
+                  {quote.billing_cycle && (
+                    <Badge variant="secondary">
+                      {billingCycleLabels[quote.billing_cycle]}
+                    </Badge>
+                  )}
                 </div>
-              )}
-              {quote.valid_until && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">صالح حتى</span>
-                  <span>{format(new Date(quote.valid_until), 'dd MMM yyyy', { locale: ar })}</span>
-                </div>
-              )}
-              <Separator />
-              {quote.created_by_staff_name && (
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-muted-foreground">أُنشئ بواسطة:</span>
-                  <span>{quote.created_by_staff_name}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                {quote.plan.description && (
+                  <p className="text-muted-foreground text-sm mb-3">{quote.plan.description}</p>
+                )}
+                {quote.plan.features && Array.isArray(quote.plan.features) && (
+                  <div className="flex flex-wrap gap-2">
+                    {(quote.plan.features as string[]).slice(0, 5).map((feature, idx) => (
+                      <Badge key={idx} variant="outline" className="text-xs">
+                        {feature}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-          {/* Actions Card */}
-          {(quote.status === 'sent' || quote.status === 'viewed') && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="text-base">إجراءات سريعة</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button
-                  className="w-full"
-                  onClick={() => setShowAcceptDialog(true)}
-                >
-                  <CheckCircle className="h-4 w-4 ml-2" />
-                  اعتماد العرض
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setShowRejectDialog(true)}
-                >
-                  <XCircle className="h-4 w-4 ml-2" />
-                  رفض العرض
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+        {/* Items Table */}
+        <div className="p-6">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <Receipt className="h-5 w-5 text-primary" />
+            بنود العرض
+          </h3>
+          
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-right p-3 text-sm font-semibold">#</th>
+                  <th className="text-right p-3 text-sm font-semibold">البند / الوصف</th>
+                  <th className="text-center p-3 text-sm font-semibold">النوع</th>
+                  <th className="text-center p-3 text-sm font-semibold">المدة</th>
+                  <th className="text-center p-3 text-sm font-semibold">الكمية</th>
+                  <th className="text-left p-3 text-sm font-semibold">السعر</th>
+                  <th className="text-left p-3 text-sm font-semibold">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {items.length > 0 ? items.map((item, index) => (
+                  <tr key={item.id || index} className="hover:bg-muted/50 transition-colors">
+                    <td className="p-3 text-muted-foreground">{index + 1}</td>
+                    <td className="p-3">
+                      <p className="font-medium">{item.name}</p>
+                      {item.description && (
+                        <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                      )}
+                    </td>
+                    <td className="p-3 text-center">
+                      <Badge variant="outline" className="text-xs">
+                        {item.type === 'plan' ? 'خطة' : item.type === 'service' ? 'خدمة' : 'مخصص'}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-center text-muted-foreground">{item.billing || '-'}</td>
+                    <td className="p-3 text-center">{item.quantity}</td>
+                    <td className="p-3 text-left">{formatCurrency(item.unit_price)}</td>
+                    <td className="p-3 text-left font-semibold">{formatCurrency(item.total)}</td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                      لا توجد بنود مضافة
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Financial Summary */}
+        <div className="p-6 border-t bg-muted/30">
+          <div className="max-w-md mr-auto">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              ملخص الأسعار
+            </h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">المجموع الفرعي</span>
+                <span className="font-medium">{formatCurrency(subtotalBeforeDiscount)}</span>
+              </div>
+              
+              {calculatedDiscount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span className="flex items-center gap-1">
+                    <Percent className="h-3 w-3" />
+                    الخصم
+                    {discountType === 'percentage' && ` (${discountAmount}%)`}
+                  </span>
+                  <span className="font-medium">- {formatCurrency(calculatedDiscount)}</span>
+                </div>
+              )}
+
+              {calculatedDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">المجموع بعد الخصم</span>
+                  <span className="font-medium">{formatCurrency(subtotalAfterDiscount)}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">ضريبة القيمة المضافة ({taxRate}%)</span>
+                <span className="font-medium">{formatCurrency(taxAmount)}</span>
+              </div>
+              
+              <Separator />
+              
+              <div className="flex justify-between items-center pt-2">
+                <span className="font-bold text-lg">الإجمالي المستحق</span>
+                <span className="font-bold text-2xl text-primary">{formatCurrency(totalAmount)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Notes & Terms */}
+        {(quote.notes || quote.terms_and_conditions) && (
+          <div className="p-6 border-t space-y-4">
+            {quote.notes && (
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  ملاحظات
+                </h4>
+                <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
+                  {quote.notes}
+                </p>
+              </div>
+            )}
+            
+            {quote.terms_and_conditions && (
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <FileCheck className="h-4 w-4 text-muted-foreground" />
+                  الشروط والأحكام
+                </h4>
+                <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
+                  {quote.terms_and_conditions}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="p-6 border-t bg-muted/20">
+          <div className="flex justify-between items-center text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              <span>أُعد بواسطة: {quote.created_by_staff_name || 'غير محدد'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span>آخر تحديث: {format(new Date(quote.updated_at || quote.created_at), 'dd MMM yyyy HH:mm', { locale: ar })}</span>
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Quick Actions for pending quotes */}
+      {(quote.status === 'sent' || quote.status === 'viewed' || quote.status === 'draft') && (
+        <Card className="border-primary/20 bg-gradient-to-l from-primary/5 to-transparent print:hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold">إجراءات سريعة</h4>
+                <p className="text-sm text-muted-foreground">يمكنك اتخاذ إجراء على هذا العرض</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowRejectDialog(true)}>
+                  <XCircle className="h-4 w-4 ml-2" />
+                  رفض
+                </Button>
+                <Button onClick={() => setShowAcceptDialog(true)}>
+                  <CheckCircle className="h-4 w-4 ml-2" />
+                  اعتماد
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Accept Dialog */}
       <AlertDialog open={showAcceptDialog} onOpenChange={setShowAcceptDialog}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>تأكيد اعتماد العرض</AlertDialogTitle>
+            <AlertDialogTitle>اعتماد عرض السعر</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من اعتماد عرض السعر #{quote.quote_number}؟
-              <br />
-              القيمة الإجمالية: {formatCurrency(quote.total_amount)}
+              هل أنت متأكد من اعتماد عرض السعر رقم {quote.quote_number}؟ 
+              سيتم تحديث حالة العرض إلى "معتمد".
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={handleAccept}>
+            <AlertDialogAction onClick={handleAccept} className="bg-green-600 hover:bg-green-700">
               <CheckCircle className="h-4 w-4 ml-2" />
-              اعتماد
+              اعتماد العرض
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -503,25 +694,36 @@ export default function QuoteDetailsPage() {
 
       {/* Reject Dialog */}
       <AlertDialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>تأكيد رفض العرض</AlertDialogTitle>
+            <AlertDialogTitle>رفض عرض السعر</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من رفض عرض السعر #{quote.quote_number}؟
+              هل أنت متأكد من رفض عرض السعر رقم {quote.quote_number}؟
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleReject}
-              className="bg-destructive hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleReject} className="bg-destructive hover:bg-destructive/90">
               <XCircle className="h-4 w-4 ml-2" />
-              رفض
+              رفض العرض
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* PDF Preview Dialog */}
+      <Dialog open={showPDFPreview} onOpenChange={setShowPDFPreview}>
+        <DialogContent className="max-w-4xl h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>معاينة عرض السعر PDF</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 h-full min-h-[70vh]">
+            <PDFViewer width="100%" height="100%" className="rounded-lg">
+              <QuotePDFDocument data={quoteData} />
+            </PDFViewer>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
