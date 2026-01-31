@@ -85,6 +85,23 @@ const sizeOptions = [
   { value: 'large', label: 'كبيرة', description: 'أكثر من 50 موظف' },
 ];
 
+// مناطق المملكة العربية السعودية
+const saudiRegions = [
+  { value: 'riyadh', label: 'الرياض' },
+  { value: 'makkah', label: 'مكة المكرمة' },
+  { value: 'madinah', label: 'المدينة المنورة' },
+  { value: 'eastern', label: 'المنطقة الشرقية' },
+  { value: 'qassim', label: 'القصيم' },
+  { value: 'hail', label: 'حائل' },
+  { value: 'tabuk', label: 'تبوك' },
+  { value: 'northern', label: 'الحدود الشمالية' },
+  { value: 'jazan', label: 'جازان' },
+  { value: 'najran', label: 'نجران' },
+  { value: 'bahah', label: 'الباحة' },
+  { value: 'jawf', label: 'الجوف' },
+  { value: 'asir', label: 'عسير' },
+];
+
 export default function EmbedDemoRequestPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -302,7 +319,7 @@ export default function EmbedDemoRequestPage() {
                 />
               </div>
 
-              {/* City */}
+              {/* City / Region */}
               <FormField
                 control={form.control}
                 name="city"
@@ -310,11 +327,22 @@ export default function EmbedDemoRequestPage() {
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-sky-500" />
-                      المدينة
+                      المنطقة
                     </FormLabel>
-                    <FormControl>
-                      <Input placeholder="الرياض، جدة، الدمام..." {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر المنطقة" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {saudiRegions.map((region) => (
+                          <SelectItem key={region.value} value={region.value}>
+                            {region.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
