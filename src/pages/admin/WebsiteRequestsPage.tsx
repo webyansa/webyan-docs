@@ -218,7 +218,7 @@ export default function WebsiteRequestsPage() {
     qualified: submissions.filter((s) => s.status === 'qualified').length,
   };
 
-  const embedCode = `<iframe 
+  const iframeCode = `<iframe 
   src="${window.location.origin}/embed/demo-request" 
   width="100%" 
   height="700" 
@@ -227,8 +227,22 @@ export default function WebsiteRequestsPage() {
   title="طلب عرض توضيحي - ويبيان">
 </iframe>`;
 
-  const copyEmbedCode = () => {
-    navigator.clipboard.writeText(embedCode);
+  const popupWidgetCode = `<!-- Webyan Demo Request Widget -->
+<script src="${window.location.origin}/embed/webyan-demo-widget.js" 
+  data-button-text="طلب عرض توضيحي"
+  data-button-color="#0ea5e9"
+  data-button-position="bottom-left">
+</script>`;
+
+  const manualTriggerCode = `<!-- فتح النافذة يدوياً -->
+<button onclick="window.WebyanDemo.open()">
+  طلب عرض توضيحي
+</button>`;
+
+  const [embedTab, setEmbedTab] = useState<'popup' | 'iframe'>('popup');
+
+  const copyEmbedCode = (code: string) => {
+    navigator.clipboard.writeText(code);
     toast.success('تم نسخ كود التضمين');
   };
 
@@ -708,20 +722,90 @@ export default function WebsiteRequestsPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="relative">
-              <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap">
-                {embedCode}
-              </pre>
-              <Button
-                variant="outline"
-                size="sm"
-                className="absolute top-2 left-2"
-                onClick={copyEmbedCode}
+            {/* Tabs */}
+            <div className="flex gap-2 border-b">
+              <button
+                onClick={() => setEmbedTab('popup')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  embedTab === 'popup'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
               >
-                <Copy className="h-4 w-4 ml-1" />
-                نسخ
-              </Button>
+                نافذة منبثقة (موصى به)
+              </button>
+              <button
+                onClick={() => setEmbedTab('iframe')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  embedTab === 'iframe'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                iframe مضمن
+              </button>
             </div>
+
+            {embedTab === 'popup' ? (
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">كود الـ Widget (الأسهل)</h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    أضف هذا الكود في نهاية صفحتك قبل وسم body/
+                  </p>
+                  <div className="relative">
+                    <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap text-left" dir="ltr">
+                      {popupWidgetCode}
+                    </pre>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="absolute top-2 left-2"
+                      onClick={() => copyEmbedCode(popupWidgetCode)}
+                    >
+                      <Copy className="h-4 w-4 ml-1" />
+                      نسخ
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-2">فتح النافذة يدوياً (اختياري)</h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    يمكنك فتح النافذة من أي زر في موقعك
+                  </p>
+                  <div className="relative">
+                    <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap text-left" dir="ltr">
+                      {manualTriggerCode}
+                    </pre>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="absolute top-2 left-2"
+                      onClick={() => copyEmbedCode(manualTriggerCode)}
+                    >
+                      <Copy className="h-4 w-4 ml-1" />
+                      نسخ
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap text-left" dir="ltr">
+                  {iframeCode}
+                </pre>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute top-2 left-2"
+                  onClick={() => copyEmbedCode(iframeCode)}
+                >
+                  <Copy className="h-4 w-4 ml-1" />
+                  نسخ
+                </Button>
+              </div>
+            )}
 
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <h4 className="font-medium text-amber-800 mb-2">ملاحظات مهمة:</h4>
@@ -729,8 +813,9 @@ export default function WebsiteRequestsPage() {
                 <li>
                   مفتاح API للموقع الرسمي: <code className="bg-amber-100 px-1 rounded">webyan_demo_2024_secure_token</code>
                 </li>
-                <li>يمكنك تعديل العرض والارتفاع حسب تصميم موقعك</li>
-                <li>النموذج يدعم الجوال والكمبيوتر (Responsive)</li>
+                <li>النافذة المنبثقة تعمل على جميع الأجهزة (Responsive)</li>
+                <li>يمكنك تغيير لون الزر وموقعه عبر خصائص data-*</li>
+                <li>لإخفاء الزر العائم: أضف <code className="bg-amber-100 px-1 rounded">data-show-button="false"</code></li>
               </ul>
             </div>
           </div>
