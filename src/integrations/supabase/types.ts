@@ -2511,6 +2511,7 @@ export type Database = {
       }
       project_phases: {
         Row: {
+          assigned_to: string | null
           completed_at: string | null
           completed_by: string | null
           completed_by_name: string | null
@@ -2525,6 +2526,7 @@ export type Database = {
           status: string | null
         }
         Insert: {
+          assigned_to?: string | null
           completed_at?: string | null
           completed_by?: string | null
           completed_by_name?: string | null
@@ -2539,6 +2541,7 @@ export type Database = {
           status?: string | null
         }
         Update: {
+          assigned_to?: string | null
           completed_at?: string | null
           completed_by?: string | null
           completed_by_name?: string | null
@@ -2553,6 +2556,13 @@ export type Database = {
           status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "project_phases_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_phases_completed_by_fkey"
             columns: ["completed_by"]
@@ -3299,7 +3309,34 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      phase_performance_stats: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          hours_to_complete: number | null
+          phase_type: string | null
+          project_id: string | null
+          staff_name: string | null
+          started_at: string | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_phases_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_phases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_available_agent: {
