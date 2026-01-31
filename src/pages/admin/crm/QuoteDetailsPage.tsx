@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +31,15 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   FileText,
   ArrowRight,
@@ -53,6 +64,9 @@ import {
   Clock,
   FileCheck,
   Hash,
+  Edit,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
@@ -116,6 +130,18 @@ export default function QuoteDetailsPage() {
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState<{
+    title: string;
+    quote_type: string;
+    billing_cycle: string;
+    notes: string;
+    terms_and_conditions: string;
+    discount_value: number;
+    discount_type: string;
+    tax_rate: number;
+    items: QuoteItem[];
+  } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Fetch company settings for quotes
@@ -226,6 +252,126 @@ export default function QuoteDetailsPage() {
       setShowRejectDialog(false);
     } catch {
       toast.error('حدث خطأ أثناء رفض العرض');
+    }
+  };
+
+  // Edit Quote Mutation
+  const editQuoteMutation = useMutation({
+    mutationFn: async (data: {
+      title: string;
+      quote_type: string;
+      billing_cycle: string;
+      notes: string;
+      terms_and_conditions: string;
+      discount_value: number;
+      discount_type: string;
+      tax_rate: number;
+      items: QuoteItem[];
+    }) => {
+      const subtotal = data.items.reduce((sum, item) => sum + item.total, 0);
+      const discountAmount = data.discount_type === 'percentage' 
+        ? (subtotal * data.discount_value / 100) 
+        : data.discount_value;
+      const afterDiscount = subtotal - discountAmount;
+      const taxAmount = afterDiscount * data.tax_rate / 100;
+      const total = afterDiscount + taxAmount;
+
+      const { error } = await supabase
+        .from('crm_quotes')
+        .update({
+          title: data.title,
+          quote_type: data.quote_type,
+          billing_cycle: data.billing_cycle,
+          notes: data.notes || null,
+          terms_and_conditions: data.terms_and_conditions || null,
+          discount_value: data.discount_value,
+          discount_type: data.discount_type,
+          tax_rate: data.tax_rate,
+          tax_amount: taxAmount,
+          items: data.items as unknown as import('@/integrations/supabase/types').Json,
+          subtotal: subtotal,
+          total_amount: total,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', quoteId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
+      toast.success('تم تحديث عرض السعر بنجاح');
+      setShowEditDialog(false);
+    },
+    onError: () => {
+      toast.error('حدث خطأ أثناء تحديث العرض');
+    },
+  });
+
+  const handleOpenEdit = () => {
+    if (quote) {
+      const currentItems: QuoteItem[] = Array.isArray(quote.items) 
+        ? (quote.items as unknown as QuoteItem[]) 
+        : [];
+      setEditForm({
+        title: quote.title || '',
+        quote_type: quote.quote_type || 'subscription',
+        billing_cycle: quote.billing_cycle || 'yearly',
+        notes: quote.notes || '',
+        terms_and_conditions: quote.terms_and_conditions || '',
+        discount_value: quote.discount_value || 0,
+        discount_type: quote.discount_type || 'fixed',
+        tax_rate: quote.tax_rate || 15,
+        items: currentItems,
+      });
+      setShowEditDialog(true);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (editForm) {
+      editQuoteMutation.mutate(editForm);
+    }
+  };
+
+  const handleAddItem = () => {
+    if (editForm) {
+      setEditForm({
+        ...editForm,
+        items: [
+          ...editForm.items,
+          {
+            id: `new-${Date.now()}`,
+            name: 'بند جديد',
+            description: '',
+            type: 'service',
+            billing: 'once',
+            quantity: 1,
+            unit_price: 0,
+            total: 0,
+          },
+        ],
+      });
+    }
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (editForm) {
+      const newItems = [...editForm.items];
+      newItems.splice(index, 1);
+      setEditForm({ ...editForm, items: newItems });
+    }
+  };
+
+  const handleUpdateItem = (index: number, field: keyof QuoteItem, value: string | number) => {
+    if (editForm) {
+      const newItems = [...editForm.items];
+      newItems[index] = { ...newItems[index], [field]: value };
+      // Recalculate total
+      if (field === 'quantity' || field === 'unit_price') {
+        newItems[index].total = newItems[index].quantity * newItems[index].unit_price;
+      }
+      setEditForm({ ...editForm, items: newItems });
     }
   };
 
@@ -372,6 +518,12 @@ export default function QuoteDetailsPage() {
                 <Send className="h-4 w-4 ml-2" />
                 إرسال بالبريد
               </DropdownMenuItem>
+              {(quote.status === 'draft' || quote.status === 'sent') && (
+                <DropdownMenuItem onClick={handleOpenEdit}>
+                  <Edit className="h-4 w-4 ml-2" />
+                  تعديل العرض
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => setShowPDFPreview(true)}>
                 <Eye className="h-4 w-4 ml-2" />
                 معاينة PDF
@@ -822,6 +974,217 @@ export default function QuoteDetailsPage() {
               }}
             </BlobProvider>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Quote Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              تعديل عرض السعر
+            </DialogTitle>
+          </DialogHeader>
+          
+          {editForm && (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-title">عنوان العرض</Label>
+                  <Input
+                    id="edit-title"
+                    value={editForm.title}
+                    onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>نوع العرض</Label>
+                  <Select
+                    value={editForm.quote_type}
+                    onValueChange={(v) => setEditForm({ ...editForm, quote_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="subscription">اشتراك منصة</SelectItem>
+                      <SelectItem value="custom_platform">منصة مخصصة</SelectItem>
+                      <SelectItem value="services_only">خدمات فقط</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>دورة الفوترة</Label>
+                  <Select
+                    value={editForm.billing_cycle}
+                    onValueChange={(v) => setEditForm({ ...editForm, billing_cycle: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">شهري</SelectItem>
+                      <SelectItem value="yearly">سنوي</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>نسبة الضريبة (%)</Label>
+                  <Input
+                    type="number"
+                    value={editForm.tax_rate}
+                    onChange={(e) => setEditForm({ ...editForm, tax_rate: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              {/* Discount */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>نوع الخصم</Label>
+                  <Select
+                    value={editForm.discount_type}
+                    onValueChange={(v) => setEditForm({ ...editForm, discount_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">مبلغ ثابت</SelectItem>
+                      <SelectItem value="percentage">نسبة مئوية</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>قيمة الخصم {editForm.discount_type === 'percentage' ? '(%)' : '(ر.س)'}</Label>
+                  <Input
+                    type="number"
+                    value={editForm.discount_value}
+                    onChange={(e) => setEditForm({ ...editForm, discount_value: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">بنود العرض</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
+                    <Plus className="h-4 w-4 ml-1" />
+                    إضافة بند
+                  </Button>
+                </div>
+                
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="p-2 text-right">الاسم</th>
+                        <th className="p-2 text-right">النوع</th>
+                        <th className="p-2 text-center w-20">الكمية</th>
+                        <th className="p-2 text-center w-28">السعر</th>
+                        <th className="p-2 text-center w-28">الإجمالي</th>
+                        <th className="p-2 w-12"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {editForm.items.map((item, idx) => (
+                        <tr key={item.id || idx}>
+                          <td className="p-2">
+                            <Input
+                              value={item.name}
+                              onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
+                              className="h-8"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Select
+                              value={item.type}
+                              onValueChange={(v) => handleUpdateItem(idx, 'type', v)}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="plan">باقة</SelectItem>
+                                <SelectItem value="service">خدمة</SelectItem>
+                                <SelectItem value="custom">مخصص</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateItem(idx, 'quantity', parseInt(e.target.value) || 1)}
+                              className="h-8 text-center"
+                              min={1}
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              value={item.unit_price}
+                              onChange={(e) => handleUpdateItem(idx, 'unit_price', parseFloat(e.target.value) || 0)}
+                              className="h-8 text-center"
+                            />
+                          </td>
+                          <td className="p-2 text-center font-medium">
+                            {formatCurrency(item.total)}
+                          </td>
+                          <td className="p-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleRemoveItem(idx)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Notes & Terms */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>ملاحظات</Label>
+                  <Textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>الشروط والأحكام</Label>
+                  <Textarea
+                    value={editForm.terms_and_conditions}
+                    onChange={(e) => setEditForm({ ...editForm, terms_and_conditions: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              إلغاء
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={editQuoteMutation.isPending}>
+              {editQuoteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+              ) : null}
+              حفظ التغييرات
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
