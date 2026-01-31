@@ -205,17 +205,66 @@ export default function LeadsPage() {
 
     setConverting(true);
     try {
-      // Mark lead as converted
+      // 1. Create a temporary organization first (required for crm_opportunities.account_id)
+      const customerType = convertData.service_type === 'subscription' ? 'subscription' : 'custom_platform';
+      
+      const { data: newOrg, error: orgError } = await supabase
+        .from('client_organizations')
+        .insert([{
+          name: convertingLead.company_name,
+          contact_email: convertingLead.contact_email,
+          contact_phone: convertingLead.contact_phone || null,
+          organization_type: 'other',
+          is_active: false, // Not active until deal is approved
+          lifecycle_stage: 'prospect',
+          customer_type: customerType,
+        }])
+        .select('id')
+        .single();
+
+      if (orgError) throw orgError;
+
+      // 2. Create a new opportunity/deal in crm_opportunities
+      const { data: newDeal, error: dealError } = await supabase
+        .from('crm_opportunities')
+        .insert([{
+          name: convertData.deal_name,
+          account_id: newOrg.id,
+          expected_value: parseFloat(convertData.expected_value),
+          currency: 'SAR',
+          probability: 20, // Initial probability for new opportunity
+          stage: 'new_opportunity',
+          status: 'open',
+          opportunity_type: convertData.service_type,
+        }])
+        .select('id')
+        .single();
+
+      if (dealError) throw dealError;
+
+      // 3. Mark lead as converted and link to account
       const { error: leadError } = await supabase
         .from('crm_leads')
         .update({
           is_converted: true,
           converted_at: new Date().toISOString(),
-          stage: 'won',
+          converted_to_account_id: newOrg.id,
+          stage: 'interested', // Mark as interested since it was converted
         })
         .eq('id', convertingLead.id);
 
       if (leadError) throw leadError;
+
+      // 4. Log the conversion in stage transitions
+      await supabase.from('crm_stage_transitions').insert([{
+        entity_type: 'lead',
+        entity_id: convertingLead.id,
+        pipeline_type: 'leads',
+        from_stage: convertingLead.stage,
+        to_stage: 'converted',
+        reason: `تم التحويل إلى فرصة: ${convertData.deal_name}`,
+        notes: `تم إنشاء فرصة جديدة بقيمة ${convertData.expected_value} ر.س`,
+      }]);
 
       toast.success('تم تحويل العميل المحتمل إلى فرصة بنجاح');
       setShowConvertModal(false);
