@@ -31,6 +31,7 @@ import {
   Shield,
   Mail,
   Target,
+  FolderKanban,
   Rocket,
   UserPlus
 } from 'lucide-react';
@@ -129,7 +130,17 @@ const crmSection: NavSection = {
     { title: 'الفرص', href: '/admin/crm/deals', icon: Target, permission: 'canManageClients' },
     { title: 'عروض الأسعار', href: '/admin/crm/quotes', icon: FileText, permission: 'canManageClients' },
     { title: 'العملاء', href: '/admin/clients', icon: Building2, permission: 'canManageClients' },
-    { title: 'مشاريع التنفيذ', href: '/admin/crm/delivery', icon: Rocket, permission: 'canManageClients' },
+  ]
+};
+
+// Operations Section
+const operationsSection: NavSection = {
+  title: 'العمليات',
+  sectionPermission: 'canManageClients',
+  items: [
+    { title: 'لوحة العمليات', href: '/admin/operations', icon: FolderKanban, permission: 'canManageClients' },
+    { title: 'المشاريع', href: '/admin/projects', icon: Rocket, permission: 'canManageClients' },
+    { title: 'خط التسليم', href: '/admin/crm/delivery', icon: FolderKanban, permission: 'canManageClients' },
   ]
 };
 
@@ -261,6 +272,7 @@ export default function AdminLayout() {
   const allSections = [
     dashboardSection,
     crmSection,
+    operationsSection,
     contentSection,
     chatSection,
     ticketsSection,

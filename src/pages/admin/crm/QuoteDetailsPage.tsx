@@ -68,6 +68,7 @@ import {
   Plus,
   Trash2,
   RotateCcw,
+  FolderKanban,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
@@ -75,6 +76,8 @@ import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PDFDownloadLink, BlobProvider, pdf } from '@react-pdf/renderer';
 import QuotePDFDocument from '@/components/crm/quotes/QuotePDFDocument';
+import { ContractDocumentationModal } from '@/components/operations/ContractDocumentationModal';
+import { useAuth } from '@/hooks/useAuth';
 
 interface QuoteItem {
   id?: string;
@@ -131,12 +134,14 @@ export default function QuoteDetailsPage() {
   const { quoteId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
+  const [showContractModal, setShowContractModal] = useState(false);
   const [editForm, setEditForm] = useState<{
     title: string;
     quote_type: string;
@@ -149,6 +154,21 @@ export default function QuoteDetailsPage() {
     items: QuoteItem[];
   } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch current staff id
+  const { data: currentStaff } = useQuery({
+    queryKey: ['current-staff', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase
+        .from('staff_members')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
 
   // Fetch company settings for quotes
   const { data: companySettings } = useQuery({
@@ -608,6 +628,17 @@ export default function QuoteDetailsPage() {
                   <DropdownMenuItem onClick={handleReopenClick}>
                     <RotateCcw className="h-4 w-4 ml-2 text-blue-600" />
                     إعادة فتح العرض
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              {/* Contract Documentation - only for accepted quotes */}
+              {quote?.status === 'accepted' && (
+                <>
+                  <DropdownMenuItem onClick={() => setShowContractModal(true)}>
+                    <FolderKanban className="h-4 w-4 ml-2 text-green-600" />
+                    توثيق العقد وبدء المشروع
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
@@ -1390,6 +1421,19 @@ export default function QuoteDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Contract Documentation Modal */}
+      {quote && (
+        <ContractDocumentationModal
+          open={showContractModal}
+          onOpenChange={setShowContractModal}
+          quoteId={quoteId!}
+          opportunityId={quote.opportunity_id || undefined}
+          accountId={quote.account_id}
+          accountName={quote.account?.name || ''}
+          staffId={currentStaff?.id}
+        />
+      )}
     </div>
   );
 }

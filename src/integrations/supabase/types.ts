@@ -430,6 +430,77 @@ export type Database = {
           },
         ]
       }
+      contract_documentation: {
+        Row: {
+          account_id: string
+          contract_type: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          notes: string | null
+          opportunity_id: string | null
+          quote_id: string | null
+          signed_date: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          opportunity_id?: string | null
+          quote_id?: string | null
+          signed_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          opportunity_id?: string | null
+          quote_id?: string | null
+          signed_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_documentation_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documentation_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documentation_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documentation_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "crm_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_events: {
         Row: {
           conversation_id: string
@@ -729,10 +800,13 @@ export type Database = {
           actual_end_date: string | null
           actual_start_date: string | null
           client_contact_id: string | null
+          contract_doc_id: string | null
           contract_id: string | null
           created_at: string | null
           csm_id: string | null
+          current_phase_id: string | null
           description: string | null
+          expected_delivery_date: string | null
           go_live_date: string | null
           handover_date: string | null
           handover_notes: string | null
@@ -744,10 +818,13 @@ export type Database = {
           opportunity_id: string | null
           planned_end_date: string | null
           planned_start_date: string | null
+          priority: string | null
           progress_percentage: number | null
           project_manager_id: string | null
           project_name: string
           project_type: string | null
+          quote_id: string | null
+          received_date: string | null
           stage: string | null
           stage_change_reason: string | null
           stage_changed_at: string | null
@@ -759,10 +836,13 @@ export type Database = {
           actual_end_date?: string | null
           actual_start_date?: string | null
           client_contact_id?: string | null
+          contract_doc_id?: string | null
           contract_id?: string | null
           created_at?: string | null
           csm_id?: string | null
+          current_phase_id?: string | null
           description?: string | null
+          expected_delivery_date?: string | null
           go_live_date?: string | null
           handover_date?: string | null
           handover_notes?: string | null
@@ -774,10 +854,13 @@ export type Database = {
           opportunity_id?: string | null
           planned_end_date?: string | null
           planned_start_date?: string | null
+          priority?: string | null
           progress_percentage?: number | null
           project_manager_id?: string | null
           project_name: string
           project_type?: string | null
+          quote_id?: string | null
+          received_date?: string | null
           stage?: string | null
           stage_change_reason?: string | null
           stage_changed_at?: string | null
@@ -789,10 +872,13 @@ export type Database = {
           actual_end_date?: string | null
           actual_start_date?: string | null
           client_contact_id?: string | null
+          contract_doc_id?: string | null
           contract_id?: string | null
           created_at?: string | null
           csm_id?: string | null
+          current_phase_id?: string | null
           description?: string | null
+          expected_delivery_date?: string | null
           go_live_date?: string | null
           handover_date?: string | null
           handover_notes?: string | null
@@ -804,10 +890,13 @@ export type Database = {
           opportunity_id?: string | null
           planned_end_date?: string | null
           planned_start_date?: string | null
+          priority?: string | null
           progress_percentage?: number | null
           project_manager_id?: string | null
           project_name?: string
           project_type?: string | null
+          quote_id?: string | null
+          received_date?: string | null
           stage?: string | null
           stage_change_reason?: string | null
           stage_changed_at?: string | null
@@ -827,6 +916,13 @@ export type Database = {
             columns: ["client_contact_id"]
             isOneToOne: false
             referencedRelation: "client_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_implementations_contract_doc_id_fkey"
+            columns: ["contract_doc_id"]
+            isOneToOne: false
+            referencedRelation: "contract_documentation"
             referencedColumns: ["id"]
           },
           {
@@ -862,6 +958,13 @@ export type Database = {
             columns: ["project_manager_id"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_implementations_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "crm_quotes"
             referencedColumns: ["id"]
           },
         ]
@@ -2293,6 +2396,166 @@ export type Database = {
         }
         Relationships: []
       }
+      project_phases: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          phase_order: number
+          phase_type: string
+          project_id: string
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          phase_order: number
+          phase_type: string
+          project_id: string
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          phase_order?: number
+          phase_type?: string
+          project_id?: string
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_phases_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_phases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_sprints: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          end_date: string
+          goals: string | null
+          id: string
+          name: string
+          project_id: string
+          start_date: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          end_date: string
+          goals?: string | null
+          id?: string
+          name: string
+          project_id: string
+          start_date: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string
+          goals?: string | null
+          id?: string
+          name?: string
+          project_id?: string
+          start_date?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_sprints_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_sprints_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_team_members: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          id: string
+          is_active: boolean | null
+          project_id: string
+          role: string
+          staff_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          project_id: string
+          role: string
+          staff_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          project_id?: string
+          role?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_team_members_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_team_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_team_members_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quick_replies: {
         Row: {
           body: string
@@ -2330,6 +2593,60 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sprint_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string | null
+          sprint_id: string
+          status: string | null
+          title: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          sprint_id: string
+          status?: string | null
+          title: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          sprint_id?: string
+          status?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sprint_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sprint_tasks_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "project_sprints"
             referencedColumns: ["id"]
           },
         ]
@@ -2393,6 +2710,51 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      staff_project_history: {
+        Row: {
+          completed_at: string | null
+          id: string
+          joined_at: string | null
+          performance_notes: string | null
+          project_id: string
+          role: string
+          staff_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          joined_at?: string | null
+          performance_notes?: string | null
+          project_id: string
+          role: string
+          staff_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          joined_at?: string | null
+          performance_notes?: string | null
+          project_id?: string
+          role?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_project_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_project_history_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscription_requests: {
         Row: {
