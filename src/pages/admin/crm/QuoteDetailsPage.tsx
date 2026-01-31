@@ -93,18 +93,20 @@ const billingCycleLabels: Record<string, string> = {
   yearly: 'سنوي',
 };
 
-// Company info - can be moved to settings later
-const COMPANY_INFO = {
-  name: 'ويبيان للحلول التقنية',
-  nameEn: 'Webyan Solutions',
-  email: 'support@webyan.net',
+// Default company info (fallback)
+const DEFAULT_COMPANY_INFO = {
+  name: 'شركة رنين للتقنية',
+  nameEn: 'Raneen Technology Co.',
+  email: 'info@raneen.sa',
   phone: '+966 50 123 4567',
-  address: 'المملكة العربية السعودية',
+  address: 'طريق الملك فهد',
   city: 'الرياض',
-  taxNumber: '310000000000003',
+  taxNumber: '300000000000003',
   crNumber: '1010000000',
-  website: 'https://webyan.net',
-  logoUrl: '/webyan-logo.svg',
+  website: 'https://raneen.sa',
+  logoUrl: '',
+  webyanLogoUrl: '',
+  stampUrl: '',
 };
 
 export default function QuoteDetailsPage() {
@@ -115,6 +117,41 @@ export default function QuoteDetailsPage() {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch company settings for quotes
+  const { data: companySettings } = useQuery({
+    queryKey: ['quote-company-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('key, value')
+        .like('key', 'quote_%');
+      
+      if (error) throw error;
+      
+      const settings: Record<string, string> = {};
+      data?.forEach(s => {
+        settings[s.key] = s.value;
+      });
+      return settings;
+    },
+  });
+
+  // Merge settings with defaults
+  const COMPANY_INFO = {
+    name: companySettings?.quote_company_name_ar || DEFAULT_COMPANY_INFO.name,
+    nameEn: companySettings?.quote_company_name_en || DEFAULT_COMPANY_INFO.nameEn,
+    email: companySettings?.quote_company_email || DEFAULT_COMPANY_INFO.email,
+    phone: companySettings?.quote_company_phone || DEFAULT_COMPANY_INFO.phone,
+    address: companySettings?.quote_company_address || DEFAULT_COMPANY_INFO.address,
+    city: companySettings?.quote_company_city || DEFAULT_COMPANY_INFO.city,
+    taxNumber: companySettings?.quote_company_tax_number || DEFAULT_COMPANY_INFO.taxNumber,
+    crNumber: companySettings?.quote_company_cr_number || DEFAULT_COMPANY_INFO.crNumber,
+    website: companySettings?.quote_company_website || DEFAULT_COMPANY_INFO.website,
+    logoUrl: companySettings?.quote_company_logo_url || '/raneen-logo.png',
+    webyanLogoUrl: companySettings?.quote_webyan_logo_url || '/webyan-logo-02.svg',
+    stampUrl: companySettings?.quote_company_stamp_url || '',
+  };
 
   const { data: quote, isLoading, error } = useQuery({
     queryKey: ['crm-quote-details', quoteId],

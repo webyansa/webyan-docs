@@ -50,6 +50,7 @@ import DealDetailsPage from "./pages/admin/crm/DealDetailsPage";
 import QuotesPage from "./pages/admin/crm/QuotesPage";
 import QuoteDetailsPage from "./pages/admin/crm/QuoteDetailsPage";
 import PricingSettingsPage from "./pages/admin/PricingSettingsPage";
+import QuoteCompanySettingsPage from "./pages/admin/QuoteCompanySettingsPage";
 import AdminMeetingsPage from "./pages/admin/AdminMeetingsPage";
 import MeetingSettingsPage from "./pages/admin/MeetingSettingsPage";
 import StaffPage from "./pages/admin/StaffPage";
@@ -194,6 +195,7 @@ const App = () => (
                 <Route path="crm/quotes/:quoteId" element={<QuoteDetailsPage />} />
                 <Route path="crm/sales" element={<SalesPipelinePage />} />
                 <Route path="pricing-settings" element={<PricingSettingsPage />} />
+                <Route path="quote-settings" element={<QuoteCompanySettingsPage />} />
                 <Route path="crm/delivery" element={<DeliveryPipelinePage />} />
                 <Route path="meetings" element={<AdminMeetingsPage />} />
                 <Route path="meeting-settings" element={<MeetingSettingsPage />} />
