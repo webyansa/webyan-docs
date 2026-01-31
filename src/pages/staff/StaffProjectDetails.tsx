@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffAuth } from '@/hooks/useStaffAuth';
@@ -34,9 +34,11 @@ import {
   projectStatuses, priorities, projectPhases, phaseStatuses,
   teamRoles, type ProjectPhaseType, type PhaseStatus
 } from '@/lib/operations/projectConfig';
+import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
 
 export default function StaffProjectDetails() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const { permissions } = useStaffAuth();
   const staffId = permissions.staffId;
   const queryClient = useQueryClient();
@@ -47,27 +49,25 @@ export default function StaffProjectDetails() {
   const [phaseNotes, setPhaseNotes] = useState('');
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
 
-  // Fetch project details
-  const { data: project, isLoading } = useQuery({
+  const {
+    data: project,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['staff-project', id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('crm_implementations')
-        .select(`
-          *,
-          account:client_organizations(id, name, contact_email, contact_phone),
-          quote:crm_quotes(id, quote_number, title, total_amount),
-          implementer:staff_members!crm_implementations_implementer_id_fkey(id, full_name, email),
-          csm:staff_members!crm_implementations_csm_id_fkey(id, full_name, email),
-          project_manager:staff_members!crm_implementations_project_manager_id_fkey(id, full_name, email)
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data;
+    queryFn: async () => fetchProjectDetailsById(id!, { retries: 3, retryDelayMs: 250 }),
+    enabled: isUuid(id),
+    staleTime: 0,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(400 * 2 ** attemptIndex, 1200),
+    initialData: () => {
+      const stateProject = (location.state as any)?.project;
+      if (stateProject) return stateProject;
+      return id ? (queryClient.getQueryData(['staff-project', id]) as any) : undefined;
     },
-    enabled: !!id,
   });
 
   // Fetch project phases
@@ -281,10 +281,40 @@ export default function StaffProjectDetails() {
     return prevPhase?.status === 'completed' && phase.status === 'pending';
   };
 
-  if (isLoading) {
+  if (!isUuid(id)) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground mb-4">معرّف المشروع غير صحيح</p>
+        <Link to="/support/projects">
+          <Button variant="outline">العودة للمشاريع</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (isLoading || (isFetching && !project)) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground mb-2">تعذر تحميل المشروع</p>
+        <p className="text-xs text-muted-foreground mb-4" dir="ltr">
+          {(error as any)?.message || ''}
+        </p>
+        <div className="flex justify-center gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            إعادة المحاولة
+          </Button>
+          <Link to="/support/projects">
+            <Button variant="link">العودة للمشاريع</Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -293,9 +323,14 @@ export default function StaffProjectDetails() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">المشروع غير موجود</p>
-        <Link to="/support/projects">
-          <Button variant="outline">العودة للمشاريع</Button>
-        </Link>
+        <div className="flex justify-center gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            إعادة المحاولة
+          </Button>
+          <Link to="/support/projects">
+            <Button variant="link">العودة للمشاريع</Button>
+          </Link>
+        </div>
       </div>
     );
   }
