@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   FileText,
   Search,
   Filter,
@@ -38,10 +45,13 @@ import {
   Loader2,
   Building2,
   Calendar,
+  Plus,
+  Target,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import AdvancedQuoteModal from '@/components/crm/modals/AdvancedQuoteModal';
 
 interface Quote {
   id: string;
@@ -60,6 +70,21 @@ interface Quote {
     name: string;
   } | null;
   opportunity: {
+    id: string;
+    name: string;
+    stage: string;
+    expected_value: number;
+    account_id: string;
+  } | null;
+}
+
+interface Deal {
+  id: string;
+  name: string;
+  stage: string;
+  expected_value: number;
+  account_id: string;
+  account: {
     id: string;
     name: string;
   } | null;
@@ -81,11 +106,15 @@ const quoteTypeLabels: Record<string, string> = {
 };
 
 export default function QuotesPage() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [showDealSelector, setShowDealSelector] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
 
-  const { data: quotes = [], isLoading } = useQuery({
+  const { data: quotes = [], isLoading, refetch } = useQuery({
     queryKey: ['crm-quotes', statusFilter, typeFilter],
     queryFn: async () => {
       let query = supabase
@@ -103,7 +132,7 @@ export default function QuotesPage() {
           sent_at,
           created_at,
           account:account_id (id, name),
-          opportunity:opportunity_id (id, name)
+          opportunity:opportunity_id (id, name, stage, expected_value, account_id)
         `)
         .order('created_at', { ascending: false });
 
@@ -118,6 +147,29 @@ export default function QuotesPage() {
       if (error) throw error;
       return data as Quote[];
     },
+  });
+
+  // Fetch deals for creating new quote
+  const { data: deals = [] } = useQuery({
+    queryKey: ['crm-deals-for-quotes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('crm_opportunities')
+        .select(`
+          id,
+          name,
+          stage,
+          expected_value,
+          account_id,
+          account:account_id (id, name)
+        `)
+        .not('stage', 'in', '(approved,rejected)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as Deal[];
+    },
+    enabled: showDealSelector,
   });
 
   const filteredQuotes = quotes.filter((quote) => {
@@ -135,6 +187,18 @@ export default function QuotesPage() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  const handleCreateQuote = (deal: Deal) => {
+    setSelectedDeal(deal);
+    setShowDealSelector(false);
+    setShowQuoteModal(true);
+  };
+
+  const handleQuoteSuccess = () => {
+    setShowQuoteModal(false);
+    setSelectedDeal(null);
+    refetch();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -145,6 +209,10 @@ export default function QuotesPage() {
           </h1>
           <p className="text-muted-foreground">إدارة ومتابعة عروض الأسعار</p>
         </div>
+        <Button onClick={() => setShowDealSelector(true)}>
+          <Plus className="h-4 w-4 ml-2" />
+          عرض سعر جديد
+        </Button>
       </div>
 
       <Card>
@@ -197,6 +265,14 @@ export default function QuotesPage() {
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>لا توجد عروض أسعار</p>
+              <Button 
+                variant="outline" 
+                className="mt-4"
+                onClick={() => setShowDealSelector(true)}
+              >
+                <Plus className="h-4 w-4 ml-2" />
+                إنشاء عرض سعر جديد
+              </Button>
             </div>
           ) : (
             <Table>
@@ -213,19 +289,26 @@ export default function QuotesPage() {
               </TableHeader>
               <TableBody>
                 {filteredQuotes.map((quote) => (
-                  <TableRow key={quote.id}>
+                  <TableRow 
+                    key={quote.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/admin/crm/quotes/${quote.id}`)}
+                  >
                     <TableCell className="font-mono text-sm">
                       {quote.quote_number}
                     </TableCell>
                     <TableCell>
                       {quote.account ? (
-                        <Link
-                          to={`/admin/clients/${quote.account.id}`}
+                        <div 
                           className="flex items-center gap-2 hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/clients/${quote.account!.id}`);
+                          }}
                         >
                           <Building2 className="h-4 w-4" />
                           {quote.account.name}
-                        </Link>
+                        </div>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
@@ -243,14 +326,16 @@ export default function QuotesPage() {
                     <TableCell className="font-medium">
                       {formatCurrency(quote.total_amount)}
                     </TableCell>
-                    <TableCell>{getStatusBadge(quote.status)}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {getStatusBadge(quote.status)}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm">
@@ -258,11 +343,9 @@ export default function QuotesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link to={`/admin/crm/quotes/${quote.id}`}>
-                              <Eye className="h-4 w-4 ml-2" />
-                              عرض التفاصيل
-                            </Link>
+                          <DropdownMenuItem onClick={() => navigate(`/admin/crm/quotes/${quote.id}`)}>
+                            <Eye className="h-4 w-4 ml-2" />
+                            عرض التفاصيل
                           </DropdownMenuItem>
                           <DropdownMenuItem>
                             <Download className="h-4 w-4 ml-2" />
@@ -282,6 +365,88 @@ export default function QuotesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Deal Selector Dialog */}
+      <Dialog open={showDealSelector} onOpenChange={setShowDealSelector}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              اختر الفرصة
+            </DialogTitle>
+            <DialogDescription>
+              اختر الفرصة التي تريد إنشاء عرض سعر لها
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto">
+            {deals.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Target className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p>لا توجد فرص متاحة</p>
+                <p className="text-sm">يمكنك إنشاء فرصة جديدة من صفحة الفرص</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => {
+                    setShowDealSelector(false);
+                    navigate('/admin/crm/deals');
+                  }}
+                >
+                  الانتقال لصفحة الفرص
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {deals.map((deal) => (
+                  <Card
+                    key={deal.id}
+                    className="cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => handleCreateQuote(deal)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{deal.name}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            {deal.account && (
+                              <>
+                                <Building2 className="h-3 w-3" />
+                                <span>{deal.account.name}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <p className="font-medium text-primary">
+                            {formatCurrency(deal.expected_value)}
+                          </p>
+                          <Badge variant="outline" className="mt-1">
+                            {deal.stage}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Advanced Quote Modal */}
+      {selectedDeal && (
+        <AdvancedQuoteModal
+          open={showQuoteModal}
+          onOpenChange={setShowQuoteModal}
+          dealId={selectedDeal.id}
+          dealName={selectedDeal.name}
+          accountId={selectedDeal.account_id}
+          currentStage={selectedDeal.stage}
+          currentValue={selectedDeal.expected_value}
+          onSuccess={handleQuoteSuccess}
+        />
+      )}
     </div>
   );
 }
