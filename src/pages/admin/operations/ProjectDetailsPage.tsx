@@ -46,8 +46,8 @@ export default function ProjectDetailsPage() {
   const { user } = useAuth();
   const [teamModalOpen, setTeamModalOpen] = useState(false);
 
-  // Fetch project details
-  const { data: project, isLoading } = useQuery({
+  // Fetch project details with retry for fresh data
+  const { data: project, isLoading, refetch } = useQuery({
     queryKey: ['project', id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -68,6 +68,11 @@ export default function ProjectDetailsPage() {
       return data;
     },
     enabled: !!id,
+    // Allow stale data but refetch in background for freshness
+    staleTime: 0,
+    // Retry a few times in case data isn't immediately available
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
 
   // Fetch project phases
@@ -152,10 +157,15 @@ export default function ProjectDetailsPage() {
   if (!project) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">المشروع غير موجود</p>
-        <Link to="/admin/projects">
-          <Button variant="link">العودة للمشاريع</Button>
-        </Link>
+        <p className="text-muted-foreground mb-4">المشروع غير موجود أو جاري التحميل</p>
+        <div className="flex justify-center gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            إعادة المحاولة
+          </Button>
+          <Link to="/admin/projects">
+            <Button variant="link">العودة للمشاريع</Button>
+          </Link>
+        </div>
       </div>
     );
   }
