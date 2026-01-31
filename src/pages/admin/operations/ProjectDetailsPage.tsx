@@ -32,14 +32,13 @@ import { ar } from 'date-fns/locale';
 import { 
   projectStatuses, 
   priorities, 
-  projectPhases, 
   teamRoles,
-  type ProjectPhaseType 
 } from '@/lib/operations/projectConfig';
 import { PhaseProgressCard } from '@/components/operations/PhaseProgressCard';
 import { TeamAssignmentModal } from '@/components/operations/TeamAssignmentModal';
 import { useAuth } from '@/hooks/useAuth';
 import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
+import { getPhaseConfig } from '@/lib/operations/phaseUtils';
 
 export default function ProjectDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -194,9 +193,19 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  const statusConfig = projectStatuses[project.status as keyof typeof projectStatuses];
-  const priorityConfig = priorities[project.priority as keyof typeof priorities];
-  const currentPhaseConfig = projectPhases[project.stage as ProjectPhaseType];
+  const safeFormatDate = (value: string | null | undefined, pattern: string) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '-';
+    return format(d, pattern, { locale: ar });
+  };
+
+  const currentPhaseConfig = getPhaseConfig(project.stage);
+  const statusValue = (project.status || 'active') as string;
+  const statusConfig =
+    (projectStatuses as any)[statusValue] ?? projectStatuses.active;
+  const priorityValue = (project.priority || 'medium') as string;
+  const priorityConfig = (priorities as any)[priorityValue] ?? priorities.medium;
 
   const TeamMemberCard = ({ 
     role, 
@@ -249,7 +258,7 @@ export default function ProjectDetailsPage() {
 
         <div className="flex items-center gap-2">
           <Select
-            value={project.status}
+            value={statusValue}
             onValueChange={(v) => updateStatusMutation.mutate(v)}
           >
             <SelectTrigger className="w-[140px]">
@@ -352,7 +361,7 @@ export default function ProjectDetailsPage() {
                 <span className="text-sm text-muted-foreground">تاريخ الاستلام</span>
                 <span className="text-sm font-medium">
                   {project.received_date 
-                    ? format(new Date(project.received_date), 'PP', { locale: ar })
+                    ? safeFormatDate(project.received_date, 'PP')
                     : '-'
                   }
                 </span>
@@ -361,7 +370,7 @@ export default function ProjectDetailsPage() {
                 <span className="text-sm text-muted-foreground">التسليم المتوقع</span>
                 <span className="text-sm font-medium">
                   {project.expected_delivery_date 
-                    ? format(new Date(project.expected_delivery_date), 'PP', { locale: ar })
+                    ? safeFormatDate(project.expected_delivery_date, 'PP')
                     : '-'
                   }
                 </span>

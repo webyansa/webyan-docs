@@ -16,16 +16,17 @@ import {
 import { CheckCircle2, PlayCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
-  projectPhases, 
   phaseStatuses,
   type ProjectPhaseType,
   type PhaseStatus 
 } from '@/lib/operations/projectConfig';
+import { getPhaseConfig, normalizePhaseType } from '@/lib/operations/phaseUtils';
 
 interface Phase {
   id: string;
   project_id: string;
-  phase_type: ProjectPhaseType;
+  // Backward compatibility: existing data may contain legacy values (kickoff/review/delivery).
+  phase_type: ProjectPhaseType | string;
   status: PhaseStatus;
   started_at: string | null;
   completed_at: string | null;
@@ -56,7 +57,7 @@ export function PhaseProgressCard({
 
   // Calculate progress
   const completedCount = phases.filter(p => p.status === 'completed').length;
-  const progressPercent = Math.round((completedCount / phases.length) * 100);
+  const progressPercent = phases.length > 0 ? Math.round((completedCount / phases.length) * 100) : 0;
 
   // Get current active phase
   const currentPhase = sortedPhases.find(p => p.status === 'in_progress') || 
@@ -147,11 +148,12 @@ export function PhaseProgressCard({
           {/* Phases Timeline */}
           <div className="space-y-3">
             {sortedPhases.map((phase, index) => {
-              const phaseConfig = projectPhases[phase.phase_type];
-              const statusConfig = phaseStatuses[phase.status];
-              const PhaseIcon = phaseConfig.icon;
+              const phaseConfig = getPhaseConfig(phase.phase_type);
+              const statusConfig = phaseStatuses[phase.status] ?? phaseStatuses.pending;
+              const PhaseIcon = phaseConfig?.icon ?? CheckCircle2;
               const isActive = phase.status === 'in_progress';
               const canStart = canStartPhase(phase, index);
+              const normalizedPhaseType = normalizePhaseType(phase.phase_type) ?? null;
 
               return (
                 <div 
@@ -173,14 +175,21 @@ export function PhaseProgressCard({
                     {phase.status === 'completed' ? (
                       <CheckCircle2 className="h-5 w-5 text-green-600" />
                     ) : (
-                      <PhaseIcon className={cn("h-5 w-5", phaseConfig.color)} />
+                      <PhaseIcon
+                        className={cn(
+                          "h-5 w-5",
+                          phaseConfig?.color ?? "text-muted-foreground"
+                        )}
+                      />
                     )}
                   </div>
 
                   {/* Phase Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{phaseConfig.label}</span>
+                      <span className="font-medium">
+                        {phaseConfig?.label ?? normalizedPhaseType ?? String(phase.phase_type)}
+                      </span>
                       <Badge 
                         variant="outline" 
                         className={cn("text-xs", statusConfig.color)}
@@ -189,7 +198,7 @@ export function PhaseProgressCard({
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
-                      {phaseConfig.description}
+                      {phaseConfig?.description ?? ""}
                     </p>
                   </div>
 
@@ -241,7 +250,7 @@ export function PhaseProgressCard({
               <div className="bg-muted/50 p-3 rounded-lg">
                 <p className="text-sm">
                   المرحلة: <span className="font-medium">
-                    {projectPhases[selectedPhase.phase_type]?.label}
+                    {getPhaseConfig(selectedPhase.phase_type)?.label ?? String(selectedPhase.phase_type)}
                   </span>
                 </p>
               </div>

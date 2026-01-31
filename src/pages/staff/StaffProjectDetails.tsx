@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +35,7 @@ import {
   teamRoles, type ProjectPhaseType, type PhaseStatus
 } from '@/lib/operations/projectConfig';
 import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
+import { getPhaseConfig } from '@/lib/operations/phaseUtils';
 
 export default function StaffProjectDetails() {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +49,20 @@ export default function StaffProjectDetails() {
   const [selectedPhase, setSelectedPhase] = useState<any>(null);
   const [phaseNotes, setPhaseNotes] = useState('');
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+
+  const safeFormatDate = (value: string | null | undefined, pattern: string) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '-';
+    return format(d, pattern, { locale: ar });
+  };
+
+  const safeTimeAgo = (value: string | null | undefined) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '-';
+    return formatDistanceToNow(d, { addSuffix: true, locale: ar });
+  };
 
   const {
     data: project,
@@ -69,6 +84,33 @@ export default function StaffProjectDetails() {
       return id ? (queryClient.getQueryData(['staff-project', id]) as any) : undefined;
     },
   });
+
+  const canEditDelivery = !!project && !!staffId && project.implementer_id === staffId;
+  const [deliveryEditMode, setDeliveryEditMode] = useState(false);
+  const [deliveryForm, setDeliveryForm] = useState({
+    site_url: '',
+    admin_url: '',
+    admin_username: '',
+    admin_password: '',
+    server_url: '',
+    server_username: '',
+    server_password: '',
+  });
+
+  useEffect(() => {
+    if (!project) return;
+    // Avoid overwriting user input while editing.
+    if (deliveryEditMode) return;
+    setDeliveryForm({
+      site_url: project.site_url || '',
+      admin_url: project.admin_url || '',
+      admin_username: project.admin_username || '',
+      admin_password: project.admin_password_encrypted || '',
+      server_url: project.server_url || '',
+      server_username: project.server_username || '',
+      server_password: project.server_password_encrypted || '',
+    });
+  }, [project?.id, deliveryEditMode]);
 
   // Fetch project phases
   const { data: phases = [] } = useQuery({
@@ -126,7 +168,7 @@ export default function StaffProjectDetails() {
       }
 
       const phase = phases.find((p: any) => p.id === phaseId);
-      const phaseConfig = projectPhases[phase?.phase_type as ProjectPhaseType];
+      const phaseConfig = getPhaseConfig(phase?.phase_type);
 
       // Update phase status
       const { error: phaseError } = await supabase
@@ -217,6 +259,40 @@ export default function StaffProjectDetails() {
     },
     onError: (error: any) => {
       toast.error(error.message || 'حدث خطأ أثناء إتمام المرحلة');
+    },
+  });
+
+  const saveDelivery = useMutation({
+    mutationFn: async () => {
+      if (!canEditDelivery) throw new Error('غير مصرح لك بتعديل بيانات التسليم');
+
+      const payload = {
+        site_url: deliveryForm.site_url.trim() || null,
+        admin_url: deliveryForm.admin_url.trim() || null,
+        admin_username: deliveryForm.admin_username.trim() || null,
+        admin_password_encrypted: deliveryForm.admin_password || null,
+        server_url: deliveryForm.server_url.trim() || null,
+        server_username: deliveryForm.server_username.trim() || null,
+        server_password_encrypted: deliveryForm.server_password || null,
+        delivery_completed_by: staffId,
+        delivery_completed_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('crm_implementations')
+        .update(payload)
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff-project', id] });
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      toast.success('تم حفظ بيانات التسليم');
+      setDeliveryEditMode(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر حفظ بيانات التسليم');
     },
   });
 
@@ -440,7 +516,7 @@ export default function StaffProjectDetails() {
                   </span>
                   <span className="font-medium">
                     {project.received_date 
-                      ? format(new Date(project.received_date), 'PPP', { locale: ar })
+                      ? safeFormatDate(project.received_date, 'PPP')
                       : '-'
                     }
                   </span>
@@ -453,7 +529,7 @@ export default function StaffProjectDetails() {
                   </span>
                   <span className="font-medium">
                     {project.expected_delivery_date 
-                      ? format(new Date(project.expected_delivery_date), 'PPP', { locale: ar })
+                      ? safeFormatDate(project.expected_delivery_date, 'PPP')
                       : '-'
                     }
                   </span>
@@ -533,7 +609,7 @@ export default function StaffProjectDetails() {
             <CardContent>
               <div className="space-y-4">
                 {phases.map((phase: any, index: number) => {
-                  const phaseConfig = projectPhases[phase.phase_type as ProjectPhaseType];
+                  const phaseConfig = getPhaseConfig(phase.phase_type);
                   const statusConf = phaseStatuses[phase.status as PhaseStatus];
                   const PhaseIcon = phaseConfig?.icon || CheckCircle2;
                   const canComplete = canCompletePhase(phase);
@@ -583,7 +659,7 @@ export default function StaffProjectDetails() {
                               <span>أُنجز بواسطة: </span>
                               <span className="font-medium">{phase.completed_by_name || 'غير محدد'}</span>
                               <span className="mx-1">•</span>
-                              <span>{format(new Date(phase.completed_at), 'PPp', { locale: ar })}</span>
+                              <span>{safeFormatDate(phase.completed_at, 'PPp')}</span>
                             </div>
                           )}
 
@@ -650,94 +726,227 @@ export default function StaffProjectDetails() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {project.site_url ? (
-                  <>
+                {deliveryEditMode && canEditDelivery ? (
+                  <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label className="text-muted-foreground">رابط الموقع</Label>
+                      <Label>رابط الموقع</Label>
+                      <Input
+                        value={deliveryForm.site_url}
+                        onChange={(e) => setDeliveryForm((p) => ({ ...p, site_url: e.target.value }))}
+                        placeholder="https://example.com"
+                        className="font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>رابط لوحة التحكم</Label>
+                      <Input
+                        value={deliveryForm.admin_url}
+                        onChange={(e) => setDeliveryForm((p) => ({ ...p, admin_url: e.target.value }))}
+                        placeholder="https://example.com/wp-admin"
+                        className="font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>اسم المستخدم</Label>
+                      <Input
+                        value={deliveryForm.admin_username}
+                        onChange={(e) =>
+                          setDeliveryForm((p) => ({ ...p, admin_username: e.target.value }))
+                        }
+                        className="font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>كلمة المرور</Label>
                       <div className="flex items-center gap-2">
-                        <Input value={project.site_url} readOnly className="font-mono text-sm" />
-                        <Button 
-                          variant="outline" 
+                        <Input
+                          type={showPasswords.admin ? 'text' : 'password'}
+                          value={deliveryForm.admin_password}
+                          onChange={(e) =>
+                            setDeliveryForm((p) => ({ ...p, admin_password: e.target.value }))
+                          }
+                          className="font-mono"
+                        />
+                        <Button
+                          variant="outline"
                           size="icon"
-                          onClick={() => copyToClipboard(project.site_url, 'رابط الموقع')}
+                          onClick={() => togglePasswordVisibility('admin')}
                         >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="icon"
-                          onClick={() => window.open(project.site_url, '_blank')}
-                        >
-                          <ExternalLink className="h-4 w-4" />
+                          {showPasswords.admin ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
                         </Button>
                       </div>
                     </div>
 
-                    {project.admin_url && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">لوحة التحكم</Label>
-                        <div className="flex items-center gap-2">
-                          <Input value={project.admin_url} readOnly className="font-mono text-sm" />
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => copyToClipboard(project.admin_url, 'لوحة التحكم')}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {project.admin_username && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">اسم المستخدم</Label>
-                        <div className="flex items-center gap-2">
-                          <Input value={project.admin_username} readOnly className="font-mono" />
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => copyToClipboard(project.admin_username, 'اسم المستخدم')}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {project.admin_password_encrypted && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">كلمة المرور</Label>
-                        <div className="flex items-center gap-2">
-                          <Input 
-                            type={showPasswords.admin ? 'text' : 'password'}
-                            value={project.admin_password_encrypted} 
-                            readOnly 
-                            className="font-mono"
-                          />
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => togglePasswordVisibility('admin')}
-                          >
-                            {showPasswords.admin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => copyToClipboard(project.admin_password_encrypted, 'كلمة المرور')}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>لم يتم إضافة بيانات الموقع بعد</p>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setDeliveryEditMode(false);
+                          setDeliveryForm({
+                            site_url: project.site_url || '',
+                            admin_url: project.admin_url || '',
+                            admin_username: project.admin_username || '',
+                            admin_password: project.admin_password_encrypted || '',
+                            server_url: project.server_url || '',
+                            server_username: project.server_username || '',
+                            server_password: project.server_password_encrypted || '',
+                          });
+                        }}
+                        disabled={saveDelivery.isPending}
+                      >
+                        إلغاء
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await saveDelivery.mutateAsync();
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }}
+                        disabled={saveDelivery.isPending}
+                      >
+                        {saveDelivery.isPending && (
+                          <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                        )}
+                        حفظ
+                      </Button>
+                    </div>
                   </div>
+                ) : (
+                  (() => {
+                    const hasAny =
+                      !!project.site_url ||
+                      !!project.admin_url ||
+                      !!project.admin_username ||
+                      !!project.admin_password_encrypted;
+
+                    if (!hasAny) {
+                      return (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="mb-3">لم يتم إضافة بيانات الموقع بعد</p>
+                          {canEditDelivery && (
+                            <Button size="sm" onClick={() => setDeliveryEditMode(true)}>
+                              إضافة بيانات التسليم
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {canEditDelivery && (
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setDeliveryEditMode(true)}
+                            >
+                              تعديل
+                            </Button>
+                          </div>
+                        )}
+
+                        {project.site_url && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">رابط الموقع</Label>
+                            <div className="flex items-center gap-2">
+                              <Input value={project.site_url} readOnly className="font-mono text-sm" />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => copyToClipboard(project.site_url, 'رابط الموقع')}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => window.open(project.site_url, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {project.admin_url && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">لوحة التحكم</Label>
+                            <div className="flex items-center gap-2">
+                              <Input value={project.admin_url} readOnly className="font-mono text-sm" />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => copyToClipboard(project.admin_url, 'لوحة التحكم')}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {project.admin_username && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">اسم المستخدم</Label>
+                            <div className="flex items-center gap-2">
+                              <Input value={project.admin_username} readOnly className="font-mono" />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => copyToClipboard(project.admin_username, 'اسم المستخدم')}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {project.admin_password_encrypted && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">كلمة المرور</Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type={showPasswords.admin ? 'text' : 'password'}
+                                value={project.admin_password_encrypted}
+                                readOnly
+                                className="font-mono"
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => togglePasswordVisibility('admin')}
+                              >
+                                {showPasswords.admin ? (
+                                  <EyeOff className="h-4 w-4" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() =>
+                                  copyToClipboard(project.admin_password_encrypted, 'كلمة المرور')
+                                }
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
                 )}
               </CardContent>
             </Card>
@@ -751,78 +960,213 @@ export default function StaffProjectDetails() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {project.hosting_provider ? (
-                  <>
+                {deliveryEditMode && canEditDelivery ? (
+                  <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label className="text-muted-foreground">مزود الاستضافة</Label>
-                      <Input value={project.hosting_provider} readOnly />
+                      <Label>رابط الاستضافة / لوحة السيرفر</Label>
+                      <Input
+                        value={deliveryForm.server_url}
+                        onChange={(e) => setDeliveryForm((p) => ({ ...p, server_url: e.target.value }))}
+                        placeholder="https://hosting.example.com"
+                        className="font-mono"
+                      />
                     </div>
 
-                    {project.server_ip && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">IP / Host</Label>
-                        <div className="flex items-center gap-2">
-                          <Input value={project.server_ip} readOnly className="font-mono" />
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => copyToClipboard(project.server_ip, 'IP')}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      <Label>اسم المستخدم</Label>
+                      <Input
+                        value={deliveryForm.server_username}
+                        onChange={(e) =>
+                          setDeliveryForm((p) => ({ ...p, server_username: e.target.value }))
+                        }
+                        className="font-mono"
+                      />
+                    </div>
 
-                    {project.server_username && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">اسم المستخدم</Label>
-                        <div className="flex items-center gap-2">
-                          <Input value={project.server_username} readOnly className="font-mono" />
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => copyToClipboard(project.server_username, 'اسم المستخدم')}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
+                    <div className="space-y-2">
+                      <Label>كلمة المرور</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type={showPasswords.server ? 'text' : 'password'}
+                          value={deliveryForm.server_password}
+                          onChange={(e) =>
+                            setDeliveryForm((p) => ({ ...p, server_password: e.target.value }))
+                          }
+                          className="font-mono"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => togglePasswordVisibility('server')}
+                        >
+                          {showPasswords.server ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
                       </div>
-                    )}
+                    </div>
 
-                    {project.server_password_encrypted && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">كلمة المرور</Label>
-                        <div className="flex items-center gap-2">
-                          <Input 
-                            type={showPasswords.server ? 'text' : 'password'}
-                            value={project.server_password_encrypted} 
-                            readOnly 
-                            className="font-mono"
-                          />
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => togglePasswordVisibility('server')}
-                          >
-                            {showPasswords.server ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon"
-                            onClick={() => copyToClipboard(project.server_password_encrypted, 'كلمة المرور')}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Server className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>لم يتم إضافة بيانات الاستضافة بعد</p>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setDeliveryEditMode(false);
+                          setDeliveryForm({
+                            site_url: project.site_url || '',
+                            admin_url: project.admin_url || '',
+                            admin_username: project.admin_username || '',
+                            admin_password: project.admin_password_encrypted || '',
+                            server_url: project.server_url || '',
+                            server_username: project.server_username || '',
+                            server_password: project.server_password_encrypted || '',
+                          });
+                        }}
+                        disabled={saveDelivery.isPending}
+                      >
+                        إلغاء
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await saveDelivery.mutateAsync();
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }}
+                        disabled={saveDelivery.isPending}
+                      >
+                        {saveDelivery.isPending && (
+                          <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                        )}
+                        حفظ
+                      </Button>
+                    </div>
                   </div>
+                ) : (
+                  (() => {
+                    const hasAny =
+                      !!project.server_url ||
+                      !!project.server_username ||
+                      !!project.server_password_encrypted ||
+                      !!project.server_ip ||
+                      !!project.hosting_provider;
+
+                    if (!hasAny) {
+                      return (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Server className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="mb-3">لم يتم إضافة بيانات الاستضافة بعد</p>
+                          {canEditDelivery && (
+                            <Button size="sm" onClick={() => setDeliveryEditMode(true)}>
+                              إضافة بيانات الاستضافة
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {canEditDelivery && (
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setDeliveryEditMode(true)}
+                            >
+                              تعديل
+                            </Button>
+                          </div>
+                        )}
+
+                        {project.server_url && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">رابط الاستضافة</Label>
+                            <div className="flex items-center gap-2">
+                              <Input value={project.server_url} readOnly className="font-mono text-sm" />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => copyToClipboard(project.server_url, 'رابط الاستضافة')}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {project.server_ip && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">IP / Host</Label>
+                            <div className="flex items-center gap-2">
+                              <Input value={project.server_ip} readOnly className="font-mono" />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => copyToClipboard(project.server_ip, 'IP')}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {project.server_username && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">اسم المستخدم</Label>
+                            <div className="flex items-center gap-2">
+                              <Input value={project.server_username} readOnly className="font-mono" />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() =>
+                                  copyToClipboard(project.server_username, 'اسم المستخدم')
+                                }
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {project.server_password_encrypted && (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">كلمة المرور</Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type={showPasswords.server ? 'text' : 'password'}
+                                value={project.server_password_encrypted}
+                                readOnly
+                                className="font-mono"
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => togglePasswordVisibility('server')}
+                              >
+                                {showPasswords.server ? (
+                                  <EyeOff className="h-4 w-4" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() =>
+                                  copyToClipboard(project.server_password_encrypted, 'كلمة المرور')
+                                }
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
                 )}
               </CardContent>
             </Card>
@@ -893,7 +1237,7 @@ export default function StaffProjectDetails() {
                         <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                           <span>{activity.performed_by_name || 'النظام'}</span>
                           <span>•</span>
-                          <span>{formatDistanceToNow(new Date(activity.created_at), { addSuffix: true, locale: ar })}</span>
+                          <span>{safeTimeAgo(activity.created_at)}</span>
                         </div>
                       </div>
                     </div>
