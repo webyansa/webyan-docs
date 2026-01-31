@@ -7,16 +7,17 @@ import {
   Font,
 } from '@react-pdf/renderer';
 
-// Register Arabic font with error handling
+// Register Arabic font using TTF format (required by @react-pdf/renderer)
+// Using Cairo font from Google Fonts CDN - reliable and supports Arabic
 Font.register({
-  family: 'Amiri',
+  family: 'Cairo',
   fonts: [
     { 
-      src: 'https://fonts.gstatic.com/s/amiri/v27/J7aRnpd8CGxBHqUpvrIw74NL.ttf', 
+      src: 'https://fonts.gstatic.com/s/cairo/v28/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.ttf',
       fontWeight: 'normal' 
     },
     { 
-      src: 'https://fonts.gstatic.com/s/amiri/v27/J7acnpd8CGxBHp2VkZY4xK9CGyAa.ttf', 
+      src: 'https://fonts.gstatic.com/s/cairo/v28/SLXVc1nY6HkvangtZmpQdkhzfH5lW88cQyyS4J0.ttf',
       fontWeight: 'bold' 
     },
   ],
@@ -28,7 +29,7 @@ Font.registerHyphenationCallback((word) => [word]);
 // Styles
 const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Amiri',
+    fontFamily: 'Cairo',
     fontSize: 10,
     padding: 40,
     backgroundColor: '#ffffff',
@@ -58,7 +59,6 @@ const styles = StyleSheet.create({
   quoteNumber: {
     fontSize: 14,
     color: '#374151',
-    fontFamily: 'Courier',
     marginBottom: 5,
   },
   statusBadge: {
