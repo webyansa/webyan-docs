@@ -2,9 +2,9 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const PROJECT_DETAILS_SELECT = `
   *,
-  account:client_organizations(id, name, contact_email, contact_phone),
-  quote:crm_quotes(id, quote_number, title, total_amount),
-  opportunity:crm_opportunities(id, name),
+  account:client_organizations!crm_implementations_account_id_fkey(id, name, contact_email, contact_phone),
+  quote:crm_quotes!crm_implementations_quote_id_fkey(id, quote_number, title, total_amount),
+  opportunity:crm_opportunities!crm_implementations_opportunity_id_fkey(id, name),
   implementer:staff_members!crm_implementations_implementer_id_fkey(id, full_name, email),
   csm:staff_members!crm_implementations_csm_id_fkey(id, full_name, email),
   project_manager:staff_members!crm_implementations_project_manager_id_fkey(id, full_name, email)
