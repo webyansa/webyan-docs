@@ -58,7 +58,7 @@ import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
+import { PDFDownloadLink, BlobProvider, pdf } from '@react-pdf/renderer';
 import QuotePDFDocument from '@/components/crm/quotes/QuotePDFDocument';
 
 interface QuoteItem {
@@ -274,6 +274,26 @@ export default function QuoteDetailsPage() {
     totalAmount,
   };
 
+  // Manual PDF download function as fallback
+  const handleManualPDFDownload = async () => {
+    try {
+      toast.info('جاري إنشاء ملف PDF...');
+      const blob = await pdf(<QuotePDFDocument data={quoteData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Quote-${quote.quote_number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('تم تحميل PDF بنجاح');
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast.error('حدث خطأ أثناء إنشاء PDF');
+    }
+  };
+
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Header Section */}
@@ -319,6 +339,10 @@ export default function QuoteDetailsPage() {
                 <Eye className="h-4 w-4 ml-2" />
                 معاينة PDF
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleManualPDFDownload}>
+                <Download className="h-4 w-4 ml-2" />
+                تحميل PDF (بديل)
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handlePrint}>
                 <Printer className="h-4 w-4 ml-2" />
                 طباعة
@@ -330,14 +354,24 @@ export default function QuoteDetailsPage() {
             document={<QuotePDFDocument data={quoteData} />}
             fileName={`Quote-${quote.quote_number}.pdf`}
           >
-            {({ loading }) => (
-              <Button disabled={loading}>
+            {({ loading, error }) => (
+              <Button disabled={loading || !!error} onClick={() => error && toast.error('حدث خطأ أثناء إنشاء PDF')}>
                 {loading ? (
-                  <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                  <>
+                    <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                    جاري التحميل...
+                  </>
+                ) : error ? (
+                  <>
+                    <FileText className="h-4 w-4 ml-2" />
+                    خطأ في PDF
+                  </>
                 ) : (
-                  <Download className="h-4 w-4 ml-2" />
+                  <>
+                    <Download className="h-4 w-4 ml-2" />
+                    تحميل PDF
+                  </>
                 )}
-                تحميل PDF
               </Button>
             )}
           </PDFDownloadLink>
@@ -718,9 +752,38 @@ export default function QuoteDetailsPage() {
             <DialogTitle>معاينة عرض السعر PDF</DialogTitle>
           </DialogHeader>
           <div className="flex-1 h-full min-h-[70vh]">
-            <PDFViewer width="100%" height="100%" className="rounded-lg">
-              <QuotePDFDocument data={quoteData} />
-            </PDFViewer>
+            <BlobProvider document={<QuotePDFDocument data={quoteData} />}>
+              {({ blob, url, loading, error }) => {
+                if (loading) {
+                  return (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <span className="mr-2">جاري تحميل المعاينة...</span>
+                    </div>
+                  );
+                }
+                if (error) {
+                  return (
+                    <div className="flex flex-col items-center justify-center h-full text-destructive">
+                      <FileText className="h-12 w-12 mb-4 opacity-50" />
+                      <p>حدث خطأ أثناء تحميل المعاينة</p>
+                      <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+                    </div>
+                  );
+                }
+                if (url) {
+                  return (
+                    <iframe
+                      src={url}
+                      title="PDF Preview"
+                      className="w-full h-full rounded-lg border"
+                      style={{ minHeight: '65vh' }}
+                    />
+                  );
+                }
+                return null;
+              }}
+            </BlobProvider>
           </div>
         </DialogContent>
       </Dialog>
