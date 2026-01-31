@@ -159,6 +159,7 @@ const settingsSection: NavSection = {
   sectionPermission: 'canManageSystemSettings',
   items: [
     { title: 'إعدادات التسعير', href: '/admin/pricing-settings', icon: Settings, permission: 'canManageSystemSettings' },
+    { title: 'إعدادات عروض الأسعار', href: '/admin/quote-settings', icon: FileText, permission: 'canManageSystemSettings' },
     { title: 'المستخدمين', href: '/admin/users', icon: Users, permission: 'canManageUsers' },
     { title: 'الأدوار والصلاحيات', href: '/admin/roles', icon: Shield, permission: 'canManageRoles' },
     { title: 'سجل النشاط', href: '/admin/activity-log', icon: History, permission: 'canViewActivityLogs' },
