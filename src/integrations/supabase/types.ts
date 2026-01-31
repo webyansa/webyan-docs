@@ -495,7 +495,7 @@ export type Database = {
           {
             foreignKeyName: "contract_documentation_quote_id_fkey"
             columns: ["quote_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "crm_quotes"
             referencedColumns: ["id"]
           },
@@ -963,7 +963,7 @@ export type Database = {
           {
             foreignKeyName: "crm_implementations_quote_id_fkey"
             columns: ["quote_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "crm_quotes"
             referencedColumns: ["id"]
           },
@@ -1229,6 +1229,7 @@ export type Database = {
           notes: string | null
           opportunity_id: string | null
           plan_id: string | null
+          project_id: string | null
           quote_number: string
           quote_type: string | null
           rejected_at: string | null
@@ -1262,6 +1263,7 @@ export type Database = {
           notes?: string | null
           opportunity_id?: string | null
           plan_id?: string | null
+          project_id?: string | null
           quote_number?: string
           quote_type?: string | null
           rejected_at?: string | null
@@ -1295,6 +1297,7 @@ export type Database = {
           notes?: string | null
           opportunity_id?: string | null
           plan_id?: string | null
+          project_id?: string | null
           quote_number?: string
           quote_type?: string | null
           rejected_at?: string | null
@@ -1346,6 +1349,13 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "pricing_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_quotes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
             referencedColumns: ["id"]
           },
         ]
