@@ -7,14 +7,23 @@ import {
   Font,
 } from '@react-pdf/renderer';
 
-// Register Arabic font
+// Register Arabic font with error handling
 Font.register({
   family: 'Amiri',
   fonts: [
-    { src: 'https://fonts.gstatic.com/s/amiri/v27/J7aRnpd8CGxBHqUpvrIw74NL.ttf', fontWeight: 'normal' },
-    { src: 'https://fonts.gstatic.com/s/amiri/v27/J7acnpd8CGxBHp2VkZY4xK9CGyAa.ttf', fontWeight: 'bold' },
+    { 
+      src: 'https://fonts.gstatic.com/s/amiri/v27/J7aRnpd8CGxBHqUpvrIw74NL.ttf', 
+      fontWeight: 'normal' 
+    },
+    { 
+      src: 'https://fonts.gstatic.com/s/amiri/v27/J7acnpd8CGxBHp2VkZY4xK9CGyAa.ttf', 
+      fontWeight: 'bold' 
+    },
   ],
 });
+
+// Disable hyphenation for Arabic text
+Font.registerHyphenationCallback((word) => [word]);
 
 // Styles
 const styles = StyleSheet.create({
