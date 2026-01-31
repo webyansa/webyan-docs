@@ -67,6 +67,11 @@ import ActivityLogPage from "./pages/admin/ActivityLogPage";
 import SmtpSettingsPage from "./pages/admin/SmtpSettingsPage";
 import EmailLogsPage from "./pages/admin/EmailLogsPage";
 
+// Operations pages
+import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
+import ProjectsPage from "./pages/admin/operations/ProjectsPage";
+import ProjectDetailsPage from "./pages/admin/operations/ProjectDetailsPage";
+
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
 import PortalLoginPage from "./pages/portal/PortalLoginPage";
@@ -212,6 +217,9 @@ const App = () => (
                 <Route path="activity-log" element={<ActivityLogPage />} />
                 <Route path="smtp-settings" element={<SmtpSettingsPage />} />
                 <Route path="email-logs" element={<EmailLogsPage />} />
+                <Route path="operations" element={<OperationsDashboardPage />} />
+                <Route path="projects" element={<ProjectsPage />} />
+                <Route path="projects/:id" element={<ProjectDetailsPage />} />
               </Route>
               
               {/* Unauthorized Page */}
