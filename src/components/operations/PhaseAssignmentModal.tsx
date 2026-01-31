@@ -38,6 +38,7 @@ interface PhaseAssignmentModalProps {
   phases: Phase[];
   implementerId?: string | null;
   csmId?: string | null;
+  projectManagerId?: string | null;
 }
 
 export function PhaseAssignmentModal({
@@ -47,23 +48,29 @@ export function PhaseAssignmentModal({
   phases,
   implementerId,
   csmId,
+  projectManagerId,
 }: PhaseAssignmentModalProps) {
   const queryClient = useQueryClient();
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
-  // Fetch staff members
-  const { data: staffMembers = [] } = useQuery({
-    queryKey: ['staff-members'],
+  // Fetch only the project team members (Implementer, CSM, Project Manager)
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['project-team-members', implementerId, csmId, projectManagerId],
     queryFn: async () => {
+      const teamIds = [implementerId, csmId, projectManagerId].filter(Boolean) as string[];
+      
+      if (teamIds.length === 0) return [];
+      
       const { data, error } = await supabase
         .from('staff_members')
         .select('id, full_name, role')
-        .eq('is_active', true)
-        .order('full_name');
+        .in('id', teamIds)
+        .eq('is_active', true);
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
+    enabled: open,
   });
 
   // Initialize assignments from phases
@@ -83,12 +90,17 @@ export function PhaseAssignmentModal({
     const techPhases = ['setup', 'development', 'launch'];
     // Client-facing phases → CSM
     const clientPhases = ['requirements', 'content', 'client_review', 'closure'];
+    // Internal review → Project Manager or Implementer
+    const reviewPhases = ['internal_review'];
     
     if (techPhases.includes(phaseType) && implementerId) {
       return implementerId;
     }
     if (clientPhases.includes(phaseType) && csmId) {
       return csmId;
+    }
+    if (reviewPhases.includes(phaseType)) {
+      return projectManagerId || implementerId || null;
     }
     return null;
   };
@@ -112,6 +124,7 @@ export function PhaseAssignmentModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-phases', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['staff-assigned-phases'] });
       toast.success('تم حفظ توزيع المراحل بنجاح');
       onOpenChange(false);
     },
@@ -212,7 +225,12 @@ export function PhaseAssignmentModal({
                         <SelectItem value="__none__">
                           <span className="text-muted-foreground">بدون تعيين</span>
                         </SelectItem>
-                        {staffMembers.map((staff: any) => (
+                        {teamMembers.length === 0 && (
+                          <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                            لم يتم تعيين فريق للمشروع بعد
+                          </div>
+                        )}
+                        {teamMembers.map((staff: any) => (
                           <SelectItem key={staff.id} value={staff.id}>
                             <div className="flex items-center gap-2">
                               <span>{staff.full_name}</span>
@@ -221,6 +239,9 @@ export function PhaseAssignmentModal({
                               )}
                               {staff.id === csmId && (
                                 <Badge variant="secondary" className="text-xs">CSM</Badge>
+                              )}
+                              {staff.id === projectManagerId && (
+                                <Badge variant="secondary" className="text-xs">مدير</Badge>
                               )}
                             </div>
                           </SelectItem>
