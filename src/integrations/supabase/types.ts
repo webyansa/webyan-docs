@@ -3310,6 +3310,151 @@ export type Database = {
         }
         Relationships: []
       }
+      website_api_tokens: {
+        Row: {
+          created_at: string | null
+          domain: string | null
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          name: string
+          token_hash: string
+          usage_count: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name: string
+          token_hash: string
+          usage_count?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          name?: string
+          token_hash?: string
+          usage_count?: number | null
+        }
+        Relationships: []
+      }
+      website_form_submissions: {
+        Row: {
+          assigned_at: string | null
+          assigned_to: string | null
+          city: string | null
+          contact_name: string
+          contacted_at: string | null
+          converted_at: string | null
+          created_at: string | null
+          email: string
+          form_type: string
+          id: string
+          interest_type: string | null
+          ip_address: string | null
+          lead_id: string | null
+          notes: string | null
+          opportunity_id: string | null
+          organization_name: string
+          organization_size: string | null
+          phone: string | null
+          source: string | null
+          source_page: string | null
+          status: string
+          submission_number: string
+          updated_at: string | null
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          city?: string | null
+          contact_name: string
+          contacted_at?: string | null
+          converted_at?: string | null
+          created_at?: string | null
+          email: string
+          form_type?: string
+          id?: string
+          interest_type?: string | null
+          ip_address?: string | null
+          lead_id?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          organization_name: string
+          organization_size?: string | null
+          phone?: string | null
+          source?: string | null
+          source_page?: string | null
+          status?: string
+          submission_number: string
+          updated_at?: string | null
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          city?: string | null
+          contact_name?: string
+          contacted_at?: string | null
+          converted_at?: string | null
+          created_at?: string | null
+          email?: string
+          form_type?: string
+          id?: string
+          interest_type?: string | null
+          ip_address?: string | null
+          lead_id?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          organization_name?: string
+          organization_size?: string | null
+          phone?: string | null
+          source?: string | null
+          source_page?: string | null
+          status?: string
+          submission_number?: string
+          updated_at?: string | null
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_form_submissions_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_form_submissions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_form_submissions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_phases: {
         Row: {
           created_at: string | null

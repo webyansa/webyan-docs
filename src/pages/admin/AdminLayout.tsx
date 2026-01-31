@@ -33,7 +33,8 @@ import {
   Target,
   FolderKanban,
   Rocket,
-  UserPlus
+  UserPlus,
+  Globe
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { Button } from '@/components/ui/button';
@@ -126,6 +127,7 @@ const crmSection: NavSection = {
   title: 'إدارة العملاء',
   sectionPermission: 'canManageClients',
   items: [
+    { title: 'طلبات الموقع', href: '/admin/website-requests', icon: Globe, permission: 'canManageClients' },
     { title: 'العملاء المحتملون', href: '/admin/crm/leads', icon: UserPlus, permission: 'canManageClients' },
     { title: 'الفرص', href: '/admin/crm/deals', icon: Target, permission: 'canManageClients' },
     { title: 'عروض الأسعار', href: '/admin/crm/quotes', icon: FileText, permission: 'canManageClients' },
