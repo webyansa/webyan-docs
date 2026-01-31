@@ -67,6 +67,7 @@ import {
   Edit,
   Plus,
   Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
@@ -134,6 +135,8 @@ export default function QuoteDetailsPage() {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [editForm, setEditForm] = useState<{
     title: string;
     quote_type: string;
@@ -314,7 +317,70 @@ export default function QuoteDetailsPage() {
     },
   });
 
+  // Delete Quote Mutation
+  const deleteQuoteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('crm_quotes')
+        .delete()
+        .eq('id', quoteId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
+      toast.success('تم حذف عرض السعر بنجاح');
+      navigate('/admin/crm/quotes');
+    },
+    onError: () => {
+      toast.error('حدث خطأ أثناء حذف العرض');
+    },
+  });
+
+  // Reopen Quote Mutation (revert status to draft)
+  const reopenQuoteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('crm_quotes')
+        .update({
+          status: 'draft',
+          accepted_at: null,
+          rejected_at: null,
+          rejection_reason: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', quoteId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
+      toast.success('تم إعادة فتح العرض بنجاح');
+      setShowReopenDialog(false);
+    },
+    onError: () => {
+      toast.error('حدث خطأ أثناء إعادة فتح العرض');
+    },
+  });
+
+  // Helper: Check if quote can be modified (edit/delete)
+  const canModifyQuote = () => {
+    return !['accepted', 'rejected'].includes(quote?.status || '');
+  };
+
+  // Helper: Check if quote can be reopened
+  const canReopenQuote = () => {
+    return ['accepted', 'rejected'].includes(quote?.status || '');
+  };
+
   const handleOpenEdit = () => {
+    if (!canModifyQuote()) {
+      toast.error(quote?.status === 'accepted' 
+        ? 'لا يمكن تعديل عرض سعر معتمد' 
+        : 'لا يمكن تعديل عرض سعر مرفوض');
+      return;
+    }
     if (quote) {
       const currentItems: QuoteItem[] = Array.isArray(quote.items) 
         ? (quote.items as unknown as QuoteItem[]) 
@@ -332,6 +398,20 @@ export default function QuoteDetailsPage() {
       });
       setShowEditDialog(true);
     }
+  };
+
+  const handleDeleteClick = () => {
+    if (!canModifyQuote()) {
+      toast.error(quote?.status === 'accepted' 
+        ? 'لا يمكن حذف عرض سعر معتمد' 
+        : 'لا يمكن حذف عرض سعر مرفوض');
+      return;
+    }
+    setShowDeleteDialog(true);
+  };
+
+  const handleReopenClick = () => {
+    setShowReopenDialog(true);
   };
 
   const handleSaveEdit = () => {
@@ -507,7 +587,8 @@ export default function QuoteDetailsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              {quote.status !== 'accepted' && quote.status !== 'rejected' && (
+              {/* Approve/Reject actions - only for non-closed quotes */}
+              {canModifyQuote() && (
                 <>
                   <DropdownMenuItem onClick={() => setShowAcceptDialog(true)}>
                     <CheckCircle className="h-4 w-4 ml-2 text-green-600" />
@@ -520,28 +601,57 @@ export default function QuoteDetailsPage() {
                   <DropdownMenuSeparator />
                 </>
               )}
+              
+              {/* Reopen action - only for accepted/rejected quotes */}
+              {canReopenQuote() && (
+                <>
+                  <DropdownMenuItem onClick={handleReopenClick}>
+                    <RotateCcw className="h-4 w-4 ml-2 text-blue-600" />
+                    إعادة فتح العرض
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
               <DropdownMenuItem onClick={handleSend}>
                 <Send className="h-4 w-4 ml-2" />
                 إرسال بالبريد
               </DropdownMenuItem>
-              {(quote.status === 'draft' || quote.status === 'sent') && (
+              
+              {/* Edit action - only for non-closed quotes */}
+              {canModifyQuote() && (
                 <DropdownMenuItem onClick={handleOpenEdit}>
                   <Edit className="h-4 w-4 ml-2" />
                   تعديل العرض
                 </DropdownMenuItem>
               )}
+              
               <DropdownMenuItem onClick={() => setShowPDFPreview(true)}>
                 <Eye className="h-4 w-4 ml-2" />
                 معاينة PDF
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleManualPDFDownload}>
                 <Download className="h-4 w-4 ml-2" />
-                تحميل PDF (بديل)
+                تحميل PDF
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handlePrint}>
                 <Printer className="h-4 w-4 ml-2" />
                 طباعة
               </DropdownMenuItem>
+
+              {/* Delete action - only for non-closed quotes */}
+              {canModifyQuote() && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={handleDeleteClick}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 ml-2" />
+                    حذف العرض
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -575,8 +685,8 @@ export default function QuoteDetailsPage() {
 
       {/* Main Quote Document */}
       <div ref={printRef} className="bg-card border rounded-xl shadow-sm overflow-hidden print:shadow-none print:border-0">
-        {/* Document Header with Dual Logos */}
-        <div className="bg-slate-800 p-6 border-b">
+        {/* Document Header - White Background with Logos Left, Title Right */}
+        <div className="bg-white p-6 border-b">
           <div className="flex justify-between items-center">
             {/* Logos Section */}
             <div className="flex items-center gap-4">
@@ -590,7 +700,7 @@ export default function QuoteDetailsPage() {
                   }}
                 />
               )}
-              <div className="h-10 w-px bg-slate-600" />
+              <div className="h-10 w-px bg-border" />
               {COMPANY_INFO.webyanLogoUrl && (
                 <img 
                   src={COMPANY_INFO.webyanLogoUrl} 
@@ -602,22 +712,32 @@ export default function QuoteDetailsPage() {
                 />
               )}
             </div>
-            {/* Quote Number & Status */}
-            <div className="text-left space-y-1">
-              <p className="text-xs text-cyan-400 uppercase tracking-wider">QUOTATION</p>
-              <span className="text-xl font-bold font-mono text-white">{quote.quote_number}</span>
+            {/* Title on Right */}
+            <div className="text-left">
+              <h1 className="text-2xl font-bold text-primary">عرض سعر</h1>
+              <p className="text-sm text-muted-foreground uppercase tracking-widest">Price Quotation</p>
             </div>
           </div>
         </div>
 
-        {/* Title Section */}
-        <div className="p-6 text-center border-b bg-muted/30">
-          <h1 className="text-2xl font-bold text-primary mb-1">عرض سعر</h1>
-          <p className="text-sm text-muted-foreground uppercase tracking-widest">Price Quotation</p>
-          <p className="text-lg font-semibold text-foreground mt-2">{quote.title}</p>
-          <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border-0 mt-2`}>
-            {statusInfo.label}
-          </Badge>
+        {/* Info Bar - Quote Number, Date, Title */}
+        <div className="flex justify-between items-center p-4 bg-muted/50 border-b">
+          <div className="flex items-center gap-2 text-sm">
+            <Hash className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">رقم العرض:</span>
+            <span className="font-semibold font-mono">{quote.quote_number}</span>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-bold text-foreground">{quote.title}</p>
+            <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border-0 mt-1`}>
+              {statusInfo.label}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">تاريخ الإصدار:</span>
+            <span className="font-semibold">{format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}</span>
+          </div>
         </div>
 
         {/* Company & Client Info */}
@@ -958,6 +1078,64 @@ export default function QuoteDetailsPage() {
             <AlertDialogAction onClick={handleReject} className="bg-destructive hover:bg-destructive/90">
               <XCircle className="h-4 w-4 ml-2" />
               رفض العرض
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف عرض السعر</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف عرض السعر رقم {quote.quote_number}؟
+              <br />
+              <span className="text-destructive font-medium">هذا الإجراء لا يمكن التراجع عنه.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteQuoteMutation.mutate()} 
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleteQuoteMutation.isPending}
+            >
+              {deleteQuoteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 ml-2" />
+              )}
+              حذف العرض
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reopen Dialog */}
+      <AlertDialog open={showReopenDialog} onOpenChange={setShowReopenDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>إعادة فتح عرض السعر</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من إعادة فتح عرض السعر رقم {quote.quote_number}؟
+              <br />
+              سيتم تحويل حالة العرض إلى "مسودة" ويمكنك تعديله مرة أخرى.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => reopenQuoteMutation.mutate()} 
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={reopenQuoteMutation.isPending}
+            >
+              {reopenQuoteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4 ml-2" />
+              )}
+              إعادة فتح العرض
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
