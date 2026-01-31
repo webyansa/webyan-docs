@@ -13,7 +13,8 @@ import {
   Home,
   Loader2,
   UserCog,
-  MessageCircle
+  MessageCircle,
+  FolderKanban
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,7 @@ export default function StaffLayout() {
 
   const navItems: NavItem[] = [
     { title: 'لوحة التحكم', href: '/support', icon: LayoutDashboard },
+    { title: 'مشاريعي', href: '/support/projects', icon: FolderKanban },
     { title: 'التذاكر الموجهة', href: '/support/tickets', icon: Ticket, permission: 'canReplyTickets' },
     { title: 'المحادثات', href: '/support/chat', icon: MessageCircle, permission: 'canReplyTickets' },
     { title: 'الاجتماعات الموجهة', href: '/support/meetings', icon: Calendar, permission: 'canAttendMeetings' },
