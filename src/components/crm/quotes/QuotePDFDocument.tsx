@@ -9,8 +9,6 @@ import {
   Svg,
   Path,
   G,
-  Defs,
-  Rect,
 } from '@react-pdf/renderer';
 
 import IBMPlexRegular from '@/assets/fonts/IBMPlexSansArabic-Regular.ttf';
@@ -38,20 +36,20 @@ try {
 // Disable hyphenation for Arabic text
 Font.registerHyphenationCallback((word) => [word]);
 
-// Webyan Brand Colors - Clean & Professional
+// Professional Colors - Slate & Blue
 const colors = {
   primary: '#1e3a5f',       // Professional dark blue
   secondary: '#64748b',     // Slate 500
-  accent: '#0891b2',        // Cyan 600 - Webyan accent
+  accent: '#0891b2',        // Cyan 600
   accentLight: '#22d3ee',   // Cyan 400
   text: '#1e293b',          // Slate 800
   textMuted: '#64748b',     // Slate 500
   border: '#e2e8f0',        // Slate 200
   borderLight: '#f1f5f9',   // Slate 100
   background: '#f8fafc',    // Slate 50
+  infoBar: '#f1f5f9',       // Light slate for info bar
   white: '#ffffff',
   success: '#10b981',       // Emerald 500
-  headerBg: '#1e3a5f',      // Dark professional blue
 };
 
 // Professional Compact Styles - Single Page Fit
@@ -62,84 +60,91 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     paddingBottom: 50,
   },
-  // Header - Clean with dual logos
+  // Header - White background with logos and title
   header: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 25,
-    paddingVertical: 12,
-    backgroundColor: colors.headerBg,
+    paddingVertical: 15,
+    backgroundColor: colors.white,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
   },
   headerLogos: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   logo: {
-    width: 45,
-    height: 45,
+    width: 50,
+    height: 50,
     objectFit: 'contain',
   },
   logoWebyan: {
-    width: 80,
-    height: 28,
+    width: 85,
+    height: 30,
     objectFit: 'contain',
   },
   logoDivider: {
     width: 1,
-    height: 25,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 6,
+    height: 30,
+    backgroundColor: colors.border,
+    marginHorizontal: 8,
   },
-  headerInfo: {
+  headerTitleSection: {
     alignItems: 'flex-start',
   },
-  quoteLabel: {
-    fontSize: 7,
-    color: colors.accentLight,
-    letterSpacing: 1.5,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.primary,
     marginBottom: 2,
+  },
+  headerTitleEn: {
+    fontSize: 9,
+    color: colors.secondary,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
-  quoteNumber: {
-    fontSize: 13,
+  // Info Bar - Below header with quote details
+  infoBar: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    backgroundColor: colors.infoBar,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  infoBarItem: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 4,
+  },
+  infoBarLabel: {
+    fontSize: 7,
+    color: colors.textMuted,
+  },
+  infoBarValue: {
+    fontSize: 9,
+    fontWeight: 600,
+    color: colors.primary,
+  },
+  infoBarTitle: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  infoBarTitleText: {
+    fontSize: 11,
     fontWeight: 'bold',
-    color: colors.white,
-    letterSpacing: 0.5,
+    color: colors.text,
   },
   // Content Area
   content: {
     padding: 25,
     paddingTop: 15,
-  },
-  // Title Section - Prominent Arabic title with English subtitle
-  titleSection: {
-    marginBottom: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: colors.accent,
-    alignItems: 'center',
-  },
-  docTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.primary,
-    marginBottom: 3,
-    textAlign: 'center',
-  },
-  docTitleEn: {
-    fontSize: 10,
-    color: colors.secondary,
-    textAlign: 'center',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  docSubtitle: {
-    fontSize: 8,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 6,
   },
   // Parties Section - From & To
   partiesRow: {
@@ -524,7 +529,7 @@ interface QuotePDFProps {
 
 // Webyan Logo SVG Component for PDF
 const WebyanLogoSVG = () => (
-  <Svg viewBox="0 0 423.05 138.69" style={{ width: 75, height: 26 }}>
+  <Svg viewBox="0 0 423.05 138.69" style={{ width: 80, height: 28 }}>
     <G>
       <Path fill="#263c84" d="M44.8,118.2h-16.56v-26.55h-5.68v26.55h-7.7c-5.07,0-9.19-4.11-9.19-9.19v-17.36H0v16.93c0,8.19,6.64,14.82,14.82,14.82h35.65v-31.76h-5.67v26.55Z" />
       <Path fill="#263c84" d="M244.18,91.65h-23.54v31.76h5.67v-26.55h17.88c5.07,0,9.19,4.11,9.19,9.19v17.36h5.63v-16.93c0-8.19-6.64-14.82-14.82-14.82Z" />
@@ -584,8 +589,9 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header with Dual Logos */}
+        {/* Header - White Background with Logos Left, Title Right */}
         <View style={styles.header}>
+          {/* Logos on the Left */}
           <View style={styles.headerLogos}>
             {company.logoUrl && (
               <Image src={company.logoUrl} style={styles.logo} />
@@ -593,24 +599,30 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
             <View style={styles.logoDivider} />
             <WebyanLogoSVG />
           </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.quoteLabel}>QUOTATION</Text>
-            <Text style={styles.quoteNumber}>{data.quote_number}</Text>
+          {/* Title on the Right */}
+          <View style={styles.headerTitleSection}>
+            <Text style={styles.headerTitle}>عرض سعر</Text>
+            <Text style={styles.headerTitleEn}>Price Quotation</Text>
+          </View>
+        </View>
+
+        {/* Info Bar - Quote Number, Date, Title */}
+        <View style={styles.infoBar}>
+          <View style={styles.infoBarItem}>
+            <Text style={styles.infoBarLabel}>رقم العرض: </Text>
+            <Text style={styles.infoBarValue}>{data.quote_number}</Text>
+          </View>
+          <View style={styles.infoBarTitle}>
+            <Text style={styles.infoBarTitleText}>{data.title}</Text>
+          </View>
+          <View style={styles.infoBarItem}>
+            <Text style={styles.infoBarLabel}>تاريخ الإصدار: </Text>
+            <Text style={styles.infoBarValue}>{formatDate(data.created_at)}</Text>
           </View>
         </View>
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Title Section - Arabic with English subtitle */}
-          <View style={styles.titleSection}>
-            <Text style={styles.docTitle}>عرض سعر</Text>
-            <Text style={styles.docTitleEn}>Price Quotation</Text>
-            <Text style={styles.docSubtitle}>
-              {data.title} • تاريخ الإصدار: {formatDate(data.created_at)}
-              {data.valid_until && ` • صالح حتى: ${formatDate(data.valid_until)}`}
-            </Text>
-          </View>
-
           {/* From & To Section */}
           <View style={styles.partiesRow}>
             {/* From - Company */}
@@ -662,15 +674,12 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
                 {billingLabels[data.billing_cycle || 'yearly'] || 'سنوي'}
               </Text>
             </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>الحالة</Text>
-              <Text style={styles.metaValue}>
-                {data.status === 'draft' ? 'مسودة' :
-                 data.status === 'sent' ? 'مرسل' :
-                 data.status === 'accepted' ? 'معتمد' :
-                 data.status === 'rejected' ? 'مرفوض' : 'مسودة'}
-              </Text>
-            </View>
+            {data.valid_until && (
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>صالح حتى</Text>
+                <Text style={styles.metaValue}>{formatDate(data.valid_until)}</Text>
+              </View>
+            )}
             {data.created_by_staff_name && (
               <View style={styles.metaItem}>
                 <Text style={styles.metaLabel}>معد العرض</Text>
