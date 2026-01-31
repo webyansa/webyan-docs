@@ -714,29 +714,25 @@ export default function QuoteDetailsPage() {
             </div>
             {/* Title on Right */}
             <div className="text-left">
-              <h1 className="text-2xl font-bold text-primary">عرض سعر</h1>
-              <p className="text-sm text-muted-foreground uppercase tracking-widest">Price Quotation</p>
+              <h1 className="text-2xl font-bold" style={{ color: '#263c84' }}>عرض سعر</h1>
+              <p className="text-sm font-medium" style={{ color: '#24c2ec' }}>Quotation</p>
             </div>
           </div>
         </div>
 
-        {/* Info Bar - Quote Number, Date, Title */}
-        <div className="flex justify-between items-center p-4 bg-muted/50 border-b">
-          <div className="flex items-center gap-2 text-sm">
-            <Hash className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">رقم العرض:</span>
-            <span className="font-semibold font-mono">{quote.quote_number}</span>
-          </div>
-          <div className="text-center">
-            <p className="text-lg font-bold text-foreground">{quote.title}</p>
-            <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border-0 mt-1`}>
-              {statusInfo.label}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">تاريخ الإصدار:</span>
-            <span className="font-semibold">{format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}</span>
+        {/* Info Bar - Quote Number and Date side by side */}
+        <div className="px-6 py-3">
+          <div className="flex items-center gap-6 bg-muted/50 rounded-lg p-3 w-fit">
+            <div className="flex items-center gap-2 text-sm">
+              <Hash className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">رقم العرض:</span>
+              <span className="font-semibold font-mono">{quote.quote_number}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">تاريخ الإصدار:</span>
+              <span className="font-semibold">{format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}</span>
+            </div>
           </div>
         </div>
 

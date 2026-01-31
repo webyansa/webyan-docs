@@ -98,25 +98,29 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: '#263c84', // Navy from Webyan logo
     marginBottom: 2,
   },
   headerTitleEn: {
-    fontSize: 9,
-    color: colors.secondary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    fontSize: 10,
+    color: '#24c2ec', // Cyan from Webyan logo
+    letterSpacing: 1,
+    fontWeight: 500,
   },
-  // Info Bar - Below header with quote details
+  // Info Bar - Below header with quote details (contained width)
+  infoBarWrapper: {
+    paddingHorizontal: 25,
+    paddingVertical: 10,
+  },
   infoBar: {
     flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 25,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
     backgroundColor: colors.infoBar,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderRadius: 4,
+    gap: 20,
   },
   infoBarItem: {
     flexDirection: 'row-reverse',
@@ -131,15 +135,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: 600,
     color: colors.primary,
-  },
-  infoBarTitle: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  infoBarTitleText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: colors.text,
   },
   // Content Area
   content: {
@@ -567,6 +562,7 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
     crNumber: '1010000000',
     website: 'https://webyan.io',
     logoUrl: '/logos/raneen-logo.png',
+    webyanLogoUrl: '/logos/webyan-logo.png',
     showStamp: true,
     showSignature: true,
   };
@@ -597,27 +593,30 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
               <Image src={company.logoUrl} style={styles.logo} />
             )}
             <View style={styles.logoDivider} />
-            <WebyanLogoSVG />
+            {company.webyanLogoUrl ? (
+              <Image src={company.webyanLogoUrl} style={styles.logoWebyan} />
+            ) : (
+              <WebyanLogoSVG />
+            )}
           </View>
           {/* Title on the Right */}
           <View style={styles.headerTitleSection}>
             <Text style={styles.headerTitle}>عرض سعر</Text>
-            <Text style={styles.headerTitleEn}>Price Quotation</Text>
+            <Text style={styles.headerTitleEn}>Quotation</Text>
           </View>
         </View>
 
-        {/* Info Bar - Quote Number, Date, Title */}
-        <View style={styles.infoBar}>
-          <View style={styles.infoBarItem}>
-            <Text style={styles.infoBarLabel}>رقم العرض: </Text>
-            <Text style={styles.infoBarValue}>{data.quote_number}</Text>
-          </View>
-          <View style={styles.infoBarTitle}>
-            <Text style={styles.infoBarTitleText}>{data.title}</Text>
-          </View>
-          <View style={styles.infoBarItem}>
-            <Text style={styles.infoBarLabel}>تاريخ الإصدار: </Text>
-            <Text style={styles.infoBarValue}>{formatDate(data.created_at)}</Text>
+        {/* Info Bar - Quote Number and Date (side by side, contained width) */}
+        <View style={styles.infoBarWrapper}>
+          <View style={styles.infoBar}>
+            <View style={styles.infoBarItem}>
+              <Text style={styles.infoBarLabel}>رقم العرض: </Text>
+              <Text style={styles.infoBarValue}>{data.quote_number}</Text>
+            </View>
+            <View style={styles.infoBarItem}>
+              <Text style={styles.infoBarLabel}>تاريخ الإصدار: </Text>
+              <Text style={styles.infoBarValue}>{formatDate(data.created_at)}</Text>
+            </View>
           </View>
         </View>
 

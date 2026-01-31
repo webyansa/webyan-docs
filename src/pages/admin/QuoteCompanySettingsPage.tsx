@@ -56,7 +56,7 @@ const defaultSettings: CompanySettings = {
   quote_company_cr_number: '1010000000',
   quote_company_website: 'https://raneen.sa',
   quote_company_logo_url: '/logos/raneen-logo.png',
-  quote_webyan_logo_url: '/logos/webyan-logo.svg',
+  quote_webyan_logo_url: '/logos/webyan-logo.png',
   quote_company_stamp_url: '',
   quote_company_signature_url: '',
   quote_show_stamp: 'true',
@@ -157,25 +157,32 @@ export default function QuoteCompanySettingsPage() {
 
   const handleFileUpload = async (file: File, settingKey: keyof CompanySettings) => {
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${settingKey}-${Date.now()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const fileName = `${settingKey.replace('quote_', '')}-${Date.now()}.${fileExt}`;
       const filePath = `quote-assets/${fileName}`;
 
+      // Try to upload to the docs-media bucket (public bucket that exists)
       const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(filePath, file, { upsert: true });
+        .from('docs-media')
+        .upload(filePath, file, { 
+          upsert: true,
+          contentType: file.type 
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error details:', uploadError);
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
-        .from('media')
+        .from('docs-media')
         .getPublicUrl(filePath);
 
       updateSetting(settingKey, publicUrl);
       toast.success('تم رفع الملف بنجاح');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
-      toast.error('حدث خطأ أثناء رفع الملف');
+      toast.error(`حدث خطأ أثناء رفع الملف: ${error?.message || 'خطأ غير معروف'}`);
     }
   };
 
