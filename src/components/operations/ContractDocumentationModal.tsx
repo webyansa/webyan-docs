@@ -333,7 +333,8 @@ export function ContractDocumentationModal({
 
       return { contractDoc, project, projectName };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ['quote-contract-status', quoteId] });
       queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
       queryClient.invalidateQueries({ queryKey: ['quote'] });
@@ -342,6 +343,30 @@ export function ContractDocumentationModal({
       queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
       
       if (data.project) {
+        // Pre-cache the project data immediately for instant navigation
+        queryClient.setQueryData(['project', data.project.id], data.project);
+        
+        // Also prefetch the full project data to ensure it's ready
+        await queryClient.prefetchQuery({
+          queryKey: ['project', data.project.id],
+          queryFn: async () => {
+            const { data: projectData } = await supabase
+              .from('crm_implementations')
+              .select(`
+                *,
+                account:client_organizations(id, name, contact_email, contact_phone),
+                quote:crm_quotes(id, quote_number, title, total_amount),
+                opportunity:crm_opportunities(id, name),
+                implementer:staff_members!crm_implementations_implementer_id_fkey(id, full_name, email),
+                csm:staff_members!crm_implementations_csm_id_fkey(id, full_name, email),
+                project_manager:staff_members!crm_implementations_project_manager_id_fkey(id, full_name, email)
+              `)
+              .eq('id', data.project.id)
+              .single();
+            return projectData;
+          },
+        });
+        
         setCreatedProjectId(data.project.id);
         setCreatedProjectName(data.projectName);
         setShowSuccess(true);
@@ -362,7 +387,10 @@ export function ContractDocumentationModal({
     },
   });
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    // Refetch contract status before closing to update parent page
+    await queryClient.refetchQueries({ queryKey: ['quote-contract-status', quoteId] });
+    
     setStatus('signed');
     setSignedDate(new Date());
     setContractType('service');
@@ -375,8 +403,10 @@ export function ContractDocumentationModal({
     onOpenChange(false);
   };
 
-  const handleGoToProject = () => {
+  const handleGoToProject = async () => {
     if (createdProjectId) {
+      // Refetch contract status before navigating
+      await queryClient.refetchQueries({ queryKey: ['quote-contract-status', quoteId] });
       navigate(`/admin/projects/${createdProjectId}`);
       handleClose();
     }

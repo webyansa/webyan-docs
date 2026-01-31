@@ -142,8 +142,9 @@ export function TeamAssignmentModal({
 
       return assignments;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+    onSuccess: async () => {
+      // Force immediate refetch
+      await queryClient.refetchQueries({ queryKey: ['project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-team', projectId] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       toast.success('تم تعيين فريق المشروع بنجاح');
@@ -163,7 +164,8 @@ export function TeamAssignmentModal({
     label: string,
     role: TeamRole,
     value: string,
-    onChange: (val: string) => void
+    onChange: (val: string) => void,
+    required?: boolean
   ) => {
     const roleConfig = teamRoles[role];
     const RoleIcon = roleConfig.icon;
@@ -173,13 +175,14 @@ export function TeamAssignmentModal({
         <Label className="flex items-center gap-2">
           <RoleIcon className={cn("h-4 w-4", roleConfig.color)} />
           {label}
+          {required && <span className="text-red-500">*</span>}
         </Label>
-        <Select value={value} onValueChange={onChange}>
+        <Select value={value || ''} onValueChange={onChange}>
           <SelectTrigger>
             <SelectValue placeholder="اختر الموظف" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">
+            <SelectItem value="__none__">
               <span className="text-muted-foreground">بدون تعيين</span>
             </SelectItem>
             {staffMembers.map((staff) => (
@@ -201,6 +204,10 @@ export function TeamAssignmentModal({
     );
   };
 
+  const handleChange = (setter: (val: string) => void) => (val: string) => {
+    setter(val === '__none__' ? '' : val);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]" dir="rtl">
@@ -218,9 +225,9 @@ export function TeamAssignmentModal({
             </p>
           </div>
 
-          {renderStaffSelect('موظف التنفيذ', 'implementer', implementerId, setImplementerId)}
-          {renderStaffSelect('مدير نجاح العميل', 'csm', csmId, setCsmId)}
-          {renderStaffSelect('مدير المشروع', 'project_manager', projectManagerId, setProjectManagerId)}
+          {renderStaffSelect('موظف التنفيذ', 'implementer', implementerId, handleChange(setImplementerId), true)}
+          {renderStaffSelect('مدير نجاح العميل', 'csm', csmId, handleChange(setCsmId), true)}
+          {renderStaffSelect('مدير المشروع', 'project_manager', projectManagerId, handleChange(setProjectManagerId))}
 
           {(implementerId || csmId || projectManagerId) && (
             <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">

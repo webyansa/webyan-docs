@@ -240,7 +240,7 @@ export default function QuoteDetailsPage() {
   });
 
   // Check existing contract/project status
-  const { data: contractProjectStatus } = useQuery({
+  const { data: contractProjectStatus, refetch: refetchContractStatus } = useQuery({
     queryKey: ['quote-contract-status', quoteId],
     queryFn: async () => {
       const { data: contractDoc } = await supabase
@@ -258,6 +258,8 @@ export default function QuoteDetailsPage() {
       return { contractDoc, project };
     },
     enabled: !!quoteId && quote?.status === 'accepted',
+    // Always fetch fresh data for this critical query
+    staleTime: 0,
   });
 
   const updateStatusMutation = useMutation({
