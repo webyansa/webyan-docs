@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { 
   CheckCircle2, PlayCircle, Loader2, Clock, User, 
-  AlertCircle, Lock 
+  AlertCircle, Lock, ClipboardList 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -37,6 +37,7 @@ interface Phase {
   notes: string | null;
   phase_order: number;
   assigned_to: string | null;
+  instructions: string | null;
   assigned_staff?: {
     id: string;
     full_name: string;
@@ -261,8 +262,24 @@ export function StaffPhaseCard({
                       </div>
                       
                       <p className="text-sm text-muted-foreground mt-1">
-                        {phaseConfig?.description ?? ""}
+                        {/* Show instructions from database if available, otherwise fallback to config */}
+                        {phase.instructions || phaseConfig?.description || ""}
                       </p>
+
+                      {/* Detailed Instructions Box (only for my phases when pending/in_progress) */}
+                      {isMine && phase.instructions && (phase.status === 'pending' || phase.status === 'in_progress') && (
+                        <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                          <div className="flex items-start gap-2">
+                            <div className="bg-blue-100 rounded p-1 shrink-0 mt-0.5">
+                              <ClipboardList className="h-3.5 w-3.5 text-blue-600" />
+                            </div>
+                            <div>
+                              <span className="font-medium text-blue-800">التعليمات:</span>
+                              <p className="text-blue-700 mt-0.5">{phase.instructions}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Assignment Info */}
                       {!isMine && phase.assigned_staff && (

@@ -32,6 +32,7 @@ interface Phase {
   completed_at: string | null;
   notes: string | null;
   phase_order: number;
+  instructions?: string | null;
 }
 
 interface PhaseProgressCardProps {
@@ -198,7 +199,8 @@ export function PhaseProgressCard({
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
-                      {phaseConfig?.description ?? ""}
+                      {/* Show instructions from database if available, otherwise fallback to config */}
+                      {phase.instructions || phaseConfig?.description || ""}
                     </p>
                   </div>
 

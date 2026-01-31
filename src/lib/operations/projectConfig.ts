@@ -5,13 +5,15 @@
 import { 
   Rocket, Settings, FileText, Eye, Package, CheckCircle2,
   Users, UserCog, Briefcase, ClipboardList, Globe, Monitor,
-  Upload, UserCheck, Zap, Lock
+  Upload, UserCheck, Zap, Lock, TestTube, Send, Server, 
+  HardDrive, FileCheck, PartyPopper
 } from 'lucide-react';
 
 // =====================================================
-// Project Phase Types (8 phases)
+// Project Phase Types (supports both 8-phase and 10-phase workflows)
 // =====================================================
 export type ProjectPhaseType = 
+  // Legacy 8-phase workflow
   | 'requirements'
   | 'setup'
   | 'development'
@@ -19,7 +21,15 @@ export type ProjectPhaseType =
   | 'internal_review'
   | 'client_review'
   | 'launch'
-  | 'closure';
+  | 'closure'
+  // New 10-phase Webyan subscription workflow
+  | 'trial_setup'
+  | 'initial_content'
+  | 'trial_inspection'
+  | 'client_approval'
+  | 'production_setup'
+  | 'production_upload'
+  | 'final_review';
 
 export const projectPhases: Record<ProjectPhaseType, {
   label: string;
@@ -30,6 +40,7 @@ export const projectPhases: Record<ProjectPhaseType, {
   order: number;
   description: string;
 }> = {
+  // === Common / Legacy phases ===
   requirements: {
     label: 'استلام المتطلبات',
     labelEn: 'Requirements',
@@ -37,7 +48,7 @@ export const projectPhases: Record<ProjectPhaseType, {
     bgColor: 'bg-blue-100',
     icon: ClipboardList,
     order: 1,
-    description: 'جمع وتوثيق متطلبات العميل',
+    description: 'جمع وتوثيق متطلبات العميل والباقة المختارة',
   },
   setup: {
     label: 'تجهيز البيئة',
@@ -90,8 +101,8 @@ export const projectPhases: Record<ProjectPhaseType, {
     color: 'text-teal-600',
     bgColor: 'bg-teal-100',
     icon: Zap,
-    order: 7,
-    description: 'الإطلاق والربط النهائي',
+    order: 9,
+    description: 'نشر النطاق وتفعيله بشكل رسمي',
   },
   closure: {
     label: 'التسليم والإغلاق',
@@ -99,8 +110,73 @@ export const projectPhases: Record<ProjectPhaseType, {
     color: 'text-green-600',
     bgColor: 'bg-green-100',
     icon: CheckCircle2,
+    order: 10,
+    description: 'إرسال رسالة رسمية للعميل ببيانات الموقع، تسجيل بداية وانتهاء الاشتراك',
+  },
+  
+  // === New 10-phase Webyan subscription phases ===
+  trial_setup: {
+    label: 'تجهيز البيئة التجريبية',
+    labelEn: 'Trial Setup',
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-100',
+    icon: TestTube,
+    order: 2,
+    description: 'تجهيز نطاق تجريبي ضمن ويبيان، نسخ الباقة، وتطبيق هوية العميل',
+  },
+  initial_content: {
+    label: 'إدخال المحتوى الأولي',
+    labelEn: 'Initial Content',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-100',
+    icon: Upload,
+    order: 3,
+    description: 'إدخال محتوى افتراضي أو حقيقي لكامل الموقع ليطلع العميل على الشكل النهائي',
+  },
+  trial_inspection: {
+    label: 'فحص الموقع التجريبي',
+    labelEn: 'Trial Inspection',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-100',
+    icon: Eye,
+    order: 4,
+    description: 'التأكد من عمل الموقع بالكامل في لوحة التحكم والموقع الخارجي',
+  },
+  client_approval: {
+    label: 'إرسال للعميل للتعميد',
+    labelEn: 'Client Approval',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-100',
+    icon: Send,
+    order: 5,
+    description: 'إرسال رسالة بريد رسمية توضح جاهزية الموقع على النطاق التجريبي',
+  },
+  production_setup: {
+    label: 'تجهيز البيئة الرسمية',
+    labelEn: 'Production Setup',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-100',
+    icon: Server,
+    order: 6,
+    description: 'تجهيز استضافة ودومين رسمي للعميل وربط الاستضافة بالدومين',
+  },
+  production_upload: {
+    label: 'رفع الموقع على الاستضافة',
+    labelEn: 'Production Upload',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100',
+    icon: HardDrive,
+    order: 7,
+    description: 'رفع الموقع على الاستضافة الرسمية وتكوين البيئة',
+  },
+  final_review: {
+    label: 'المراجعة وإدخال المحتوى النهائي',
+    labelEn: 'Final Review',
+    color: 'text-violet-600',
+    bgColor: 'bg-violet-100',
+    icon: FileCheck,
     order: 8,
-    description: 'تسليم المشروع وتوثيق البيانات',
+    description: 'فحص الموقع بشكل نهائي والتأكد من عدم وجود أخطاء وإدخال المحتوى النهائي',
   },
 };
 
@@ -112,6 +188,14 @@ export const legacyPhaseMapping: Record<string, ProjectPhaseType> = {
   'review': 'internal_review',
   'delivery': 'launch',
   'closure': 'closure',
+  // Map new phases to themselves for consistency
+  'trial_setup': 'trial_setup',
+  'initial_content': 'initial_content',
+  'trial_inspection': 'trial_inspection',
+  'client_approval': 'client_approval',
+  'production_setup': 'production_setup',
+  'production_upload': 'production_upload',
+  'final_review': 'final_review',
 };
 
 // =====================================================
