@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -39,40 +39,34 @@ import {
 import { PhaseProgressCard } from '@/components/operations/PhaseProgressCard';
 import { TeamAssignmentModal } from '@/components/operations/TeamAssignmentModal';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
 
 export default function ProjectDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const location = useLocation();
   const [teamModalOpen, setTeamModalOpen] = useState(false);
 
-  // Fetch project details with retry for fresh data
-  const { data: project, isLoading, refetch } = useQuery({
+  const {
+    data: project,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['project', id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('crm_implementations')
-        .select(`
-          *,
-          account:client_organizations(id, name, contact_email, contact_phone),
-          quote:crm_quotes(id, quote_number, title, total_amount),
-          opportunity:crm_opportunities(id, name),
-          implementer:staff_members!crm_implementations_implementer_id_fkey(id, full_name, email),
-          csm:staff_members!crm_implementations_csm_id_fkey(id, full_name, email),
-          project_manager:staff_members!crm_implementations_project_manager_id_fkey(id, full_name, email)
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-    // Allow stale data but refetch in background for freshness
+    queryFn: async () => fetchProjectDetailsById(id!, { retries: 3, retryDelayMs: 250 }),
+    enabled: isUuid(id),
     staleTime: 0,
-    // Retry a few times in case data isn't immediately available
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(400 * 2 ** attemptIndex, 1200),
+    initialData: () => {
+      const stateProject = (location.state as any)?.project;
+      if (stateProject) return stateProject;
+      return id ? (queryClient.getQueryData(['project', id]) as any) : undefined;
+    },
   });
 
   // Fetch project phases
@@ -146,7 +140,18 @@ export default function ProjectDetailsPage() {
     },
   });
 
-  if (isLoading) {
+  if (!isUuid(id)) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground mb-4">معرّف المشروع غير صحيح</p>
+        <Link to="/admin/projects">
+          <Button variant="outline">العودة للمشاريع</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (isLoading || (isFetching && !project)) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -154,10 +159,29 @@ export default function ProjectDetailsPage() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground mb-2">تعذر تحميل المشروع</p>
+        <p className="text-xs text-muted-foreground mb-4" dir="ltr">
+          {(error as any)?.message || ''}
+        </p>
+        <div className="flex justify-center gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            إعادة المحاولة
+          </Button>
+          <Link to="/admin/projects">
+            <Button variant="link">العودة للمشاريع</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">المشروع غير موجود أو جاري التحميل</p>
+        <p className="text-muted-foreground mb-4">المشروع غير موجود</p>
         <div className="flex justify-center gap-2">
           <Button variant="outline" onClick={() => refetch()}>
             إعادة المحاولة
