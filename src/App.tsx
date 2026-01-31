@@ -22,6 +22,7 @@ import TrackTicketPage from "./pages/TrackTicketPage";
 import EmbedTicketPage from "./pages/embed/EmbedTicketPage";
 import EmbedChatPage from "./pages/embed/EmbedChatPage";
 import EmbedDemoRequestPage from "./pages/embed/EmbedDemoRequestPage";
+import EmbedDemoRequestPopup from "./pages/embed/EmbedDemoRequestPopup";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 
 // Admin pages
@@ -137,6 +138,7 @@ const App = () => (
               <Route path="/embed/ticket" element={<EmbedTicketPage />} />
               <Route path="/embed/chat" element={<EmbedChatPage />} />
               <Route path="/embed/demo-request" element={<EmbedDemoRequestPage />} />
+              <Route path="/embed/demo-request-popup" element={<EmbedDemoRequestPopup />} />
               <Route path="/docs/:moduleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug/:articleSlug" element={<ArticlePage />} />
