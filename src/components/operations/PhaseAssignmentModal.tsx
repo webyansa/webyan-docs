@@ -53,12 +53,14 @@ export function PhaseAssignmentModal({
   const queryClient = useQueryClient();
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
+  // Check if we have any team members assigned
+  const teamIds = [implementerId, csmId, projectManagerId].filter(Boolean) as string[];
+  const hasTeamAssigned = teamIds.length > 0;
+
   // Fetch only the project team members (Implementer, CSM, Project Manager)
-  const { data: teamMembers = [] } = useQuery({
+  const { data: teamMembers = [], isLoading: isLoadingTeam } = useQuery({
     queryKey: ['project-team-members', implementerId, csmId, projectManagerId],
     queryFn: async () => {
-      const teamIds = [implementerId, csmId, projectManagerId].filter(Boolean) as string[];
-      
       if (teamIds.length === 0) return [];
       
       const { data, error } = await supabase
@@ -70,7 +72,7 @@ export function PhaseAssignmentModal({
       if (error) throw error;
       return data || [];
     },
-    enabled: open,
+    enabled: open && hasTeamAssigned,
   });
 
   // Initialize assignments from phases
@@ -84,12 +86,19 @@ export function PhaseAssignmentModal({
     setAssignments(initial);
   }, [phases]);
 
-  // Suggested assignments based on role
+  // Suggested assignments based on role (supports both 8-phase and 10-phase workflows)
   const getSuggestedStaff = (phaseType: string) => {
     // Technical phases → Implementer
-    const techPhases = ['setup', 'development', 'launch'];
+    const techPhases = [
+      'setup', 'development', 'launch', 
+      'trial_setup', 'initial_content', 'trial_inspection', 
+      'production_setup', 'production_upload', 'final_review'
+    ];
     // Client-facing phases → CSM
-    const clientPhases = ['requirements', 'content', 'client_review', 'closure'];
+    const clientPhases = [
+      'requirements', 'content', 'client_review', 'closure',
+      'client_approval'
+    ];
     // Internal review → Project Manager or Implementer
     const reviewPhases = ['internal_review'];
     
@@ -225,9 +234,14 @@ export function PhaseAssignmentModal({
                         <SelectItem value="__none__">
                           <span className="text-muted-foreground">بدون تعيين</span>
                         </SelectItem>
-                        {teamMembers.length === 0 && (
+                        {!hasTeamAssigned && (
+                          <div className="px-2 py-3 text-sm text-amber-600 text-center bg-amber-50 rounded">
+                            ⚠️ لم يتم تعيين فريق للمشروع بعد
+                          </div>
+                        )}
+                        {hasTeamAssigned && isLoadingTeam && (
                           <div className="px-2 py-3 text-sm text-muted-foreground text-center">
-                            لم يتم تعيين فريق للمشروع بعد
+                            جاري تحميل الفريق...
                           </div>
                         )}
                         {teamMembers.map((staff: any) => (

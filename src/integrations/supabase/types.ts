@@ -2518,6 +2518,7 @@ export type Database = {
           completion_notes: string | null
           created_at: string | null
           id: string
+          instructions: string | null
           notes: string | null
           phase_order: number
           phase_type: string
@@ -2533,6 +2534,7 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string | null
           id?: string
+          instructions?: string | null
           notes?: string | null
           phase_order: number
           phase_type: string
@@ -2548,6 +2550,7 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string | null
           id?: string
+          instructions?: string | null
           notes?: string | null
           phase_order?: number
           phase_type?: string
@@ -3304,6 +3307,74 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      workflow_phases: {
+        Row: {
+          created_at: string | null
+          id: string
+          instructions: string | null
+          phase_key: string
+          phase_name: string
+          phase_order: number
+          suggested_role: string | null
+          workflow_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instructions?: string | null
+          phase_key: string
+          phase_name: string
+          phase_order: number
+          suggested_role?: string | null
+          workflow_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instructions?: string | null
+          phase_key?: string
+          phase_name?: string
+          phase_order?: number
+          suggested_role?: string | null
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_phases_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_templates: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          project_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          project_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          project_type?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
