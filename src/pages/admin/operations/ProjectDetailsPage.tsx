@@ -496,6 +496,7 @@ export default function ProjectDetailsPage() {
         phases={phases}
         implementerId={project.implementer_id}
         csmId={project.csm_id}
+        projectManagerId={project.project_manager_id}
       />
     </div>
   );
