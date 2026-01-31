@@ -20,7 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Loader2, UserCog, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { projectPhases, type ProjectPhaseType } from '@/lib/operations/projectConfig';
+import { type ProjectPhaseType } from '@/lib/operations/projectConfig';
 import { getPhaseConfig } from '@/lib/operations/phaseUtils';
 
 interface Phase {
@@ -58,14 +58,19 @@ export function PhaseAssignmentModal({
   const hasTeamAssigned = teamIds.length > 0;
 
   // Fetch only the project team members (Implementer, CSM, Project Manager)
-  const { data: teamMembers = [], isLoading: isLoadingTeam } = useQuery({
+  const {
+    data: teamMembers = [],
+    isLoading: isLoadingTeam,
+    isError: isTeamError,
+    error: teamError,
+  } = useQuery({
     queryKey: ['project-team-members', implementerId, csmId, projectManagerId],
     queryFn: async () => {
       if (teamIds.length === 0) return [];
       
       const { data, error } = await supabase
         .from('staff_members')
-        .select('id, full_name, role')
+        .select('id, full_name')
         .in('id', teamIds)
         .eq('is_active', true);
 
@@ -73,6 +78,7 @@ export function PhaseAssignmentModal({
       return data || [];
     },
     enabled: open && hasTeamAssigned,
+    retry: 0,
   });
 
   // Initialize assignments from phases
@@ -235,14 +241,21 @@ export function PhaseAssignmentModal({
                           <span className="text-muted-foreground">بدون تعيين</span>
                         </SelectItem>
                         {!hasTeamAssigned && (
-                          <div className="px-2 py-3 text-sm text-amber-600 text-center bg-amber-50 rounded">
-                            ⚠️ لم يتم تعيين فريق للمشروع بعد
-                          </div>
+                          <SelectItem value="__no_team__" disabled>
+                            <span className="text-amber-600">⚠️ لم يتم تعيين فريق للمشروع بعد</span>
+                          </SelectItem>
                         )}
                         {hasTeamAssigned && isLoadingTeam && (
-                          <div className="px-2 py-3 text-sm text-muted-foreground text-center">
-                            جاري تحميل الفريق...
-                          </div>
+                          <SelectItem value="__loading__" disabled>
+                            <span className="text-muted-foreground">جاري تحميل الفريق...</span>
+                          </SelectItem>
+                        )}
+                        {hasTeamAssigned && isTeamError && (
+                          <SelectItem value="__error__" disabled>
+                            <span className="text-destructive">
+                              تعذر تحميل الفريق{(teamError as any)?.message ? `: ${(teamError as any).message}` : ''}
+                            </span>
+                          </SelectItem>
                         )}
                         {teamMembers.map((staff: any) => (
                           <SelectItem key={staff.id} value={staff.id}>
