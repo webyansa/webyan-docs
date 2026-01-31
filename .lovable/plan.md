@@ -1,388 +1,153 @@
 
+## Plan: Fix Phase Assignment and Implement Configurable Project Workflows
 
-## خطة تحسين توثيق العقد وإنشاء المشروع
+### Part 1: Fix Phase Assignment Modal (Bug Fix)
+
+**Problem**: The modal shows "No team assigned" even when the project has team members because the query runs before the props are populated.
+
+**Solution**:
+1. **Update `PhaseAssignmentModal.tsx`**:
+   - Add a proper check to only enable the query when we have at least one team ID
+   - Add loading state handling for team member fetch
+   - Show "Loading team members..." instead of "No team assigned" when fetching
+
+2. **Update `ProjectDetailsPage.tsx`**:
+   - Ensure the modal is only opened after project data is fully loaded
+   - Pass the team IDs only when they are available
 
 ---
 
-### نظرة عامة على المشكلات الحالية
+### Part 2: Implement Configurable Workflow Templates
 
-| المشكلة | الوصف | الخطورة |
-|---------|-------|---------|
-| تكرار التوثيق | يمكن توثيق العقد أكثر من مرة لنفس عرض السعر | عالية |
-| مشاريع مكررة | لا يوجد قيد فريد على quote_id في جدول المشاريع | عالية |
-| مشاريع بدون فريق | يمكن إنشاء مشروع بدون تعيين أي موظف | متوسطة |
-| تجربة مستخدم مبعثرة | عملية التوثيق والتعيين منفصلة | متوسطة |
+**Database Schema Changes**:
+
+1. **Create `workflow_templates` table**:
+   - Stores workflow configurations by project type
+   - Fields: `id`, `project_type`, `name`, `is_default`, `created_at`
+
+2. **Create `workflow_phases` table**:
+   - Stores phase definitions for each workflow
+   - Fields: `id`, `workflow_id`, `phase_key`, `phase_name`, `phase_order`, `instructions`, `suggested_role` (implementer/csm/project_manager)
+
+3. **Update `create_default_project_phases()` function**:
+   - Looks up the workflow template based on `project_type`
+   - Creates phases from the template instead of hardcoded values
+
+**New Phase Configuration for "Webyan Subscription" Projects**:
+
+| Order | Phase Key | Phase Name | Instructions | Suggested Role |
+|-------|-----------|------------|--------------|----------------|
+| 1 | requirements | استلام المتطلبات | جمع وتوثيق متطلبات العميل والباقة المختارة | csm |
+| 2 | trial_setup | تجهيز البيئة التجريبية | تجهيز نطاق تجريبي ضمن ويبيان، نسخ الباقة، وتطبيق هوية العميل | implementer |
+| 3 | initial_content | إدخال المحتوى الأولي | إدخال محتوى افتراضي أو حقيقي لكامل الموقع ليطلع العميل على الشكل النهائي | implementer |
+| 4 | trial_inspection | فحص الموقع التجريبي | التأكد من عمل الموقع بالكامل في لوحة التحكم والموقع الخارجي | implementer |
+| 5 | client_approval | إرسال للعميل للتعميد | إرسال رسالة بريد رسمية توضح جاهزية الموقع على النطاق التجريبي | csm |
+| 6 | production_setup | تجهيز البيئة الرسمية | تجهيز استضافة ودومين رسمي للعميل وربط الاستضافة بالدومين | implementer |
+| 7 | production_upload | رفع الموقع على الاستضافة | رفع الموقع على الاستضافة الرسمية وتكوين البيئة | implementer |
+| 8 | final_review | المراجعة وإدخال المحتوى النهائي | فحص الموقع بشكل نهائي والتأكد من عدم وجود أخطاء وإدخال المحتوى النهائي | implementer |
+| 9 | launch | الإطلاق | نشر النطاق وتفعيله بشكل رسمي | implementer |
+| 10 | closure | التسليم والإغلاق | إرسال رسالة رسمية للعميل ببيانات الموقع، تسجيل بداية وانتهاء الاشتراك | csm |
 
 ---
 
-### الحل: عملية موحدة من خطوتين
+### Part 3: Frontend Updates
 
+**Update `projectConfig.ts`**:
+- Add new phase types for the 10-phase workflow
+- Include detailed descriptions and instructions for each phase
+- Update `legacyPhaseMapping` for backward compatibility
+
+**Update `StaffPhaseCard.tsx`**:
+- Display phase instructions to guide the staff member
+- Show the detailed description from the workflow template
+
+**Update `PhaseProgressCard.tsx`**:
+- Support dynamic phase configurations from database
+- Show progress based on actual phase count (not hardcoded 8)
+
+**Create Admin Settings Page** (Optional - Future Enhancement):
+- Allow admins to manage workflow templates
+- Edit phase names, instructions, and order
+- Assign default workflows to project types
+
+---
+
+### Technical Details
+
+**Migration SQL**:
 ```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                    نافذة توثيق العقد وإنشاء المشروع                  │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  معلومات العميل وعرض السعر                                  │   │
-│  │  العميل: شركة xyz                                           │   │
-│  │  رقم العرض: QT-2024-001                                     │   │
-│  │  قيمة العرض: 50,000 ر.س                                     │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
-│                                                                     │
-│  الخطوة 1: توثيق العقد                                             │
-│  ├─ حالة العقد: [تم التوقيع]                                       │
-│  ├─ تاريخ التوقيع: [15/01/2024]                                    │
-│  ├─ نوع العقد: [عقد خدمات]                                         │
-│  └─ ملاحظات: [اختياري]                                             │
-│                                                                     │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
-│                                                                     │
-│  الخطوة 2: تعيين فريق التنفيذ (إجباري)                             │
-│  ├─ مسؤول التنفيذ: [محمد أحمد] *                                   │
-│  └─ مسؤول نجاح العميل: [سارة علي] *                                │
-│                                                                     │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ماذا سيحدث عند التأكيد:                                    │   │
-│  │  ✓ سيتم توثيق حالة العقد                                    │   │
-│  │  ✓ سيتم إنشاء مشروع جديد                                    │   │
-│  │  ✓ سيتم إرسال إشعار لمسؤول التنفيذ ومسؤول نجاح العميل       │   │
-│  │  ✓ سيتم تسجيل العملية في سجل النشاط                         │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  [إلغاء]                    [توثيق العقد وإنشاء المشروع]           │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+-- 1. Create workflow_templates table
+CREATE TABLE public.workflow_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. Create workflow_phases table
+CREATE TABLE public.workflow_phases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workflow_id UUID REFERENCES workflow_templates(id) ON DELETE CASCADE,
+  phase_key TEXT NOT NULL,
+  phase_name TEXT NOT NULL,
+  phase_order INTEGER NOT NULL,
+  instructions TEXT,
+  suggested_role TEXT CHECK (suggested_role IN ('implementer', 'csm', 'project_manager')),
+  UNIQUE (workflow_id, phase_order)
+);
+
+-- 3. Insert default workflow for webyan_subscription
+INSERT INTO workflow_templates (project_type, name, is_default) 
+VALUES ('webyan_subscription', 'مسار اشتراك ويبيان', true);
+
+-- 4. Insert phases for the workflow
+INSERT INTO workflow_phases (workflow_id, phase_key, phase_name, phase_order, instructions, suggested_role)
+SELECT id, ... FROM workflow_templates WHERE project_type = 'webyan_subscription';
+
+-- 5. Update the trigger function to use templates
+CREATE OR REPLACE FUNCTION public.create_default_project_phases()
+RETURNS TRIGGER AS $$
+DECLARE
+  template_id UUID;
+BEGIN
+  -- Find the workflow template for this project type
+  SELECT wt.id INTO template_id 
+  FROM workflow_templates wt 
+  WHERE wt.project_type = NEW.project_type AND wt.is_default = true;
+  
+  -- If no template found, use legacy phases
+  IF template_id IS NULL THEN
+    INSERT INTO project_phases (project_id, phase_type, phase_order)
+    VALUES ...;
+  ELSE
+    -- Create phases from template
+    INSERT INTO project_phases (project_id, phase_type, phase_order)
+    SELECT NEW.id, wp.phase_key, wp.phase_order
+    FROM workflow_phases wp
+    WHERE wp.workflow_id = template_id
+    ORDER BY wp.phase_order;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
+
+**Files to Create/Modify**:
+1. `supabase/migrations/XXX_workflow_templates.sql` - Database schema
+2. `src/lib/operations/projectConfig.ts` - Update phase types and add new phases
+3. `src/lib/operations/phaseUtils.ts` - Add helper for template-based phases
+4. `src/components/operations/PhaseAssignmentModal.tsx` - Fix team loading bug
+5. `src/components/operations/StaffPhaseCard.tsx` - Show phase instructions
+6. `src/components/operations/PhaseProgressCard.tsx` - Dynamic phase support
 
 ---
 
-### الجزء الأول: تعديلات قاعدة البيانات
+### Implementation Order
 
-#### 1. إضافة قيد فريد على quote_id
-
-```sql
--- إضافة قيد فريد لمنع إنشاء مشاريع مكررة
-ALTER TABLE crm_implementations 
-ADD CONSTRAINT crm_implementations_quote_id_unique 
-UNIQUE (quote_id);
-
--- إضافة قيد فريد على جدول توثيق العقود
-ALTER TABLE contract_documentation 
-ADD CONSTRAINT contract_documentation_quote_id_unique 
-UNIQUE (quote_id);
-```
-
-#### 2. إضافة عمود project_id لجدول crm_quotes
-
-```sql
--- ربط عرض السعر بالمشروع المنشأ
-ALTER TABLE crm_quotes
-ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES crm_implementations(id);
-```
-
----
-
-### الجزء الثاني: تحديث ContractDocumentationModal
-
-#### الحالات والتحقق المطلوب
-
-| الحالة | الفحص | الرسالة | الإجراء |
-|--------|-------|---------|---------|
-| عقد موثق مسبقاً | `contract_documentation.quote_id = quoteId` | "تم توثيق العقد مسبقًا" | منع الحفظ + عرض رابط المشروع |
-| مشروع موجود | `crm_implementations.quote_id = quoteId` | "يوجد مشروع قائم مرتبط بهذا العرض" | منع الحفظ + عرض رابط المشروع |
-| فريق غير مكتمل | `!implementerId OR !csmId` | "يرجى تعيين مسؤول التنفيذ ومسؤول نجاح العميل" | تعطيل زر الحفظ |
-
-#### التغييرات على الكود
-
-1. **إضافة استعلام للتحقق من الحالة الحالية**:
-```typescript
-const { data: existingData } = useQuery({
-  queryKey: ['quote-contract-status', quoteId],
-  queryFn: async () => {
-    // فحص توثيق عقد موجود
-    const { data: contractDoc } = await supabase
-      .from('contract_documentation')
-      .select('id, status, signed_date')
-      .eq('quote_id', quoteId)
-      .maybeSingle();
-
-    // فحص مشروع موجود
-    const { data: project } = await supabase
-      .from('crm_implementations')
-      .select('id, project_name')
-      .eq('quote_id', quoteId)
-      .maybeSingle();
-
-    return { contractDoc, project };
-  },
-});
-```
-
-2. **إضافة حقول تعيين الفريق**:
-```typescript
-const [implementerId, setImplementerId] = useState<string>('');
-const [csmId, setCsmId] = useState<string>('');
-```
-
-3. **تحديث منطق الحفظ**:
-```typescript
-const createContractAndProjectMutation = useMutation({
-  mutationFn: async () => {
-    // 1. التحقق من عدم وجود توثيق سابق
-    if (existingData?.contractDoc) {
-      throw new Error('CONTRACT_ALREADY_DOCUMENTED');
-    }
-    
-    // 2. التحقق من عدم وجود مشروع
-    if (existingData?.project) {
-      throw new Error('PROJECT_ALREADY_EXISTS');
-    }
-    
-    // 3. إنشاء توثيق العقد
-    const { data: contractDoc } = await supabase
-      .from('contract_documentation')
-      .insert({ ... })
-      .select()
-      .single();
-    
-    // 4. إنشاء المشروع مع الفريق
-    const { data: project } = await supabase
-      .from('crm_implementations')
-      .insert({
-        quote_id: quoteId,
-        contract_doc_id: contractDoc.id,
-        implementer_id: implementerId,
-        csm_id: csmId,
-        ...
-      })
-      .select()
-      .single();
-    
-    // 5. تحديث عرض السعر بمعرف المشروع
-    await supabase
-      .from('crm_quotes')
-      .update({ project_id: project.id })
-      .eq('id', quoteId);
-    
-    // 6. إنشاء سجلات فريق المشروع
-    await supabase
-      .from('project_team_members')
-      .insert([
-        { project_id: project.id, staff_id: implementerId, role: 'implementer' },
-        { project_id: project.id, staff_id: csmId, role: 'csm' },
-      ]);
-    
-    // 7. إرسال الإشعارات
-    await sendNotifications(project.id, implementerId, csmId);
-    
-    return project;
-  },
-});
-```
-
----
-
-### الجزء الثالث: الإشعارات التلقائية
-
-#### الإشعارات المطلوبة
-
-| المستلم | العنوان | المحتوى |
-|---------|---------|---------|
-| مسؤول التنفيذ | مشروع جديد | "لديك مشروع جديد تم إسناده إليك: [اسم المشروع]" |
-| مسؤول نجاح العميل | عميل جديد | "تم إسناد عميل جديد إليك لمتابعة نجاح العميل: [اسم العميل]" |
-| الإدارة | عقد جديد | "تم توثيق عقد وإنشاء مشروع جديد: [اسم المشروع]" |
-
-#### كود إرسال الإشعارات
-
-```typescript
-const sendNotifications = async (
-  projectId: string, 
-  implementerId: string, 
-  csmId: string
-) => {
-  // إشعار موظف التنفيذ
-  await supabase.from('staff_notifications').insert({
-    staff_id: implementerId,
-    title: 'مشروع جديد',
-    message: `لديك مشروع جديد تم إسناده إليك: ${projectName}`,
-    type: 'project_assignment',
-    link: `/admin/projects/${projectId}`,
-  });
-
-  // إشعار مدير نجاح العميل
-  await supabase.from('staff_notifications').insert({
-    staff_id: csmId,
-    title: 'عميل جديد',
-    message: `تم إسناد عميل جديد إليك: ${accountName}`,
-    type: 'project_assignment',
-    link: `/admin/projects/${projectId}`,
-  });
-};
-```
-
----
-
-### الجزء الرابع: سجل النشاط
-
-#### تسجيل الأحداث
-
-```typescript
-// تسجيل توثيق العقد
-await supabase.from('crm_opportunity_activities').insert({
-  opportunity_id: opportunityId,
-  activity_type: 'contract_signed',
-  notes: `تم توثيق العقد وإنشاء مشروع جديد`,
-  performed_by: staffId,
-  metadata: {
-    quote_id: quoteId,
-    project_id: project.id,
-    contract_doc_id: contractDoc.id,
-    implementer_id: implementerId,
-    csm_id: csmId,
-    signed_date: signedDate,
-  },
-});
-```
-
----
-
-### الجزء الخامس: نافذة التأكيد بعد النجاح
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│                    ✓ تم بنجاح                                       │
-│                                                                     │
-│         تم توثيق العقد بنجاح وتم إنشاء مشروع جديد                   │
-│              مرتبط بهذا العرض                                        │
-│                                                                     │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
-│                                                                     │
-│  المشروع: منصة إدارة المحتوى - شركة xyz                            │
-│  مسؤول التنفيذ: محمد أحمد                                          │
-│  مسؤول نجاح العميل: سارة علي                                        │
-│                                                                     │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
-│                                                                     │
-│    [الذهاب إلى المشروع]        [تعيين/تعديل فريق العمل]            │
-│                                                                     │
-│                          [إغلاق]                                    │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### الجزء السادس: تحديث QuoteDetailsPage
-
-#### التغييرات المطلوبة
-
-1. **فحص حالة التوثيق عند فتح الصفحة**:
-   - إذا كان العقد موثقاً → عرض حالة "تم التوثيق" + رابط المشروع
-   - إذا لم يكن موثقاً → عرض زر "توثيق العقد"
-
-2. **تحديث واجهة الأزرار**:
-
-| الحالة | الزر المعروض |
-|--------|--------------|
-| عرض سعر غير معتمد | - (لا يظهر زر التوثيق) |
-| عرض سعر معتمد + لم يُوثق | "توثيق العقد وإنشاء المشروع" |
-| عرض سعر موثق + مشروع موجود | "تم التوثيق ✓" + "فتح المشروع" |
-
----
-
-### الملفات المطلوب تعديلها
-
-| الملف | التعديلات |
-|-------|----------|
-| `src/components/operations/ContractDocumentationModal.tsx` | إعادة بناء كاملة مع خطوتين |
-| `src/pages/admin/crm/QuoteDetailsPage.tsx` | فحص حالة التوثيق + تحديث الأزرار |
-| SQL Migration | قيود فريدة + عمود project_id |
-
----
-
-### التفاصيل التقنية للتنفيذ
-
-#### 1. هيكل ContractDocumentationModal المحدث
-
-```typescript
-interface ContractDocumentationModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  quoteId: string;
-  quoteNumber: string;
-  quoteTotal: number;
-  opportunityId?: string;
-  accountId: string;
-  accountName: string;
-  staffId?: string;
-}
-
-// الحالات
-const [step, setStep] = useState<'contract' | 'team' | 'success'>('contract');
-const [status, setStatus] = useState<'preparing' | 'signed'>('signed');
-const [signedDate, setSignedDate] = useState<Date>(new Date());
-const [contractType, setContractType] = useState<string>('');
-const [notes, setNotes] = useState('');
-const [implementerId, setImplementerId] = useState<string>('');
-const [csmId, setCsmId] = useState<string>('');
-const [createdProject, setCreatedProject] = useState<{id: string; name: string} | null>(null);
-```
-
-#### 2. شروط تعطيل الزر
-
-```typescript
-const isSubmitDisabled = () => {
-  if (existingData?.contractDoc || existingData?.project) return true;
-  if (status !== 'signed') return false;
-  if (!signedDate) return true;
-  if (!implementerId || !csmId) return true;
-  return false;
-};
-```
-
-#### 3. رسائل الخطأ
-
-```typescript
-const getValidationMessage = () => {
-  if (existingData?.contractDoc) {
-    return 'لا يمكن توثيق العقد مرة أخرى. العقد موثق مسبقًا.';
-  }
-  if (existingData?.project) {
-    return 'يوجد مشروع قائم مرتبط بهذا العرض. انتقل إلى المشاريع لإدارته.';
-  }
-  if (status === 'signed' && (!implementerId || !csmId)) {
-    return 'يرجى تعيين مسؤول التنفيذ ومسؤول نجاح العميل قبل إنشاء المشروع.';
-  }
-  return null;
-};
-```
-
----
-
-### تسلسل التنفيذ
-
-| الخطوة | المهمة | الأولوية |
-|--------|--------|----------|
-| 1 | تنفيذ SQL Migration للقيود الفريدة | عالية |
-| 2 | إعادة بناء ContractDocumentationModal | عالية |
-| 3 | تحديث QuoteDetailsPage | عالية |
-| 4 | إضافة منطق الإشعارات | عالية |
-| 5 | إضافة سجل النشاط | متوسطة |
-| 6 | اختبار السيناريوهات | عالية |
-
----
-
-### النتيجة المتوقعة
-
-- منع توثيق العقد أكثر من مرة
-- منع إنشاء مشاريع مكررة (على مستوى قاعدة البيانات)
-- إجبار تعيين فريق التنفيذ قبل إنشاء المشروع
-- إشعارات تلقائية للفريق المعين
-- تسجيل كامل في سجل النشاط
-- تجربة مستخدم واضحة ومتسلسلة
-
+1. **Immediate Fix**: Fix the `PhaseAssignmentModal` bug (5 minutes)
+2. **Database Migration**: Create workflow tables and seed data (10 minutes)
+3. **Update Config**: Add new phase types to frontend config (10 minutes)
+4. **Update UI Components**: Display instructions and support dynamic phases (15 minutes)
+5. **Test**: Verify workflow on existing and new projects (5 minutes)
