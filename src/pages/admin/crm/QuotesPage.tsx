@@ -131,8 +131,8 @@ export default function QuotesPage() {
           valid_until,
           sent_at,
           created_at,
-          account:account_id (id, name),
-          opportunity:opportunity_id (id, name, stage, expected_value, account_id)
+          account:client_organizations!crm_quotes_account_id_fkey(id, name),
+          opportunity:crm_opportunities!crm_quotes_opportunity_id_fkey(id, name, stage, expected_value, account_id)
         `)
         .order('created_at', { ascending: false });
 
@@ -161,7 +161,7 @@ export default function QuotesPage() {
           stage,
           expected_value,
           account_id,
-          account:account_id (id, name)
+          account:client_organizations!crm_opportunities_account_id_fkey(id, name)
         `)
         .not('stage', 'in', '(approved,rejected)')
         .order('created_at', { ascending: false });

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,8 @@ export default function AdvancedQuoteModal({
   currentValue,
   onSuccess,
 }: AdvancedQuoteModalProps) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [quoteType, setQuoteType] = useState<QuoteType>('subscription');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -314,7 +317,22 @@ export default function AdvancedQuoteModal({
         performed_by_name: staffName,
       });
 
-      toast.success('تم إنشاء وإرسال عرض السعر بنجاح');
+      // Invalidate quotes cache so QuotesPage refreshes automatically
+      queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
+      
+      toast.success(
+        <div className="flex flex-col gap-2">
+          <span>تم إنشاء وإرسال عرض السعر بنجاح</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-fit"
+            onClick={() => navigate(`/admin/crm/quotes/${quote.id}`)}
+          >
+            فتح العرض
+          </Button>
+        </div>
+      );
       onOpenChange(false);
       onSuccess();
     } catch (error) {

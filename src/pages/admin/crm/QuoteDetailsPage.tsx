@@ -123,9 +123,9 @@ export default function QuoteDetailsPage() {
         .from('crm_quotes')
         .select(`
           *,
-          account:account_id (id, name, contact_email, contact_phone, city, address),
-          opportunity:opportunity_id (id, name, stage),
-          plan:plan_id (id, name, description, monthly_price, yearly_price, features)
+          account:client_organizations!crm_quotes_account_id_fkey(id, name, contact_email, contact_phone, city, address),
+          opportunity:crm_opportunities!crm_quotes_opportunity_id_fkey(id, name, stage),
+          plan:pricing_plans!crm_quotes_plan_id_fkey(id, name, description, monthly_price, yearly_price, features)
         `)
         .eq('id', quoteId)
         .single();
