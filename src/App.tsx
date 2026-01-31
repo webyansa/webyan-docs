@@ -46,6 +46,7 @@ import SalesPipelinePage from "./pages/admin/crm/SalesPipelinePage";
 import DeliveryPipelinePage from "./pages/admin/crm/DeliveryPipelinePage";
 import LeadsPage from "./pages/admin/crm/LeadsPage";
 import DealsPage from "./pages/admin/crm/DealsPage";
+import DealDetailsPage from "./pages/admin/crm/DealDetailsPage";
 import AdminMeetingsPage from "./pages/admin/AdminMeetingsPage";
 import MeetingSettingsPage from "./pages/admin/MeetingSettingsPage";
 import StaffPage from "./pages/admin/StaffPage";
@@ -185,6 +186,7 @@ const App = () => (
                 <Route path="clients/:id" element={<CustomerProfilePage />} />
                 <Route path="crm/leads" element={<LeadsPage />} />
                 <Route path="crm/deals" element={<DealsPage />} />
+                <Route path="crm/deals/:dealId" element={<DealDetailsPage />} />
                 <Route path="crm/sales" element={<SalesPipelinePage />} />
                 <Route path="crm/delivery" element={<DeliveryPipelinePage />} />
                 <Route path="meetings" element={<AdminMeetingsPage />} />

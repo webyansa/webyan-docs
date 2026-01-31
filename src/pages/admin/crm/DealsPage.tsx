@@ -13,15 +13,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   Plus, 
   Search, 
@@ -29,14 +26,26 @@ import {
   Calendar,
   Building2,
   Loader2,
-  ArrowRight,
+  MoreVertical,
+  MessageSquare,
+  FileText,
+  XCircle,
+  Eye,
   CheckCircle2,
   Target
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { dealStages, DealStage, serviceTypes, formatCurrency } from '@/lib/crm/pipelineConfig';
+import { dealStages, DealStage, formatCurrency } from '@/lib/crm/pipelineConfig';
+
+// Import modals
+import AddNoteModal from '@/components/crm/modals/AddNoteModal';
+import ScheduleMeetingModal from '@/components/crm/modals/ScheduleMeetingModal';
+import MeetingReportModal from '@/components/crm/modals/MeetingReportModal';
+import CreateQuoteModal from '@/components/crm/modals/CreateQuoteModal';
+import RejectionModal from '@/components/crm/modals/RejectionModal';
+import StageNoteModal from '@/components/crm/modals/StageNoteModal';
 
 interface Deal {
   id: string;
@@ -50,9 +59,12 @@ interface Deal {
   next_step: string | null;
   created_at: string;
   updated_at: string;
+  account_id: string | null;
   account?: { id: string; name: string } | null;
   owner?: { full_name: string } | null;
 }
+
+type ModalType = 'note' | 'schedule_meeting' | 'meeting_report' | 'create_quote' | 'rejection' | 'stage_note' | 'approval' | null;
 
 export default function DealsPage() {
   const navigate = useNavigate();
@@ -61,16 +73,10 @@ export default function DealsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   
-  // Stage change modal
-  const [showStageModal, setShowStageModal] = useState(false);
+  // Modal state
+  const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [targetStage, setTargetStage] = useState<DealStage | null>(null);
-  const [stageReason, setStageReason] = useState('');
-  const [changingStage, setChangingStage] = useState(false);
-  
-  // Approval modal - shown when moving to "approved"
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [approving, setApproving] = useState(false);
 
   useEffect(() => {
     fetchDeals();
@@ -92,6 +98,7 @@ export default function DealsPage() {
           next_step,
           created_at,
           updated_at,
+          account_id,
           account:client_organizations(id, name),
           owner:staff_members!crm_opportunities_owner_id_fkey(full_name)
         `)
@@ -107,88 +114,68 @@ export default function DealsPage() {
     }
   };
 
+  const openModal = (modal: ModalType, deal: Deal, stage?: DealStage) => {
+    setSelectedDeal(deal);
+    setTargetStage(stage || null);
+    setActiveModal(modal);
+  };
+
+  const closeModal = () => {
+    setActiveModal(null);
+    setSelectedDeal(null);
+    setTargetStage(null);
+  };
+
   const handleStageClick = (deal: Deal, newStage: DealStage) => {
     if (deal.stage === newStage) return;
     
-    setSelectedDeal(deal);
-    setTargetStage(newStage);
-    setStageReason('');
-    
-    // If moving to approved, show approval modal instead
-    if (newStage === 'approved') {
-      setShowApprovalModal(true);
-    } else {
-      setShowStageModal(true);
-    }
-  };
-
-  const handleStageChange = async () => {
-    if (!selectedDeal || !targetStage || !stageReason.trim()) {
-      toast.error('يرجى إدخال سبب التغيير');
-      return;
-    }
-
-    setChangingStage(true);
-    try {
-      // Determine new status
-      let newStatus = 'open';
-      let newProbability = dealStages[targetStage]?.probability || 50;
-      
-      if (targetStage === 'approved') {
-        newStatus = 'won';
-        newProbability = 100;
-      } else if (targetStage === 'rejected') {
-        newStatus = 'lost';
-        newProbability = 0;
-      }
-
-      // Update deal
-      const { error } = await supabase
-        .from('crm_opportunities')
-        .update({
-          stage: targetStage,
-          status: newStatus,
-          probability: newProbability,
-          stage_changed_at: new Date().toISOString(),
-          stage_change_reason: stageReason,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', selectedDeal.id);
-
-      if (error) throw error;
-
-      // Log stage transition
-      await supabase.from('crm_stage_transitions').insert({
-        entity_type: 'opportunity',
-        entity_id: selectedDeal.id,
-        pipeline_type: 'deals',
-        from_stage: selectedDeal.stage,
-        to_stage: targetStage,
-        reason: stageReason,
-      });
-
-      toast.success('تم تحديث مرحلة الفرصة بنجاح');
-      setShowStageModal(false);
-      setSelectedDeal(null);
-      setTargetStage(null);
-      setStageReason('');
-      fetchDeals();
-    } catch (error) {
-      console.error('Error updating stage:', error);
-      toast.error('حدث خطأ أثناء تحديث المرحلة');
-    } finally {
-      setChangingStage(false);
+    // Determine which modal to show based on target stage
+    switch (newStage) {
+      case 'meeting_scheduled':
+        openModal('schedule_meeting', deal, newStage);
+        break;
+      case 'meeting_done':
+        openModal('meeting_report', deal, newStage);
+        break;
+      case 'proposal_sent':
+        openModal('create_quote', deal, newStage);
+        break;
+      case 'rejected':
+        openModal('rejection', deal, newStage);
+        break;
+      case 'approved':
+        openModal('approval', deal, newStage);
+        break;
+      case 'pending_approval':
+      case 'new_opportunity':
+      default:
+        openModal('stage_note', deal, newStage);
+        break;
     }
   };
 
   const handleApproval = async () => {
-    if (!selectedDeal || !stageReason.trim()) {
-      toast.error('يرجى إدخال سبب الاعتماد');
-      return;
-    }
+    if (!selectedDeal) return;
 
-    setApproving(true);
     try {
+      // Get current staff info
+      const { data: { user } } = await supabase.auth.getUser();
+      let staffName = 'مستخدم';
+      let staffId = null;
+      
+      if (user) {
+        const { data: staff } = await supabase
+          .from('staff_members')
+          .select('id, full_name')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (staff) {
+          staffName = staff.full_name;
+          staffId = staff.id;
+        }
+      }
+
       // Update deal to approved
       const { error: dealError } = await supabase
         .from('crm_opportunities')
@@ -197,7 +184,7 @@ export default function DealsPage() {
           status: 'won',
           probability: 100,
           stage_changed_at: new Date().toISOString(),
-          stage_change_reason: stageReason,
+          stage_change_reason: 'تم اعتماد الفرصة',
           actual_close_date: new Date().toISOString().split('T')[0],
           updated_at: new Date().toISOString(),
         })
@@ -205,38 +192,61 @@ export default function DealsPage() {
 
       if (dealError) throw dealError;
 
-      // Create new client organization from deal
-      const { data: newOrg, error: orgError } = await supabase
-        .from('client_organizations')
-        .insert({
-          name: selectedDeal.name.replace('فرصة - ', ''),
-          contact_email: 'pending@update.com', // Will be updated
-          customer_type: selectedDeal.opportunity_type === 'custom_platform' ? 'custom_project' : 'subscription',
-          subscription_status: 'active',
-          lifecycle_stage: 'new',
-          total_contract_value: selectedDeal.expected_value,
-        } as any) // Type assertion for flexibility
-        .select()
-        .single();
+      // Create new client organization from deal if not exists
+      let newOrgId = selectedDeal.account_id;
+      
+      if (!newOrgId) {
+        const { data: newOrg, error: orgError } = await supabase
+          .from('client_organizations')
+          .insert({
+            name: selectedDeal.name.replace('فرصة - ', ''),
+            contact_email: 'pending@update.com',
+            customer_type: selectedDeal.opportunity_type === 'custom_platform' ? 'custom_project' : 'subscription',
+            subscription_status: 'active',
+            lifecycle_stage: 'onboarding',
+            total_contract_value: selectedDeal.expected_value,
+          } as any)
+          .select()
+          .single();
 
-      if (orgError) {
-        console.error('Error creating organization:', orgError);
-        // Don't fail the whole operation if org creation fails
-      } else if (newOrg) {
-        // Link deal to the new organization
+        if (!orgError && newOrg) {
+          newOrgId = newOrg.id;
+          
+          // Link deal to the new organization
+          await supabase
+            .from('crm_opportunities')
+            .update({ account_id: newOrg.id })
+            .eq('id', selectedDeal.id);
+
+          // Add timeline event
+          await supabase.from('client_timeline').insert({
+            organization_id: newOrg.id,
+            event_type: 'account_created',
+            title: 'تم إنشاء ملف العميل',
+            description: `تم إنشاء ملف العميل من الفرصة: ${selectedDeal.name}`,
+          });
+        }
+      } else {
+        // Update existing organization lifecycle
         await supabase
-          .from('crm_opportunities')
-          .update({ account_id: newOrg.id })
-          .eq('id', selectedDeal.id);
-
-        // Add timeline event
-        await supabase.from('client_timeline').insert({
-          organization_id: newOrg.id,
-          event_type: 'account_created',
-          title: 'تم إنشاء ملف العميل',
-          description: `تم إنشاء ملف العميل من الفرصة: ${selectedDeal.name}`,
-        });
+          .from('client_organizations')
+          .update({ 
+            lifecycle_stage: 'onboarding',
+            subscription_status: 'active'
+          })
+          .eq('id', newOrgId);
       }
+
+      // Log activity
+      await supabase.from('crm_opportunity_activities').insert({
+        opportunity_id: selectedDeal.id,
+        activity_type: 'approval',
+        title: 'اعتماد الفرصة',
+        description: 'تم اعتماد الفرصة وإنشاء ملف العميل',
+        metadata: { account_id: newOrgId },
+        performed_by: staffId,
+        performed_by_name: staffName,
+      });
 
       // Log stage transition
       await supabase.from('crm_stage_transitions').insert({
@@ -245,18 +255,20 @@ export default function DealsPage() {
         pipeline_type: 'deals',
         from_stage: selectedDeal.stage,
         to_stage: 'approved',
-        reason: stageReason,
+        reason: 'تم اعتماد الفرصة',
+        performed_by: staffId,
+        performed_by_name: staffName,
       });
 
       toast.success(
         <div className="flex flex-col gap-1">
-          <span>تم اعتماد الفرصة وإنشاء ملف العميل بنجاح</span>
-          {newOrg && (
+          <span>تم اعتماد الفرصة بنجاح</span>
+          {newOrgId && (
             <Button 
               size="sm" 
               variant="link" 
               className="p-0 h-auto text-primary-foreground underline"
-              onClick={() => navigate(`/admin/clients/${newOrg.id}`)}
+              onClick={() => navigate(`/admin/clients/${newOrgId}`)}
             >
               فتح ملف العميل
             </Button>
@@ -264,16 +276,11 @@ export default function DealsPage() {
         </div>
       );
 
-      setShowApprovalModal(false);
-      setSelectedDeal(null);
-      setTargetStage(null);
-      setStageReason('');
+      closeModal();
       fetchDeals();
     } catch (error) {
       console.error('Error approving deal:', error);
       toast.error('حدث خطأ أثناء اعتماد الفرصة');
-    } finally {
-      setApproving(false);
     }
   };
 
@@ -284,14 +291,14 @@ export default function DealsPage() {
   });
 
   const getStageDeals = (stage: DealStage) => {
-    return filteredDeals.filter(deal => deal.stage === stage && deal.status !== 'lost');
+    return filteredDeals.filter(deal => deal.stage === stage);
   };
 
   const getStageTotal = (stage: DealStage) => {
     return getStageDeals(stage).reduce((sum, deal) => sum + (deal.expected_value || 0), 0);
   };
 
-  // Only show active stages in Kanban (not rejected)
+  // Show all stages except rejected in main board
   const activeStages = Object.entries(dealStages).filter(([key]) => key !== 'rejected');
 
   if (loading) {
@@ -308,7 +315,7 @@ export default function DealsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">الفرص</h1>
-          <p className="text-muted-foreground">إدارة فرص البيع ومتابعتها حتى الاعتماد</p>
+          <p className="text-muted-foreground">إدارة فرص البيع بنظام Workflow احترافي</p>
         </div>
         <Button onClick={() => navigate('/admin/crm/leads')}>
           <Plus className="w-4 h-4 ml-2" />
@@ -335,9 +342,8 @@ export default function DealsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">جميع الأنواع</SelectItem>
-                <SelectItem value="new_business">عميل جديد</SelectItem>
-                <SelectItem value="upsell">ترقية</SelectItem>
-                <SelectItem value="renewal">تجديد</SelectItem>
+                <SelectItem value="subscription">اشتراك ويبيان</SelectItem>
+                <SelectItem value="custom_platform">منصة مخصصة</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -379,13 +385,56 @@ export default function DealsPage() {
                 {stageDeals.map((deal) => (
                   <Card
                     key={deal.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => navigate(`/admin/clients/${deal.account?.id}`)}
+                    className="cursor-pointer hover:shadow-md transition-shadow group"
                   >
                     <CardContent className="p-3">
                       <div className="space-y-2">
-                        <div className="font-medium text-sm truncate">
-                          {deal.name}
+                        {/* Header with Actions */}
+                        <div className="flex items-start justify-between">
+                          <div 
+                            className="font-medium text-sm truncate flex-1 cursor-pointer hover:text-primary"
+                            onClick={() => navigate(`/admin/crm/deals/${deal.id}`)}
+                          >
+                            {deal.name}
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem onClick={() => navigate(`/admin/crm/deals/${deal.id}`)}>
+                                <Eye className="w-4 h-4 ml-2" />
+                                عرض التفاصيل
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openModal('note', deal)}>
+                                <MessageSquare className="w-4 h-4 ml-2" />
+                                إضافة ملاحظة
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleStageClick(deal, 'meeting_scheduled' as DealStage)}>
+                                <Calendar className="w-4 h-4 ml-2" />
+                                جدولة اجتماع
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStageClick(deal, 'proposal_sent' as DealStage)}>
+                                <FileText className="w-4 h-4 ml-2" />
+                                إنشاء عرض سعر
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => handleStageClick(deal, 'rejected' as DealStage)}
+                                className="text-red-600"
+                              >
+                                <XCircle className="w-4 h-4 ml-2" />
+                                رفض الفرصة
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                         
                         {deal.account && (
@@ -405,10 +454,9 @@ export default function DealsPage() {
                           </Badge>
                         </div>
 
-                        {deal.expected_close_date && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Calendar className="w-3 h-3" />
-                            {format(new Date(deal.expected_close_date), 'dd MMM', { locale: ar })}
+                        {deal.next_step && (
+                          <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                            الخطوة التالية: {deal.next_step}
                           </div>
                         )}
 
@@ -419,11 +467,16 @@ export default function DealsPage() {
                           })}
                         </div>
 
-                        {/* Stage Actions */}
+                        {/* Quick Stage Actions */}
                         <div className="flex gap-1 pt-2 border-t">
                           {Object.entries(dealStages)
-                            .filter(([key]) => key !== stageKey && key !== 'rejected')
-                            .slice(0, 3)
+                            .filter(([key]) => {
+                              // Show next logical stages
+                              const currentOrder = dealStages[deal.stage as DealStage]?.order || 0;
+                              const targetOrder = dealStages[key as DealStage]?.order || 0;
+                              return key !== deal.stage && key !== 'rejected' && targetOrder > currentOrder && targetOrder <= currentOrder + 2;
+                            })
+                            .slice(0, 2)
                             .map(([key, config]) => (
                               <Button
                                 key={key}
@@ -434,10 +487,25 @@ export default function DealsPage() {
                                   e.stopPropagation();
                                   handleStageClick(deal, key as DealStage);
                                 }}
+                                title={config.label}
                               >
                                 <config.icon className="w-3 h-3" />
                               </Button>
                             ))}
+                          {deal.stage !== 'approved' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="flex-1 text-xs h-7 text-green-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStageClick(deal, 'approved' as DealStage);
+                              }}
+                              title="اعتماد"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -455,128 +523,114 @@ export default function DealsPage() {
         })}
       </div>
 
-      {/* Lost Deals Summary */}
-      {deals.filter(d => d.status === 'lost').length > 0 && (
+      {/* Rejected Deals Summary */}
+      {deals.filter(d => d.stage === 'rejected').length > 0 && (
         <Card className="bg-red-50 border-red-200">
           <CardContent className="py-3">
             <div className="flex items-center gap-2 text-red-700">
+              <XCircle className="w-4 h-4" />
               <span>الفرص المرفوضة:</span>
               <Badge variant="destructive">
-                {deals.filter(d => d.status === 'lost').length}
+                {deals.filter(d => d.stage === 'rejected').length}
               </Badge>
               <span className="text-sm">
-                ({formatCurrency(deals.filter(d => d.status === 'lost').reduce((s, d) => s + d.expected_value, 0))})
+                ({formatCurrency(deals.filter(d => d.stage === 'rejected').reduce((s, d) => s + d.expected_value, 0))})
               </span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Stage Change Modal */}
-      <Dialog open={showStageModal} onOpenChange={setShowStageModal}>
-        <DialogContent className="sm:max-w-[500px]" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ArrowRight className="w-5 h-5" />
-              تغيير مرحلة الفرصة
-            </DialogTitle>
-            <DialogDescription>
-              {selectedDeal?.name}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Modals */}
+      {selectedDeal && (
+        <>
+          <AddNoteModal
+            open={activeModal === 'note'}
+            onOpenChange={(open) => !open && closeModal()}
+            dealId={selectedDeal.id}
+            dealName={selectedDeal.name}
+            onSuccess={fetchDeals}
+          />
 
-          <div className="space-y-4 py-4">
-            {/* Stage Transition Visual */}
-            <div className="flex items-center justify-center gap-4 p-4 bg-muted/50 rounded-lg">
-              <div className={`px-3 py-2 rounded-md ${dealStages[selectedDeal?.stage as DealStage]?.bgColor || 'bg-gray-100'}`}>
-                <span className={`text-sm font-medium ${dealStages[selectedDeal?.stage as DealStage]?.color || ''}`}>
-                  {dealStages[selectedDeal?.stage as DealStage]?.label || selectedDeal?.stage}
-                </span>
-              </div>
-              <ArrowRight className="w-5 h-5 text-muted-foreground" />
-              <div className={`px-3 py-2 rounded-md ${targetStage ? dealStages[targetStage]?.bgColor : 'bg-gray-100'}`}>
-                <span className={`text-sm font-medium ${targetStage ? dealStages[targetStage]?.color : ''}`}>
-                  {targetStage ? dealStages[targetStage]?.label : ''}
-                </span>
-              </div>
+          <ScheduleMeetingModal
+            open={activeModal === 'schedule_meeting'}
+            onOpenChange={(open) => !open && closeModal()}
+            dealId={selectedDeal.id}
+            dealName={selectedDeal.name}
+            currentStage={selectedDeal.stage}
+            onSuccess={fetchDeals}
+          />
+
+          <MeetingReportModal
+            open={activeModal === 'meeting_report'}
+            onOpenChange={(open) => !open && closeModal()}
+            dealId={selectedDeal.id}
+            dealName={selectedDeal.name}
+            currentStage={selectedDeal.stage}
+            onSuccess={fetchDeals}
+          />
+
+          <CreateQuoteModal
+            open={activeModal === 'create_quote'}
+            onOpenChange={(open) => !open && closeModal()}
+            dealId={selectedDeal.id}
+            dealName={selectedDeal.name}
+            accountId={selectedDeal.account_id}
+            currentStage={selectedDeal.stage}
+            currentValue={selectedDeal.expected_value}
+            onSuccess={fetchDeals}
+          />
+
+          <RejectionModal
+            open={activeModal === 'rejection'}
+            onOpenChange={(open) => !open && closeModal()}
+            dealId={selectedDeal.id}
+            dealName={selectedDeal.name}
+            dealValue={selectedDeal.expected_value}
+            currentStage={selectedDeal.stage}
+            onSuccess={fetchDeals}
+          />
+
+          {targetStage && activeModal === 'stage_note' && (
+            <StageNoteModal
+              open={true}
+              onOpenChange={(open) => !open && closeModal()}
+              dealId={selectedDeal.id}
+              dealName={selectedDeal.name}
+              currentStage={selectedDeal.stage}
+              targetStage={targetStage}
+              onSuccess={fetchDeals}
+            />
+          )}
+
+          {/* Approval Confirmation */}
+          {activeModal === 'approval' && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <Card className="w-full max-w-md mx-4">
+                <CardContent className="pt-6">
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
+                      <CheckCircle2 className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold">اعتماد الفرصة</h3>
+                    <p className="text-muted-foreground">
+                      سيتم اعتماد "{selectedDeal.name}" وإنشاء ملف عميل رسمي
+                    </p>
+                    <div className="flex gap-2 justify-center pt-4">
+                      <Button variant="outline" onClick={closeModal}>
+                        إلغاء
+                      </Button>
+                      <Button onClick={handleApproval} className="bg-green-600 hover:bg-green-700">
+                        تأكيد الاعتماد
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reason">سبب التغيير *</Label>
-              <Textarea
-                id="reason"
-                value={stageReason}
-                onChange={(e) => setStageReason(e.target.value)}
-                placeholder="اكتب سبب نقل الفرصة إلى هذه المرحلة..."
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowStageModal(false)} disabled={changingStage}>
-              إلغاء
-            </Button>
-            <Button onClick={handleStageChange} disabled={changingStage || !stageReason.trim()}>
-              {changingStage ? 'جاري الحفظ...' : 'تأكيد التغيير'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Approval Modal */}
-      <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
-        <DialogContent className="sm:max-w-[500px]" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="w-5 h-5" />
-              اعتماد الفرصة وإنشاء ملف العميل
-            </DialogTitle>
-            <DialogDescription>
-              سيتم اعتماد "{selectedDeal?.name}" وإنشاء ملف عميل رسمي جديد
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
-                <Target className="w-4 h-4" />
-                ما سيحدث عند الاعتماد:
-              </div>
-              <ul className="text-sm text-green-600 space-y-1 mr-6 list-disc">
-                <li>تحديث حالة الفرصة إلى "معتمد"</li>
-                <li>إنشاء ملف عميل رسمي جديد</li>
-                <li>ربط الفرصة بملف العميل</li>
-                <li>تسجيل الحدث في سجل النشاط</li>
-              </ul>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="approval_reason">سبب الاعتماد *</Label>
-              <Textarea
-                id="approval_reason"
-                value={stageReason}
-                onChange={(e) => setStageReason(e.target.value)}
-                placeholder="مثال: العميل وافق على العرض ووقع العقد"
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowApprovalModal(false)} disabled={approving}>
-              إلغاء
-            </Button>
-            <Button 
-              onClick={handleApproval} 
-              disabled={approving || !stageReason.trim()}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {approving ? 'جاري الاعتماد...' : 'اعتماد وإنشاء العميل'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          )}
+        </>
+      )}
     </div>
   );
 }

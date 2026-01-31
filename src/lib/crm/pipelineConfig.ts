@@ -57,10 +57,11 @@ export const leadStatuses: Record<LeadStatus, {
 };
 
 // =====================================================
-// Deal/Opportunity Stages (Simplified - 6 stages)
+// Deal/Opportunity Stages (7 stages with Workflow)
 // =====================================================
 export type DealStage = 
   | 'new_opportunity' 
+  | 'meeting_scheduled'  // جديد: اجتماع مجدول
   | 'meeting_done' 
   | 'proposal_sent' 
   | 'pending_approval' 
@@ -75,6 +76,7 @@ export const dealStages: Record<DealStage, {
   icon: any;
   order: number;
   probability: number;
+  requiredAction?: string;
 }> = {
   new_opportunity: {
     label: 'فرصة جديدة',
@@ -85,14 +87,25 @@ export const dealStages: Record<DealStage, {
     order: 1,
     probability: 10,
   },
+  meeting_scheduled: {
+    label: 'اجتماع مجدول',
+    labelEn: 'Meeting Scheduled',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-100',
+    icon: Calendar,
+    order: 2,
+    probability: 20,
+    requiredAction: 'schedule_meeting',
+  },
   meeting_done: {
     label: 'اجتماع تم',
     labelEn: 'Meeting Done',
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-100',
     icon: Calendar,
-    order: 2,
-    probability: 30,
+    order: 3,
+    probability: 40,
+    requiredAction: 'meeting_report',
   },
   proposal_sent: {
     label: 'عرض مرسل',
@@ -100,8 +113,9 @@ export const dealStages: Record<DealStage, {
     color: 'text-purple-600',
     bgColor: 'bg-purple-100',
     icon: FileText,
-    order: 3,
-    probability: 50,
+    order: 4,
+    probability: 60,
+    requiredAction: 'create_quote',
   },
   pending_approval: {
     label: 'بانتظار الاعتماد',
@@ -109,8 +123,9 @@ export const dealStages: Record<DealStage, {
     color: 'text-orange-600',
     bgColor: 'bg-orange-100',
     icon: Handshake,
-    order: 4,
-    probability: 75,
+    order: 5,
+    probability: 80,
+    requiredAction: 'stage_note',
   },
   approved: {
     label: 'معتمد',
@@ -118,8 +133,9 @@ export const dealStages: Record<DealStage, {
     color: 'text-green-600',
     bgColor: 'bg-green-100',
     icon: CheckCircle2,
-    order: 5,
+    order: 6,
     probability: 100,
+    requiredAction: 'approval',
   },
   rejected: {
     label: 'مرفوض',
@@ -127,10 +143,63 @@ export const dealStages: Record<DealStage, {
     color: 'text-red-600',
     bgColor: 'bg-red-100',
     icon: XCircle,
-    order: 6,
+    order: 7,
     probability: 0,
+    requiredAction: 'rejection',
   },
 };
+
+// =====================================================
+// Rejection Reasons
+// =====================================================
+export const rejectionReasons = [
+  { value: 'price_high', label: 'السعر مرتفع' },
+  { value: 'no_response', label: 'لا يوجد رد من العميل' },
+  { value: 'postponed', label: 'تأجيل المشروع' },
+  { value: 'competitor', label: 'اختار مزود آخر' },
+  { value: 'requirements_mismatch', label: 'عدم توافق المتطلبات' },
+  { value: 'budget_issues', label: 'مشاكل في الميزانية' },
+  { value: 'timing', label: 'التوقيت غير مناسب' },
+  { value: 'other', label: 'سبب آخر' },
+];
+
+// =====================================================
+// Meeting Types
+// =====================================================
+export const meetingTypes = [
+  { value: 'in_person', label: 'حضوري' },
+  { value: 'remote', label: 'عن بُعد' },
+  { value: 'phone', label: 'مكالمة هاتفية' },
+];
+
+// =====================================================
+// Meeting Durations
+// =====================================================
+export const meetingDurations = [
+  { value: 30, label: '30 دقيقة' },
+  { value: 60, label: 'ساعة' },
+  { value: 90, label: 'ساعة ونصف' },
+  { value: 120, label: 'ساعتان' },
+];
+
+// =====================================================
+// Meeting Results
+// =====================================================
+export const meetingResults = [
+  { value: 'positive', label: 'إيجابي - العميل مهتم', color: 'text-green-600' },
+  { value: 'neutral', label: 'محايد - يحتاج متابعة', color: 'text-yellow-600' },
+  { value: 'negative', label: 'سلبي - غير مهتم', color: 'text-red-600' },
+];
+
+// =====================================================
+// Quote Validity
+// =====================================================
+export const quoteValidityOptions = [
+  { value: 15, label: '15 يوم' },
+  { value: 30, label: '30 يوم' },
+  { value: 45, label: '45 يوم' },
+  { value: 60, label: '60 يوم' },
+];
 
 // Legacy support - map old types to new ones
 export type LeadStage = LeadStatus;

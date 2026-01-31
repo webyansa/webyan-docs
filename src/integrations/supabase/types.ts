@@ -1058,6 +1058,57 @@ export type Database = {
           },
         ]
       }
+      crm_opportunity_activities: {
+        Row: {
+          activity_type: string
+          created_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          opportunity_id: string
+          performed_by: string | null
+          performed_by_name: string | null
+          title: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          opportunity_id: string
+          performed_by?: string | null
+          performed_by_name?: string | null
+          title: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          opportunity_id?: string
+          performed_by?: string | null
+          performed_by_name?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_opportunity_activities_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_opportunity_activities_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_quotes: {
         Row: {
           accepted_at: string | null
@@ -1068,6 +1119,7 @@ export type Database = {
           currency: string | null
           discount_type: string | null
           discount_value: number | null
+          document_url: string | null
           id: string
           items: Json | null
           notes: string | null
@@ -1097,6 +1149,7 @@ export type Database = {
           currency?: string | null
           discount_type?: string | null
           discount_value?: number | null
+          document_url?: string | null
           id?: string
           items?: Json | null
           notes?: string | null
@@ -1126,6 +1179,7 @@ export type Database = {
           currency?: string | null
           discount_type?: string | null
           discount_value?: number | null
+          document_url?: string | null
           id?: string
           items?: Json | null
           notes?: string | null
