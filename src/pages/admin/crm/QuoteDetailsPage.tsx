@@ -118,9 +118,12 @@ const DEFAULT_COMPANY_INFO = {
   taxNumber: '300000000000003',
   crNumber: '1010000000',
   website: 'https://raneen.sa',
-  logoUrl: '',
-  webyanLogoUrl: '',
+  logoUrl: '/logos/raneen-logo.png',
+  webyanLogoUrl: '/logos/webyan-logo.svg',
   stampUrl: '',
+  signatureUrl: '',
+  showStamp: true,
+  showSignature: true,
 };
 
 export default function QuoteDetailsPage() {
@@ -174,9 +177,12 @@ export default function QuoteDetailsPage() {
     taxNumber: companySettings?.quote_company_tax_number || DEFAULT_COMPANY_INFO.taxNumber,
     crNumber: companySettings?.quote_company_cr_number || DEFAULT_COMPANY_INFO.crNumber,
     website: companySettings?.quote_company_website || DEFAULT_COMPANY_INFO.website,
-    logoUrl: companySettings?.quote_company_logo_url || '/raneen-logo.png',
-    webyanLogoUrl: companySettings?.quote_webyan_logo_url || '/webyan-logo-02.svg',
+    logoUrl: companySettings?.quote_company_logo_url || '/logos/raneen-logo.png',
+    webyanLogoUrl: companySettings?.quote_webyan_logo_url || '/logos/webyan-logo.svg',
     stampUrl: companySettings?.quote_company_stamp_url || '',
+    signatureUrl: companySettings?.quote_company_signature_url || '',
+    showStamp: companySettings?.quote_show_stamp !== 'false',
+    showSignature: companySettings?.quote_show_signature !== 'false',
   };
 
   const { data: quote, isLoading, error } = useQuery({
@@ -569,26 +575,49 @@ export default function QuoteDetailsPage() {
 
       {/* Main Quote Document */}
       <div ref={printRef} className="bg-card border rounded-xl shadow-sm overflow-hidden print:shadow-none print:border-0">
-        {/* Document Header */}
-        <div className="bg-gradient-to-l from-primary/10 via-primary/5 to-transparent p-6 border-b">
-          <div className="flex justify-between items-start">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <FileText className="h-6 w-6 text-primary" />
-                <h1 className="text-2xl font-bold text-primary">عرض سعر</h1>
-              </div>
-              <p className="text-lg font-semibold text-foreground">{quote.title}</p>
+        {/* Document Header with Dual Logos */}
+        <div className="bg-slate-800 p-6 border-b">
+          <div className="flex justify-between items-center">
+            {/* Logos Section */}
+            <div className="flex items-center gap-4">
+              {COMPANY_INFO.logoUrl && (
+                <img 
+                  src={COMPANY_INFO.logoUrl} 
+                  alt="Company Logo" 
+                  className="h-12 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
+              <div className="h-10 w-px bg-slate-600" />
+              {COMPANY_INFO.webyanLogoUrl && (
+                <img 
+                  src={COMPANY_INFO.webyanLogoUrl} 
+                  alt="Webyan Logo" 
+                  className="h-8 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
             </div>
+            {/* Quote Number & Status */}
             <div className="text-left space-y-1">
-              <div className="flex items-center gap-2 text-primary">
-                <Hash className="h-4 w-4" />
-                <span className="text-xl font-bold font-mono">{quote.quote_number}</span>
-              </div>
-              <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border-0`}>
-                {statusInfo.label}
-              </Badge>
+              <p className="text-xs text-cyan-400 uppercase tracking-wider">QUOTATION</p>
+              <span className="text-xl font-bold font-mono text-white">{quote.quote_number}</span>
             </div>
           </div>
+        </div>
+
+        {/* Title Section */}
+        <div className="p-6 text-center border-b bg-muted/30">
+          <h1 className="text-2xl font-bold text-primary mb-1">عرض سعر</h1>
+          <p className="text-sm text-muted-foreground uppercase tracking-widest">Price Quotation</p>
+          <p className="text-lg font-semibold text-foreground mt-2">{quote.title}</p>
+          <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border-0 mt-2`}>
+            {statusInfo.label}
+          </Badge>
         </div>
 
         {/* Company & Client Info */}
