@@ -5,14 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   FolderKanban, Clock, CheckCircle2, AlertTriangle, 
-  PauseCircle, ArrowLeft, Users, TrendingUp
+  PauseCircle, ArrowLeft, Users, TrendingUp, BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { projectStatuses, projectPhases } from '@/lib/operations/projectConfig';
 import { format, differenceInDays, isPast } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { ProjectAnalyticsCards } from '@/components/operations/ProjectAnalyticsCards';
 
 export default function OperationsDashboardPage() {
   // Fetch projects with phases and team
@@ -139,168 +141,190 @@ export default function OperationsDashboardPage() {
         </Link>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="مشاريع جارية"
-          value={activeProjects.length}
-          icon={TrendingUp}
-          color="text-green-600"
-          bgColor="bg-green-100"
-        />
-        <StatCard
-          title="مشاريع متأخرة"
-          value={delayedProjects.length}
-          icon={AlertTriangle}
-          color="text-red-600"
-          bgColor="bg-red-100"
-        />
-        <StatCard
-          title="مشاريع مكتملة"
-          value={completedProjects.length}
-          icon={CheckCircle2}
-          color="text-blue-600"
-          bgColor="bg-blue-100"
-        />
-        <StatCard
-          title="مشاريع متوقفة"
-          value={onHoldProjects.length}
-          icon={PauseCircle}
-          color="text-amber-600"
-          bgColor="bg-amber-100"
-        />
-      </div>
+      {/* Tabs */}
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview" className="gap-2">
+            <FolderKanban className="h-4 w-4" />
+            نظرة عامة
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            الإحصائيات
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Staff Workload */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              توزيع المشاريع على الموظفين
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {staffWorkload.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                لا توجد مشاريع نشطة موزعة حالياً
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {staffWorkload.slice(0, 5).map((staff: any) => (
-                  <div key={staff.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{staff.name}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {staff.activeProjects} مشاريع
-                      </span>
-                    </div>
-                    <Progress 
-                      value={Math.min(staff.activeProjects * 20, 100)} 
-                      className="h-2"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Phase Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FolderKanban className="h-5 w-5" />
-              المشاريع حسب المرحلة
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {phaseDistribution.map(({ phase, count }) => {
-                const phaseConfig = projectPhases[phase as keyof typeof projectPhases];
-                if (!phaseConfig) return null;
-                const PhaseIcon = phaseConfig.icon;
-                
-                return (
-                  <div key={phase} className="flex items-center gap-3">
-                    <div className={cn("p-2 rounded", phaseConfig.bgColor)}>
-                      <PhaseIcon className={cn("h-4 w-4", phaseConfig.color)} />
-                    </div>
-                    <span className="flex-1">{phaseConfig.label}</span>
-                    <Badge variant="outline">{count}</Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Projects */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>أحدث المشاريع</span>
-            <Link to="/admin/projects">
-              <Button variant="ghost" size="sm">
-                عرض الكل
-                <ArrowLeft className="h-4 w-4 mr-1" />
-              </Button>
-            </Link>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {activeProjects.slice(0, 5).map((project: any) => {
-              const completedPhases = project.project_phases?.filter(
-                (p: any) => p.status === 'completed'
-              ).length || 0;
-              const totalPhases = project.project_phases?.length || 6;
-              const progress = Math.round((completedPhases / totalPhases) * 100);
-              const statusConfig = projectStatuses[project.status as keyof typeof projectStatuses];
-
-              return (
-                <Link 
-                  key={project.id}
-                  to={`/admin/projects/${project.id}`}
-                  className="block"
-                >
-                  <div className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium truncate">{project.project_name}</span>
-                        <Badge 
-                          variant="outline" 
-                          className={cn("text-xs", statusConfig?.color)}
-                        >
-                          {statusConfig?.label}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {project.account?.name}
-                      </p>
-                    </div>
-                    <div className="w-32">
-                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                        <span>التقدم</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <Progress value={progress} className="h-2" />
-                    </div>
-                    <ArrowLeft className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </Link>
-              );
-            })}
-
-            {activeProjects.length === 0 && (
-              <p className="text-muted-foreground text-center py-8">
-                لا توجد مشاريع جارية حالياً
-              </p>
-            )}
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="مشاريع جارية"
+              value={activeProjects.length}
+              icon={TrendingUp}
+              color="text-green-600"
+              bgColor="bg-green-100"
+            />
+            <StatCard
+              title="مشاريع متأخرة"
+              value={delayedProjects.length}
+              icon={AlertTriangle}
+              color="text-red-600"
+              bgColor="bg-red-100"
+            />
+            <StatCard
+              title="مشاريع مكتملة"
+              value={completedProjects.length}
+              icon={CheckCircle2}
+              color="text-blue-600"
+              bgColor="bg-blue-100"
+            />
+            <StatCard
+              title="مشاريع متوقفة"
+              value={onHoldProjects.length}
+              icon={PauseCircle}
+              color="text-amber-600"
+              bgColor="bg-amber-100"
+            />
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Staff Workload */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  توزيع المشاريع على الموظفين
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {staffWorkload.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    لا توجد مشاريع نشطة موزعة حالياً
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {staffWorkload.slice(0, 5).map((staff: any) => (
+                      <div key={staff.id} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{staff.name}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {staff.activeProjects} مشاريع
+                          </span>
+                        </div>
+                        <Progress 
+                          value={Math.min(staff.activeProjects * 20, 100)} 
+                          className="h-2"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Phase Distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FolderKanban className="h-5 w-5" />
+                  المشاريع حسب المرحلة
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {phaseDistribution.map(({ phase, count }) => {
+                    const phaseConfig = projectPhases[phase as keyof typeof projectPhases];
+                    if (!phaseConfig) return null;
+                    const PhaseIcon = phaseConfig.icon;
+                    
+                    return (
+                      <div key={phase} className="flex items-center gap-3">
+                        <div className={cn("p-2 rounded", phaseConfig.bgColor)}>
+                          <PhaseIcon className={cn("h-4 w-4", phaseConfig.color)} />
+                        </div>
+                        <span className="flex-1">{phaseConfig.label}</span>
+                        <Badge variant="outline">{count}</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Projects */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>أحدث المشاريع</span>
+                <Link to="/admin/projects">
+                  <Button variant="ghost" size="sm">
+                    عرض الكل
+                    <ArrowLeft className="h-4 w-4 mr-1" />
+                  </Button>
+                </Link>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {activeProjects.slice(0, 5).map((project: any) => {
+                  const completedPhases = project.project_phases?.filter(
+                    (p: any) => p.status === 'completed'
+                  ).length || 0;
+                  const totalPhases = project.project_phases?.length || 6;
+                  const progress = totalPhases > 0 ? Math.round((completedPhases / totalPhases) * 100) : 0;
+                  const statusConfig = projectStatuses[project.status as keyof typeof projectStatuses];
+
+                  return (
+                    <Link 
+                      key={project.id}
+                      to={`/admin/projects/${project.id}`}
+                      className="block"
+                    >
+                      <div className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium truncate">{project.project_name}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn("text-xs", statusConfig?.color)}
+                            >
+                              {statusConfig?.label}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {project.account?.name}
+                          </p>
+                        </div>
+                        <div className="w-32">
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>التقدم</span>
+                            <span>{progress}%</span>
+                          </div>
+                          <Progress value={progress} className="h-2" />
+                        </div>
+                        <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </Link>
+                  );
+                })}
+
+                {activeProjects.length === 0 && (
+                  <p className="text-muted-foreground text-center py-8">
+                    لا توجد مشاريع جارية حالياً
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics">
+          <ProjectAnalyticsCards />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -36,6 +36,7 @@ import {
 } from '@/lib/operations/projectConfig';
 import { PhaseProgressCard } from '@/components/operations/PhaseProgressCard';
 import { TeamAssignmentModal } from '@/components/operations/TeamAssignmentModal';
+import { PhaseAssignmentModal } from '@/components/operations/PhaseAssignmentModal';
 import { useAuth } from '@/hooks/useAuth';
 import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
 import { getPhaseConfig } from '@/lib/operations/phaseUtils';
@@ -46,6 +47,7 @@ export default function ProjectDetailsPage() {
   const { user } = useAuth();
   const location = useLocation();
   const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [phaseAssignmentOpen, setPhaseAssignmentOpen] = useState(false);
 
   const {
     data: project,
@@ -68,13 +70,16 @@ export default function ProjectDetailsPage() {
     },
   });
 
-  // Fetch project phases
+  // Fetch project phases with assigned staff
   const { data: phases = [] } = useQuery({
     queryKey: ['project-phases', id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_phases')
-        .select('*')
+        .select(`
+          *,
+          assigned_staff:staff_members!project_phases_assigned_to_fkey(id, full_name)
+        `)
         .eq('project_id', id)
         .order('phase_order');
 
@@ -412,7 +417,18 @@ export default function ProjectDetailsPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Phases Progress */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">مراحل المشروع</h3>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setPhaseAssignmentOpen(true)}
+            >
+              <Users className="h-4 w-4 ml-2" />
+              توزيع المراحل
+            </Button>
+          </div>
           <PhaseProgressCard
             phases={phases as any}
             projectId={id!}
@@ -470,6 +486,16 @@ export default function ProjectDetailsPage() {
           project_manager_id: project.project_manager_id,
         }}
         assignedById={currentStaff?.id}
+      />
+
+      {/* Phase Assignment Modal */}
+      <PhaseAssignmentModal
+        open={phaseAssignmentOpen}
+        onOpenChange={setPhaseAssignmentOpen}
+        projectId={id!}
+        phases={phases}
+        implementerId={project.implementer_id}
+        csmId={project.csm_id}
       />
     </div>
   );

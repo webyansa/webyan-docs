@@ -36,6 +36,7 @@ import {
 } from '@/lib/operations/projectConfig';
 import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
 import { getPhaseConfig } from '@/lib/operations/phaseUtils';
+import { StaffPhaseCard } from '@/components/operations/StaffPhaseCard';
 
 export default function StaffProjectDetails() {
   const { id } = useParams<{ id: string }>();
@@ -112,13 +113,16 @@ export default function StaffProjectDetails() {
     });
   }, [project?.id, deliveryEditMode]);
 
-  // Fetch project phases
+  // Fetch project phases with assigned staff info
   const { data: phases = [] } = useQuery({
     queryKey: ['staff-project-phases', id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_phases')
-        .select('*')
+        .select(`
+          *,
+          assigned_staff:staff_members!project_phases_assigned_to_fkey(id, full_name)
+        `)
         .eq('project_id', id)
         .order('phase_order');
 
@@ -602,116 +606,12 @@ export default function StaffProjectDetails() {
 
         {/* Phases Tab */}
         <TabsContent value="phases" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">مراحل التنفيذ</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {phases.map((phase: any, index: number) => {
-                  const phaseConfig = getPhaseConfig(phase.phase_type);
-                  const statusConf = phaseStatuses[phase.status as PhaseStatus];
-                  const PhaseIcon = phaseConfig?.icon || CheckCircle2;
-                  const canComplete = canCompletePhase(phase);
-                  const canStart = canStartPhase(phase);
-
-                  return (
-                    <div key={phase.id} className="relative">
-                      {/* Connection line */}
-                      {index < phases.length - 1 && (
-                        <div className={cn(
-                          "absolute right-5 top-12 w-0.5 h-8",
-                          phase.status === 'completed' ? "bg-green-500" : "bg-gray-200"
-                        )} />
-                      )}
-                      
-                      <div className={cn(
-                        "flex items-start gap-4 p-4 rounded-lg border transition-colors",
-                        phase.status === 'completed' && "bg-green-50/50 border-green-200",
-                        phase.status === 'in_progress' && "bg-blue-50/50 border-blue-200",
-                        phase.status === 'pending' && "bg-gray-50/50"
-                      )}>
-                        <div className={cn(
-                          "p-2 rounded-lg shrink-0",
-                          phase.status === 'completed' ? "bg-green-100" : 
-                          phase.status === 'in_progress' ? "bg-blue-100" : "bg-gray-100"
-                        )}>
-                          <PhaseIcon className={cn(
-                            "h-5 w-5",
-                            phase.status === 'completed' ? "text-green-600" :
-                            phase.status === 'in_progress' ? "text-blue-600" : "text-gray-400"
-                          )} />
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{phaseConfig?.label}</h4>
-                            <Badge variant="outline" className={cn("text-xs", statusConf?.color)}>
-                              {statusConf?.label}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {phaseConfig?.description}
-                          </p>
-
-                          {phase.completed_at && (
-                            <div className="text-xs text-muted-foreground mb-2">
-                              <span>أُنجز بواسطة: </span>
-                              <span className="font-medium">{phase.completed_by_name || 'غير محدد'}</span>
-                              <span className="mx-1">•</span>
-                              <span>{safeFormatDate(phase.completed_at, 'PPp')}</span>
-                            </div>
-                          )}
-
-                          {phase.completion_notes && (
-                            <div className="text-sm bg-white p-2 rounded border mt-2">
-                              <span className="text-muted-foreground">ملاحظة: </span>
-                              {phase.completion_notes}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="shrink-0">
-                          {canStart && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => startPhase.mutate(phase.id)}
-                              disabled={startPhase.isPending}
-                            >
-                              {startPhase.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <Play className="h-4 w-4 ml-1" />
-                                  بدء
-                                </>
-                              )}
-                            </Button>
-                          )}
-                          {canComplete && (
-                            <Button 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedPhase(phase);
-                                setCompletePhaseDialogOpen(true);
-                              }}
-                            >
-                              <CheckCircle2 className="h-4 w-4 ml-1" />
-                              إتمام
-                            </Button>
-                          )}
-                          {phase.status === 'completed' && (
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+          <StaffPhaseCard
+            phases={phases}
+            projectId={id!}
+            currentStaffId={staffId || ''}
+            currentStaffName={currentStaff?.full_name}
+          />
         </TabsContent>
 
         {/* Delivery Tab */}
