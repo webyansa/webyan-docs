@@ -799,17 +799,27 @@ export type Database = {
           account_id: string
           actual_end_date: string | null
           actual_start_date: string | null
+          admin_password_encrypted: string | null
+          admin_url: string | null
+          admin_username: string | null
           client_contact_id: string | null
           contract_doc_id: string | null
           contract_id: string | null
           created_at: string | null
           csm_id: string | null
           current_phase_id: string | null
+          delivery_completed_at: string | null
+          delivery_completed_by: string | null
+          delivery_notes: string | null
           description: string | null
           expected_delivery_date: string | null
           go_live_date: string | null
           handover_date: string | null
           handover_notes: string | null
+          hold_reason: string | null
+          hold_started_at: string | null
+          hosting_notes: string | null
+          hosting_provider: string | null
           id: string
           implementer_id: string | null
           internal_notes: string | null
@@ -825,6 +835,11 @@ export type Database = {
           project_type: string | null
           quote_id: string | null
           received_date: string | null
+          server_ip: string | null
+          server_password_encrypted: string | null
+          server_url: string | null
+          server_username: string | null
+          site_url: string | null
           stage: string | null
           stage_change_reason: string | null
           stage_changed_at: string | null
@@ -835,17 +850,27 @@ export type Database = {
           account_id: string
           actual_end_date?: string | null
           actual_start_date?: string | null
+          admin_password_encrypted?: string | null
+          admin_url?: string | null
+          admin_username?: string | null
           client_contact_id?: string | null
           contract_doc_id?: string | null
           contract_id?: string | null
           created_at?: string | null
           csm_id?: string | null
           current_phase_id?: string | null
+          delivery_completed_at?: string | null
+          delivery_completed_by?: string | null
+          delivery_notes?: string | null
           description?: string | null
           expected_delivery_date?: string | null
           go_live_date?: string | null
           handover_date?: string | null
           handover_notes?: string | null
+          hold_reason?: string | null
+          hold_started_at?: string | null
+          hosting_notes?: string | null
+          hosting_provider?: string | null
           id?: string
           implementer_id?: string | null
           internal_notes?: string | null
@@ -861,6 +886,11 @@ export type Database = {
           project_type?: string | null
           quote_id?: string | null
           received_date?: string | null
+          server_ip?: string | null
+          server_password_encrypted?: string | null
+          server_url?: string | null
+          server_username?: string | null
+          site_url?: string | null
           stage?: string | null
           stage_change_reason?: string | null
           stage_changed_at?: string | null
@@ -871,17 +901,27 @@ export type Database = {
           account_id?: string
           actual_end_date?: string | null
           actual_start_date?: string | null
+          admin_password_encrypted?: string | null
+          admin_url?: string | null
+          admin_username?: string | null
           client_contact_id?: string | null
           contract_doc_id?: string | null
           contract_id?: string | null
           created_at?: string | null
           csm_id?: string | null
           current_phase_id?: string | null
+          delivery_completed_at?: string | null
+          delivery_completed_by?: string | null
+          delivery_notes?: string | null
           description?: string | null
           expected_delivery_date?: string | null
           go_live_date?: string | null
           handover_date?: string | null
           handover_notes?: string | null
+          hold_reason?: string | null
+          hold_started_at?: string | null
+          hosting_notes?: string | null
+          hosting_provider?: string | null
           id?: string
           implementer_id?: string | null
           internal_notes?: string | null
@@ -897,6 +937,11 @@ export type Database = {
           project_type?: string | null
           quote_id?: string | null
           received_date?: string | null
+          server_ip?: string | null
+          server_password_encrypted?: string | null
+          server_url?: string | null
+          server_username?: string | null
+          site_url?: string | null
           stage?: string | null
           stage_change_reason?: string | null
           stage_changed_at?: string | null
@@ -935,6 +980,13 @@ export type Database = {
           {
             foreignKeyName: "crm_implementations_csm_id_fkey"
             columns: ["csm_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_implementations_delivery_completed_by_fkey"
+            columns: ["delivery_completed_by"]
             isOneToOne: false
             referencedRelation: "staff_members"
             referencedColumns: ["id"]
@@ -2406,10 +2458,63 @@ export type Database = {
         }
         Relationships: []
       }
+      project_activity_log: {
+        Row: {
+          activity_type: string
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          performed_by: string | null
+          performed_by_name: string | null
+          project_id: string
+          title: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          performed_by?: string | null
+          performed_by_name?: string | null
+          project_id: string
+          title: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          performed_by?: string | null
+          performed_by_name?: string | null
+          project_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_activity_log_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_activity_log_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_phases: {
         Row: {
           completed_at: string | null
           completed_by: string | null
+          completed_by_name: string | null
+          completion_notes: string | null
           created_at: string | null
           id: string
           notes: string | null
@@ -2422,6 +2527,8 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           completed_by?: string | null
+          completed_by_name?: string | null
+          completion_notes?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
@@ -2434,6 +2541,8 @@ export type Database = {
         Update: {
           completed_at?: string | null
           completed_by?: string | null
+          completed_by_name?: string | null
+          completion_notes?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
