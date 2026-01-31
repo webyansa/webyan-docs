@@ -7,21 +7,24 @@ import {
   Font,
 } from '@react-pdf/renderer';
 
-// Register Arabic font using TTF format (required by @react-pdf/renderer)
-// Using Cairo font from Google Fonts CDN - reliable and supports Arabic
-Font.register({
-  family: 'Cairo',
-  fonts: [
-    { 
-      src: 'https://fonts.gstatic.com/s/cairo/v28/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.ttf',
-      fontWeight: 'normal' 
-    },
-    { 
-      src: 'https://fonts.gstatic.com/s/cairo/v28/SLXVc1nY6HkvangtZmpQdkhzfH5lW88cQyyS4J0.ttf',
-      fontWeight: 'bold' 
-    },
-  ],
-});
+import AmiriRegular from '@/assets/fonts/Amiri-Regular.ttf';
+import AmiriBold from '@/assets/fonts/Amiri-Bold.ttf';
+
+// Register Arabic font from local TTF files (most reliable for @react-pdf/renderer)
+// This avoids CDN/CORS/font-format issues that can break PDF preview/download.
+try {
+  Font.register({
+    family: 'Amiri',
+    fonts: [
+      { src: AmiriRegular, fontWeight: 'normal' },
+      { src: AmiriBold, fontWeight: 'bold' },
+    ],
+  });
+} catch (e) {
+  // In case of hot-reload duplicate registration or unexpected runtime issues.
+  // PDF generation will still throw a clearer error in the UI.
+  console.warn('PDF font register failed:', e);
+}
 
 // Disable hyphenation for Arabic text
 Font.registerHyphenationCallback((word) => [word]);
@@ -29,7 +32,7 @@ Font.registerHyphenationCallback((word) => [word]);
 // Styles
 const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Cairo',
+    fontFamily: 'Amiri',
     fontSize: 10,
     padding: 40,
     backgroundColor: '#ffffff',
