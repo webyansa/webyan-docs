@@ -1114,6 +1114,7 @@ export type Database = {
           accepted_at: string | null
           account_id: string
           approved_by: string | null
+          billing_cycle: string | null
           created_at: string | null
           created_by: string | null
           currency: string | null
@@ -1124,7 +1125,9 @@ export type Database = {
           items: Json | null
           notes: string | null
           opportunity_id: string | null
+          plan_id: string | null
           quote_number: string
+          quote_type: string | null
           rejected_at: string | null
           rejection_reason: string | null
           sent_at: string | null
@@ -1144,6 +1147,7 @@ export type Database = {
           accepted_at?: string | null
           account_id: string
           approved_by?: string | null
+          billing_cycle?: string | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
@@ -1154,7 +1158,9 @@ export type Database = {
           items?: Json | null
           notes?: string | null
           opportunity_id?: string | null
+          plan_id?: string | null
           quote_number?: string
+          quote_type?: string | null
           rejected_at?: string | null
           rejection_reason?: string | null
           sent_at?: string | null
@@ -1174,6 +1180,7 @@ export type Database = {
           accepted_at?: string | null
           account_id?: string
           approved_by?: string | null
+          billing_cycle?: string | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
@@ -1184,7 +1191,9 @@ export type Database = {
           items?: Json | null
           notes?: string | null
           opportunity_id?: string | null
+          plan_id?: string | null
           quote_number?: string
+          quote_type?: string | null
           rejected_at?: string | null
           rejection_reason?: string | null
           sent_at?: string | null
@@ -1227,6 +1236,13 @@ export type Database = {
             columns: ["opportunity_id"]
             isOneToOne: false
             referencedRelation: "crm_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_quotes_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -2123,6 +2139,132 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pricing_custom_solutions: {
+        Row: {
+          base_price: number | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price_note: string | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          base_price?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price_note?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          base_price?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price_note?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      pricing_plans: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          monthly_price: number
+          name: string
+          name_en: string | null
+          plan_type: string | null
+          sort_order: number | null
+          updated_at: string | null
+          yearly_discount: number | null
+          yearly_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          monthly_price?: number
+          name: string
+          name_en?: string | null
+          plan_type?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+          yearly_discount?: number | null
+          yearly_price?: number
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          monthly_price?: number
+          name?: string
+          name_en?: string | null
+          plan_type?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+          yearly_discount?: number | null
+          yearly_price?: number
+        }
+        Relationships: []
+      }
+      pricing_services: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number
+          service_type: string | null
+          sort_order: number | null
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price?: number
+          service_type?: string | null
+          sort_order?: number | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          service_type?: string | null
+          sort_order?: number | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

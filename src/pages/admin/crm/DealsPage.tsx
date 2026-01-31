@@ -43,7 +43,7 @@ import { dealStages, DealStage, formatCurrency } from '@/lib/crm/pipelineConfig'
 import AddNoteModal from '@/components/crm/modals/AddNoteModal';
 import ScheduleMeetingModal from '@/components/crm/modals/ScheduleMeetingModal';
 import MeetingReportModal from '@/components/crm/modals/MeetingReportModal';
-import CreateQuoteModal from '@/components/crm/modals/CreateQuoteModal';
+import AdvancedQuoteModal from '@/components/crm/modals/AdvancedQuoteModal';
 import RejectionModal from '@/components/crm/modals/RejectionModal';
 import StageNoteModal from '@/components/crm/modals/StageNoteModal';
 
@@ -570,7 +570,7 @@ export default function DealsPage() {
             onSuccess={fetchDeals}
           />
 
-          <CreateQuoteModal
+          <AdvancedQuoteModal
             open={activeModal === 'create_quote'}
             onOpenChange={(open) => !open && closeModal()}
             dealId={selectedDeal.id}

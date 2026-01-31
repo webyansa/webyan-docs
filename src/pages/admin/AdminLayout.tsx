@@ -127,6 +127,7 @@ const crmSection: NavSection = {
   items: [
     { title: 'العملاء المحتملون', href: '/admin/crm/leads', icon: UserPlus, permission: 'canManageClients' },
     { title: 'الفرص', href: '/admin/crm/deals', icon: Target, permission: 'canManageClients' },
+    { title: 'عروض الأسعار', href: '/admin/crm/quotes', icon: FileText, permission: 'canManageClients' },
     { title: 'العملاء', href: '/admin/clients', icon: Building2, permission: 'canManageClients' },
     { title: 'مشاريع التنفيذ', href: '/admin/crm/delivery', icon: Rocket, permission: 'canManageClients' },
   ]
@@ -157,6 +158,7 @@ const settingsSection: NavSection = {
   title: 'النظام',
   sectionPermission: 'canManageSystemSettings',
   items: [
+    { title: 'إعدادات التسعير', href: '/admin/pricing-settings', icon: Settings, permission: 'canManageSystemSettings' },
     { title: 'المستخدمين', href: '/admin/users', icon: Users, permission: 'canManageUsers' },
     { title: 'الأدوار والصلاحيات', href: '/admin/roles', icon: Shield, permission: 'canManageRoles' },
     { title: 'سجل النشاط', href: '/admin/activity-log', icon: History, permission: 'canViewActivityLogs' },
