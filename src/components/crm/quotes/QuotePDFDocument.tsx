@@ -6,6 +6,11 @@ import {
   StyleSheet,
   Font,
   Image,
+  Svg,
+  Path,
+  G,
+  Defs,
+  Rect,
 } from '@react-pdf/renderer';
 
 import IBMPlexRegular from '@/assets/fonts/IBMPlexSansArabic-Regular.ttf';
@@ -35,11 +40,10 @@ Font.registerHyphenationCallback((word) => [word]);
 
 // Webyan Brand Colors - Clean & Professional
 const colors = {
-  primary: '#0f172a',       // Slate 900 - Main dark
-  secondary: '#475569',     // Slate 600 - Secondary text
-  accent: '#3b82f6',        // Blue 500 - Accent
-  accentLight: '#60a5fa',   // Blue 400
-  accentDark: '#1d4ed8',    // Blue 700
+  primary: '#1e3a5f',       // Professional dark blue
+  secondary: '#64748b',     // Slate 500
+  accent: '#0891b2',        // Cyan 600 - Webyan accent
+  accentLight: '#22d3ee',   // Cyan 400
   text: '#1e293b',          // Slate 800
   textMuted: '#64748b',     // Slate 500
   border: '#e2e8f0',        // Slate 200
@@ -47,7 +51,7 @@ const colors = {
   background: '#f8fafc',    // Slate 50
   white: '#ffffff',
   success: '#10b981',       // Emerald 500
-  headerBg: '#0f172a',      // Dark header
+  headerBg: '#1e3a5f',      // Dark professional blue
 };
 
 // Professional Compact Styles - Single Page Fit
@@ -56,170 +60,181 @@ const styles = StyleSheet.create({
     fontFamily: 'IBM Plex Arabic',
     fontSize: 9,
     backgroundColor: colors.white,
-    paddingBottom: 60,
+    paddingBottom: 50,
   },
   // Header - Clean with dual logos
   header: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
+    paddingHorizontal: 25,
+    paddingVertical: 12,
     backgroundColor: colors.headerBg,
   },
   headerLogos: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   logo: {
-    width: 50,
-    height: 50,
+    width: 45,
+    height: 45,
     objectFit: 'contain',
   },
   logoWebyan: {
-    width: 90,
-    height: 30,
+    width: 80,
+    height: 28,
     objectFit: 'contain',
   },
   logoDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: colors.secondary,
-    marginHorizontal: 8,
+    height: 25,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 6,
   },
   headerInfo: {
     alignItems: 'flex-start',
   },
   quoteLabel: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.accentLight,
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     marginBottom: 2,
+    textTransform: 'uppercase',
   },
   quoteNumber: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     color: colors.white,
     letterSpacing: 0.5,
   },
   // Content Area
   content: {
-    padding: 30,
-    paddingTop: 20,
+    padding: 25,
+    paddingTop: 15,
   },
-  // Title Section
+  // Title Section - Prominent Arabic title with English subtitle
   titleSection: {
-    marginBottom: 15,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.accent,
+    alignItems: 'center',
   },
   docTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.primary,
-    marginBottom: 4,
-    textAlign: 'right',
+    marginBottom: 3,
+    textAlign: 'center',
+  },
+  docTitleEn: {
+    fontSize: 10,
+    color: colors.secondary,
+    textAlign: 'center',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   docSubtitle: {
-    fontSize: 10,
+    fontSize: 8,
     color: colors.textMuted,
-    textAlign: 'right',
+    textAlign: 'center',
+    marginTop: 6,
   },
   // Parties Section - From & To
   partiesRow: {
     flexDirection: 'row-reverse',
-    gap: 15,
-    marginBottom: 15,
+    gap: 12,
+    marginBottom: 12,
   },
   partyBox: {
     flex: 1,
     backgroundColor: colors.background,
-    borderRadius: 6,
-    padding: 12,
+    borderRadius: 4,
+    padding: 10,
     borderWidth: 1,
     borderColor: colors.border,
   },
   partyLabel: {
     fontSize: 7,
-    color: colors.textMuted,
-    marginBottom: 6,
+    color: colors.accent,
+    marginBottom: 4,
     textAlign: 'right',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontWeight: 600,
   },
   partyName: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 'bold',
     color: colors.primary,
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: 'right',
   },
   partyDetail: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.secondary,
     marginBottom: 2,
     textAlign: 'right',
   },
   partyLegalInfo: {
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 4,
+    paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   partyLegalText: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.textMuted,
     textAlign: 'right',
   },
   // Meta Info Row
   metaRow: {
     flexDirection: 'row-reverse',
-    gap: 10,
-    marginBottom: 15,
+    gap: 8,
+    marginBottom: 12,
   },
   metaItem: {
     flex: 1,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
-    padding: 8,
+    borderRadius: 3,
+    padding: 6,
     alignItems: 'center',
   },
   metaLabel: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.textMuted,
-    marginBottom: 3,
+    marginBottom: 2,
   },
   metaValue: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 600,
     color: colors.primary,
   },
   // Items Table
   table: {
-    marginBottom: 15,
+    marginBottom: 12,
   },
   tableHeader: {
     flexDirection: 'row-reverse',
     backgroundColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
   },
   tableHeaderCell: {
     color: colors.white,
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 600,
     textAlign: 'center',
   },
   tableRow: {
     flexDirection: 'row-reverse',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
   },
@@ -227,7 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   tableCell: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.text,
     textAlign: 'center',
   },
@@ -239,36 +254,36 @@ const styles = StyleSheet.create({
   },
   // Column widths
   colNum: { width: '5%' },
-  colDesc: { width: '40%' },
+  colDesc: { width: '42%' },
   colQty: { width: '10%' },
-  colPrice: { width: '20%' },
+  colPrice: { width: '18%' },
   colTotal: { width: '25%' },
   // Summary Section
   summaryContainer: {
     flexDirection: 'row-reverse',
-    gap: 20,
+    gap: 15,
   },
   summaryNotes: {
     flex: 1,
   },
   notesBox: {
     backgroundColor: colors.background,
-    borderRadius: 4,
-    padding: 10,
+    borderRadius: 3,
+    padding: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
   notesTitle: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 600,
     color: colors.primary,
-    marginBottom: 5,
+    marginBottom: 4,
     textAlign: 'right',
   },
   notesText: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.secondary,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     textAlign: 'right',
   },
   summaryTotals: {
@@ -277,14 +292,14 @@ const styles = StyleSheet.create({
   summaryBox: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   summaryRow: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
   },
@@ -292,12 +307,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   summaryLabel: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.secondary,
     textAlign: 'right',
   },
   summaryValue: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 600,
     color: colors.text,
     textAlign: 'left',
@@ -308,43 +323,43 @@ const styles = StyleSheet.create({
   summaryTotalRow: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     backgroundColor: colors.primary,
   },
   summaryTotalLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 'bold',
     color: colors.white,
     textAlign: 'right',
   },
   summaryTotalValue: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
     color: colors.accentLight,
     textAlign: 'left',
   },
   // Signature Section
   signatureSection: {
-    marginTop: 20,
+    marginTop: 15,
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
-    gap: 20,
+    gap: 15,
   },
   signatureBox: {
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
-    padding: 12,
+    borderRadius: 3,
+    padding: 10,
     alignItems: 'center',
-    minHeight: 80,
+    minHeight: 70,
   },
   signatureTitle: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 600,
     color: colors.primary,
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: 'center',
   },
   signatureLine: {
@@ -352,18 +367,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     borderStyle: 'dashed',
-    marginTop: 30,
-    marginBottom: 5,
+    marginTop: 25,
+    marginBottom: 4,
   },
   signatureLabel: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.textMuted,
   },
   stampImage: {
-    width: 60,
-    height: 60,
+    width: 55,
+    height: 55,
     objectFit: 'contain',
-    marginTop: 5,
+    marginTop: 4,
+  },
+  signatureImage: {
+    width: 80,
+    height: 30,
+    objectFit: 'contain',
+    marginTop: 4,
   },
   // Footer
   footer: {
@@ -372,8 +393,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: colors.background,
-    paddingVertical: 10,
-    paddingHorizontal: 30,
+    paddingVertical: 8,
+    paddingHorizontal: 25,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
@@ -385,41 +406,41 @@ const styles = StyleSheet.create({
   footerLeft: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: 15,
+    gap: 10,
   },
   footerText: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.textMuted,
   },
   footerCompany: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 600,
     color: colors.primary,
   },
   footerWebsite: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.accent,
   },
   // Terms Section (Compact)
   termsSection: {
-    marginTop: 12,
-    padding: 8,
+    marginTop: 10,
+    padding: 6,
     backgroundColor: colors.background,
-    borderRadius: 4,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: colors.border,
   },
   termsTitle: {
-    fontSize: 7,
+    fontSize: 6,
     fontWeight: 600,
     color: colors.primary,
-    marginBottom: 4,
+    marginBottom: 3,
     textAlign: 'right',
   },
   termsText: {
-    fontSize: 6,
+    fontSize: 5,
     color: colors.textMuted,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
     textAlign: 'right',
   },
 });
@@ -494,9 +515,32 @@ interface QuotePDFProps {
       logoUrl?: string;
       webyanLogoUrl?: string;
       stampUrl?: string;
+      signatureUrl?: string;
+      showStamp?: boolean;
+      showSignature?: boolean;
     };
   };
 }
+
+// Webyan Logo SVG Component for PDF
+const WebyanLogoSVG = () => (
+  <Svg viewBox="0 0 423.05 138.69" style={{ width: 75, height: 26 }}>
+    <G>
+      <Path fill="#263c84" d="M44.8,118.2h-16.56v-26.55h-5.68v26.55h-7.7c-5.07,0-9.19-4.11-9.19-9.19v-17.36H0v16.93c0,8.19,6.64,14.82,14.82,14.82h35.65v-31.76h-5.67v26.55Z" />
+      <Path fill="#263c84" d="M244.18,91.65h-23.54v31.76h5.67v-26.55h17.88c5.07,0,9.19,4.11,9.19,9.19v17.36h5.63v-16.93c0-8.19-6.64-14.82-14.82-14.82Z" />
+      <Path fill="#263c84" d="M79.29,91.65h-23.14s0,0,0,0v18.49c0,7.32,5.94,13.26,13.26,13.26h16.61s0,0,0,0v-5.28s0,0,0,0h-16.61c-3.61,0-6.67-2.42-7.64-5.73,0,0,0,0,0,0h29.82s0,0,0,0v-8.42c0-6.79-5.51-12.3-12.3-12.3ZM86.01,106.66s0,0,0,0h-24.28s0,0,0,0v-9.43s0,0,0,0h17.55c3.72,0,6.74,3.02,6.74,6.73v2.7Z" />
+      <Path fill="#263c84" d="M102.9,102.68s0,0,0,0v-11.02h-5.62v31.75s0,0,0,0h23.14c6.79,0,12.3-5.51,12.3-12.3v-8.42s0,0,0,0h-29.82ZM120.41,117.83h-17.55s0,0,0,0v-9.43s0,0,0,0h24.28s0,0,0,0v2.7c0,3.72-3.01,6.73-6.73,6.73Z" />
+      <Path fill="#263c84" d="M168.26,91.65v15.02s0,0,0,0h-19.22c-2.79,0-5.06-2.26-5.06-5.06v-9.97h-5.58v10.45c0,5.65,4.62,10.28,10.28,10.28h19.55s0,0,0,0c-.97,3.31-4.02,5.73-7.64,5.73h-16.61s0,0,0,0v5.28s0,0,0,0h16.61c7.32,0,13.26-5.94,13.26-13.26v-18.5s0,0,0,0h-5.57Z" />
+      <Path fill="#263c84" d="M201.7,91.65h-16.61s0,0,0,0v5.28s0,0,0,0h16.62c3.61,0,6.67,2.42,7.64,5.73,0,0,0,0,0,0h-29.82s0,0,0,0v8.42c0,6.79,5.51,12.3,12.3,12.3h23.14s0,0,0,0v-18.49c0-7.32-5.94-13.26-13.26-13.26ZM209.38,117.82s0,0,0,0h-17.55c-3.72,0-6.73-3.02-6.73-6.73v-2.7s0,0,0,0h24.28s0,0,0,0v9.43Z" />
+      <Path fill="#263c84" d="M19.61,56.01h26.31V23.51h-8.74v23.76h-17.58c-5.99,0-10.87-4.88-10.87-10.87v-12.9H0v12.9C0,47.22,8.8,56.01,19.61,56.01Z" />
+      <Path fill="#263c84" d="M129.51,48.72c3.6,4.44,9.09,7.29,15.24,7.29s11.64-2.85,15.24-7.29c3.6,4.44,9.09,7.29,15.24,7.29h19.61V23.51h-8.74v23.76h-10.87c-5.99,0-10.87-4.88-10.87-10.87v-12.9h-8.74v12.9c0,5.99-4.88,10.87-10.87,10.87s-10.87-4.88-10.87-10.87v-12.9h-8.74v12.9c0,5.99-4.87,10.87-10.87,10.87h-53.89V12.38h-8.74v43.64h62.63c6.15,0,11.64-2.85,15.24-7.29Z" />
+    </G>
+    <G>
+      <Path fill="#24c2ec" d="M390.77,0h-74.13c-17.83,0-32.28,14.45-32.28,32.28v74.13c0,17.83,14.45,32.28,32.28,32.28h74.13c17.83,0,32.28-14.45,32.28-32.28V32.28c0-17.83-14.45-32.28-32.28-32.28ZM396.57,83.72h-18.99v.05c0,20.95-16.98,37.93-37.93,37.93l-.05-18.99c10.49,0,18.99-8.5,18.99-18.99h0s18.99,0,18.99,0v-18.99h-18.99v18.99h-47.74v-19.11c0-26.3,21.32-47.62,47.62-47.62h19.11v47.74h18.99v18.99Z" />
+      <Path fill="#24c2ec" d="M358.55,35.98c-15.86,0-28.72,12.86-28.72,28.72v.03h28.75v-28.75h-.03Z" />
+    </G>
+  </Svg>
+);
 
 const QuotePDFDocument = ({ data }: QuotePDFProps) => {
   const items = data.items || [];
@@ -517,9 +561,13 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
     taxNumber: '300000000000003',
     crNumber: '1010000000',
     website: 'https://webyan.io',
-    logoUrl: '/raneen-logo.png',
-    webyanLogoUrl: '/webyan-logo-02.svg',
+    logoUrl: '/logos/raneen-logo.png',
+    showStamp: true,
+    showSignature: true,
   };
+
+  const showStamp = company.showStamp !== false;
+  const showSignature = company.showSignature !== false;
 
   const billingLabels: Record<string, string> = {
     monthly: 'شهري',
@@ -543,9 +591,7 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
               <Image src={company.logoUrl} style={styles.logo} />
             )}
             <View style={styles.logoDivider} />
-            {company.webyanLogoUrl && (
-              <Image src={company.webyanLogoUrl} style={styles.logoWebyan} />
-            )}
+            <WebyanLogoSVG />
           </View>
           <View style={styles.headerInfo}>
             <Text style={styles.quoteLabel}>QUOTATION</Text>
@@ -555,11 +601,12 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Title Section */}
+          {/* Title Section - Arabic with English subtitle */}
           <View style={styles.titleSection}>
-            <Text style={styles.docTitle}>{data.title || 'عرض سعر'}</Text>
+            <Text style={styles.docTitle}>عرض سعر</Text>
+            <Text style={styles.docTitleEn}>Price Quotation</Text>
             <Text style={styles.docSubtitle}>
-              تاريخ الإصدار: {formatDate(data.created_at)}
+              {data.title} • تاريخ الإصدار: {formatDate(data.created_at)}
               {data.valid_until && ` • صالح حتى: ${formatDate(data.valid_until)}`}
             </Text>
           </View>
@@ -568,7 +615,7 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
           <View style={styles.partiesRow}>
             {/* From - Company */}
             <View style={styles.partyBox}>
-              <Text style={styles.partyLabel}>من</Text>
+              <Text style={styles.partyLabel}>من / From</Text>
               <Text style={styles.partyName}>{company.name}</Text>
               {company.nameEn && (
                 <Text style={styles.partyDetail}>{company.nameEn}</Text>
@@ -584,7 +631,7 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
 
             {/* To - Client */}
             <View style={styles.partyBox}>
-              <Text style={styles.partyLabel}>إلى</Text>
+              <Text style={styles.partyLabel}>إلى / To</Text>
               <Text style={styles.partyName}>{data.account?.name || 'العميل'}</Text>
               {data.account?.contact_email && (
                 <Text style={styles.partyDetail}>{data.account.contact_email}</Text>
@@ -649,11 +696,11 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
                     {item.name}
                   </Text>
                   {item.description && (
-                    <Text style={[styles.tableCell, styles.tableCellRight, { fontSize: 7, color: colors.textMuted }]}>
+                    <Text style={[styles.tableCell, styles.tableCellRight, { fontSize: 6, color: colors.textMuted }]}>
                       {item.description}
                     </Text>
                   )}
-                  <Text style={[styles.tableCell, styles.tableCellRight, { fontSize: 7, color: colors.accent }]}>
+                  <Text style={[styles.tableCell, styles.tableCellRight, { fontSize: 6, color: colors.accent }]}>
                     {typeLabels[item.type] || item.type}
                     {item.billing && ` • ${billingLabels[item.billing] || item.billing}`}
                   </Text>
@@ -716,8 +763,10 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
           <View style={styles.signatureSection}>
             <View style={styles.signatureBox}>
               <Text style={styles.signatureTitle}>توقيع وختم الشركة</Text>
-              {company.stampUrl ? (
+              {showStamp && company.stampUrl ? (
                 <Image src={company.stampUrl} style={styles.stampImage} />
+              ) : showSignature && company.signatureUrl ? (
+                <Image src={company.signatureUrl} style={styles.signatureImage} />
               ) : (
                 <>
                   <View style={styles.signatureLine} />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Building2,
   Mail,
@@ -19,6 +20,8 @@ import {
   Image as ImageIcon,
   Stamp,
   Hash,
+  PenTool,
+  Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,6 +38,9 @@ interface CompanySettings {
   quote_company_logo_url: string;
   quote_webyan_logo_url: string;
   quote_company_stamp_url: string;
+  quote_company_signature_url: string;
+  quote_show_stamp: string;
+  quote_show_signature: string;
   quote_default_validity_days: string;
   quote_default_terms: string;
 }
@@ -49,9 +55,12 @@ const defaultSettings: CompanySettings = {
   quote_company_tax_number: '300000000000003',
   quote_company_cr_number: '1010000000',
   quote_company_website: 'https://raneen.sa',
-  quote_company_logo_url: '/raneen-logo.png',
-  quote_webyan_logo_url: '/webyan-logo-02.svg',
+  quote_company_logo_url: '/logos/raneen-logo.png',
+  quote_webyan_logo_url: '/logos/webyan-logo.svg',
   quote_company_stamp_url: '',
+  quote_company_signature_url: '',
+  quote_show_stamp: 'true',
+  quote_show_signature: 'true',
   quote_default_validity_days: '30',
   quote_default_terms: 'يسري هذا العرض لمدة 30 يوماً من تاريخ الإصدار. الأسعار شاملة ضريبة القيمة المضافة 15%. يتم الدفع خلال 15 يوماً من تاريخ الفاتورة.',
 };
@@ -59,6 +68,10 @@ const defaultSettings: CompanySettings = {
 export default function QuoteCompanySettingsPage() {
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState<CompanySettings>(defaultSettings);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const webyanLogoInputRef = useRef<HTMLInputElement>(null);
+  const stampInputRef = useRef<HTMLInputElement>(null);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
 
   const { data: fetchedSettings, isLoading } = useQuery({
     queryKey: ['quote-company-settings-admin'],
@@ -125,6 +138,9 @@ export default function QuoteCompanySettingsPage() {
       quote_company_logo_url: 'رابط شعار الشركة',
       quote_webyan_logo_url: 'رابط شعار ويبيان',
       quote_company_stamp_url: 'رابط ختم الشركة',
+      quote_company_signature_url: 'رابط توقيع الشركة',
+      quote_show_stamp: 'عرض الختم في عروض الأسعار',
+      quote_show_signature: 'عرض التوقيع في عروض الأسعار',
       quote_default_validity_days: 'عدد أيام صلاحية العرض افتراضياً',
       quote_default_terms: 'الشروط والأحكام الافتراضية',
     };
@@ -137,6 +153,30 @@ export default function QuoteCompanySettingsPage() {
 
   const updateSetting = (key: keyof CompanySettings, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleFileUpload = async (file: File, settingKey: keyof CompanySettings) => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${settingKey}-${Date.now()}.${fileExt}`;
+      const filePath = `quote-assets/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(filePath);
+
+      updateSetting(settingKey, publicUrl);
+      toast.success('تم رفع الملف بنجاح');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('حدث خطأ أثناء رفع الملف');
+    }
   };
 
   if (isLoading) {
@@ -323,27 +363,49 @@ export default function QuoteCompanySettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Logo & Stamp Settings */}
+        {/* Logo Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ImageIcon className="h-5 w-5" />
-              الشعارات والختم
+              الشعارات
             </CardTitle>
             <CardDescription>
-              روابط صور الشعارات والختم لعروض الأسعار
+              شعارات الشركة ومنصة ويبيان للعروض
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Raneen Logo */}
             <div className="space-y-2">
-              <Label htmlFor="logo_url">رابط شعار الشركة (Raneen)</Label>
-              <Input
-                id="logo_url"
-                value={settings.quote_company_logo_url}
-                onChange={(e) => updateSetting('quote_company_logo_url', e.target.value)}
-                placeholder="/raneen-logo.png"
-                dir="ltr"
-              />
+              <Label htmlFor="logo_url">شعار الشركة (رنين)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="logo_url"
+                  value={settings.quote_company_logo_url}
+                  onChange={(e) => updateSetting('quote_company_logo_url', e.target.value)}
+                  placeholder="/logos/raneen-logo.png"
+                  dir="ltr"
+                  className="flex-1"
+                />
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'quote_company_logo_url');
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </div>
               {settings.quote_company_logo_url && (
                 <div className="mt-2 p-3 border rounded-lg bg-muted/30">
                   <img 
@@ -358,15 +420,39 @@ export default function QuoteCompanySettingsPage() {
               )}
             </div>
 
+            <Separator />
+
+            {/* Webyan Logo */}
             <div className="space-y-2">
-              <Label htmlFor="webyan_logo_url">رابط شعار ويبيان</Label>
-              <Input
-                id="webyan_logo_url"
-                value={settings.quote_webyan_logo_url}
-                onChange={(e) => updateSetting('quote_webyan_logo_url', e.target.value)}
-                placeholder="/webyan-logo-02.svg"
-                dir="ltr"
-              />
+              <Label htmlFor="webyan_logo_url">شعار ويبيان</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="webyan_logo_url"
+                  value={settings.quote_webyan_logo_url}
+                  onChange={(e) => updateSetting('quote_webyan_logo_url', e.target.value)}
+                  placeholder="/logos/webyan-logo.svg"
+                  dir="ltr"
+                  className="flex-1"
+                />
+                <input
+                  ref={webyanLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'quote_webyan_logo_url');
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => webyanLogoInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </div>
               {settings.quote_webyan_logo_url && (
                 <div className="mt-2 p-3 border rounded-lg bg-muted/30">
                   <img 
@@ -380,21 +466,69 @@ export default function QuoteCompanySettingsPage() {
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
 
-            <Separator />
+        {/* Stamp & Signature Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Stamp className="h-5 w-5" />
+              الختم والتوقيع
+            </CardTitle>
+            <CardDescription>
+              ختم الشركة والتوقيع الرسمي للعروض
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Show Stamp Checkbox */}
+            <div className="flex items-center space-x-2 space-x-reverse">
+              <Checkbox
+                id="show_stamp"
+                checked={settings.quote_show_stamp === 'true'}
+                onCheckedChange={(checked) => 
+                  updateSetting('quote_show_stamp', checked ? 'true' : 'false')
+                }
+              />
+              <Label htmlFor="show_stamp" className="text-sm cursor-pointer">
+                عرض الختم في عروض الأسعار
+              </Label>
+            </div>
 
+            {/* Stamp URL */}
             <div className="space-y-2">
               <Label htmlFor="stamp_url" className="flex items-center gap-2">
                 <Stamp className="h-4 w-4" />
-                رابط ختم الشركة (PNG)
+                صورة الختم (PNG)
               </Label>
-              <Input
-                id="stamp_url"
-                value={settings.quote_company_stamp_url}
-                onChange={(e) => updateSetting('quote_company_stamp_url', e.target.value)}
-                placeholder="/company-stamp.png"
-                dir="ltr"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="stamp_url"
+                  value={settings.quote_company_stamp_url}
+                  onChange={(e) => updateSetting('quote_company_stamp_url', e.target.value)}
+                  placeholder="/company-stamp.png"
+                  dir="ltr"
+                  className="flex-1"
+                />
+                <input
+                  ref={stampInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'quote_company_stamp_url');
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => stampInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 يُفضل استخدام صورة PNG بخلفية شفافة بأبعاد 200×200 بكسل
               </p>
@@ -411,11 +545,78 @@ export default function QuoteCompanySettingsPage() {
                 </div>
               )}
             </div>
+
+            <Separator />
+
+            {/* Show Signature Checkbox */}
+            <div className="flex items-center space-x-2 space-x-reverse">
+              <Checkbox
+                id="show_signature"
+                checked={settings.quote_show_signature === 'true'}
+                onCheckedChange={(checked) => 
+                  updateSetting('quote_show_signature', checked ? 'true' : 'false')
+                }
+              />
+              <Label htmlFor="show_signature" className="text-sm cursor-pointer">
+                عرض التوقيع في عروض الأسعار
+              </Label>
+            </div>
+
+            {/* Signature URL */}
+            <div className="space-y-2">
+              <Label htmlFor="signature_url" className="flex items-center gap-2">
+                <PenTool className="h-4 w-4" />
+                صورة التوقيع (PNG)
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="signature_url"
+                  value={settings.quote_company_signature_url}
+                  onChange={(e) => updateSetting('quote_company_signature_url', e.target.value)}
+                  placeholder="/company-signature.png"
+                  dir="ltr"
+                  className="flex-1"
+                />
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'quote_company_signature_url');
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => signatureInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                يُفضل استخدام صورة PNG بخلفية شفافة بأبعاد 150×50 بكسل
+              </p>
+              {settings.quote_company_signature_url && (
+                <div className="mt-2 p-3 border rounded-lg bg-muted/30 flex justify-center">
+                  <img 
+                    src={settings.quote_company_signature_url} 
+                    alt="Company Signature Preview" 
+                    className="h-12 object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         {/* Default Terms */}
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -462,6 +663,7 @@ export default function QuoteCompanySettingsPage() {
                     }}
                   />
                 )}
+                <div className="h-10 w-px bg-border" />
                 {settings.quote_webyan_logo_url && (
                   <img 
                     src={settings.quote_webyan_logo_url} 
@@ -473,18 +675,28 @@ export default function QuoteCompanySettingsPage() {
                   />
                 )}
               </div>
-              <div className="text-right">
-                <h3 className="font-bold text-lg">{settings.quote_company_name_ar}</h3>
+              <div className="text-left">
+                <p className="font-bold text-lg">{settings.quote_company_name_ar}</p>
                 <p className="text-sm text-muted-foreground">{settings.quote_company_name_en}</p>
-                <p className="text-sm">{settings.quote_company_email}</p>
-                <p className="text-sm">{settings.quote_company_phone}</p>
-                <p className="text-sm">{settings.quote_company_city}، {settings.quote_company_address}</p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  الرقم الضريبي: {settings.quote_company_tax_number}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  السجل التجاري: {settings.quote_company_cr_number}
-                </p>
+              </div>
+            </div>
+            <Separator className="my-4" />
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">البريد الإلكتروني</p>
+                <p>{settings.quote_company_email}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">الهاتف</p>
+                <p dir="ltr" className="text-right">{settings.quote_company_phone}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">العنوان</p>
+                <p>{settings.quote_company_city}، {settings.quote_company_address}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">الموقع الإلكتروني</p>
+                <p dir="ltr" className="text-right">{settings.quote_company_website}</p>
               </div>
             </div>
           </div>
