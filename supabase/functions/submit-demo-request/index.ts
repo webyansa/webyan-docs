@@ -94,9 +94,9 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validate email format
-    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
-    if (!emailRegex.test(body.email)) {
+    // Validate email format - simple and reliable regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(body.email.trim())) {
       return new Response(
         JSON.stringify({ success: false, error: "البريد الإلكتروني غير صالح" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
