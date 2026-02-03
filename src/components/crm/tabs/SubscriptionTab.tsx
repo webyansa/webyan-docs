@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { SubscriptionEditDialog } from './subscription/SubscriptionEditDialog';
-import { SubscriptionNotesSection } from './subscription/SubscriptionNotesSection';
+import { CustomerNotesSection } from '../CustomerNotesSection';
 
 interface SubscriptionTabProps {
   organization: {
@@ -304,7 +304,7 @@ export function SubscriptionTab({ organization, onUpdate }: SubscriptionTabProps
       </Card>
 
       {/* Notes Section */}
-      <SubscriptionNotesSection organizationId={organization.id} />
+      <CustomerNotesSection organizationId={organization.id} noteType="subscription" title="ملاحظات الاشتراك" />
 
       {/* Edit Dialog */}
       <SubscriptionEditDialog

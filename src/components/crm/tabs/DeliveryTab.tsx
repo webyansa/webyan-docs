@@ -18,6 +18,7 @@ import { format, parseISO, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { implementationStages } from '@/lib/crm/pipelineConfig';
+import { CustomerNotesSection } from '../CustomerNotesSection';
 
 interface DeliveryTabProps {
   organizationId: string;
@@ -221,6 +222,13 @@ export function DeliveryTab({ organizationId }: DeliveryTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Delivery Notes */}
+      <CustomerNotesSection 
+        organizationId={organizationId} 
+        noteType="delivery"
+        title="ملاحظات التنفيذ"
+      />
     </div>
   );
 }
