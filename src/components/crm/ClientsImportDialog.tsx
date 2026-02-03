@@ -232,7 +232,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5" />
@@ -243,7 +243,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
           {/* Download Template */}
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-3">
@@ -260,30 +260,32 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
           </div>
 
           {/* Upload Area */}
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-            }`}
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleFileDrop}
-          >
-            <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-lg font-medium mb-2">اسحب ملف Excel هنا</p>
-            <p className="text-sm text-muted-foreground mb-4">أو انقر لاختيار الملف</p>
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="excel-upload"
-            />
-            <Button variant="outline" asChild>
-              <label htmlFor="excel-upload" className="cursor-pointer">
-                اختيار ملف
-              </label>
-            </Button>
-          </div>
+          {parsedData.length === 0 && (
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleFileDrop}
+            >
+              <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-lg font-medium mb-2">اسحب ملف Excel هنا</p>
+              <p className="text-sm text-muted-foreground mb-4">أو انقر لاختيار الملف</p>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="excel-upload"
+              />
+              <Button variant="outline" asChild>
+                <label htmlFor="excel-upload" className="cursor-pointer">
+                  اختيار ملف
+                </label>
+              </Button>
+            </div>
+          )}
 
           {/* Preview Data */}
           {parsedData.length > 0 && (
@@ -301,16 +303,16 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                 )}
               </div>
 
-              <ScrollArea className="h-[300px] border rounded-lg">
+              <ScrollArea className="h-[250px] border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[50px]">الحالة</TableHead>
-                      <TableHead>اسم المؤسسة</TableHead>
-                      <TableHead>البريد الإلكتروني</TableHead>
-                      <TableHead>نوع المؤسسة</TableHead>
-                      <TableHead>المدينة</TableHead>
-                      <TableHead>الأخطاء</TableHead>
+                      <TableHead className="w-[50px] sticky top-0 bg-background">الحالة</TableHead>
+                      <TableHead className="sticky top-0 bg-background">اسم المؤسسة</TableHead>
+                      <TableHead className="sticky top-0 bg-background">البريد الإلكتروني</TableHead>
+                      <TableHead className="sticky top-0 bg-background">نوع المؤسسة</TableHead>
+                      <TableHead className="sticky top-0 bg-background">المدينة</TableHead>
+                      <TableHead className="sticky top-0 bg-background">الأخطاء</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -340,19 +342,22 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                   </TableBody>
                 </Table>
               </ScrollArea>
-
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setParsedData([])}>
-                  إلغاء
-                </Button>
-                <Button onClick={handleImport} disabled={importing || validCount === 0}>
-                  {importing && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
-                  استيراد {validCount} عميل
-                </Button>
-              </div>
             </div>
           )}
         </div>
+
+        {/* Sticky Footer with Action Buttons */}
+        {parsedData.length > 0 && (
+          <div className="flex gap-2 justify-end pt-4 border-t mt-4 bg-background">
+            <Button variant="outline" onClick={() => setParsedData([])}>
+              إلغاء
+            </Button>
+            <Button onClick={handleImport} disabled={importing || validCount === 0}>
+              {importing && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
+              استيراد {validCount} عميل
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
