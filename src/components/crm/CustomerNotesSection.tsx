@@ -78,7 +78,7 @@ export function CustomerNotesSection({
           note,
           note_type,
           created_at,
-          created_by:staff_members!customer_notes_created_by_fkey(id, full_name)
+          created_by:staff_members!subscription_notes_created_by_fkey(id, full_name)
         `)
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
