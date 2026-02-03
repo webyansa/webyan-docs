@@ -15,6 +15,7 @@ import { OverviewTab } from '@/components/crm/tabs/OverviewTab';
 import { SalesTab } from '@/components/crm/tabs/SalesTab';
 import { HostingTab } from '@/components/crm/tabs/HostingTab';
 import { DeliveryTab } from '@/components/crm/tabs/DeliveryTab';
+import { PortalAccountsTab } from '@/components/crm/tabs/PortalAccountsTab';
 import { CustomerType } from '@/components/crm/CustomerTypeBadge';
 import { LifecycleStage } from '@/components/crm/LifecycleBadge';
 
@@ -249,6 +250,12 @@ export default function CustomerProfilePage() {
             الاجتماعات
           </TabsTrigger>
           <TabsTrigger 
+            value="portal-accounts"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            حسابات البوابة
+          </TabsTrigger>
+          <TabsTrigger 
             value="timeline"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
@@ -310,6 +317,13 @@ export default function CustomerProfilePage() {
           <MeetingsTab 
             organizationId={organization.id}
             onScheduleMeeting={() => navigate(`/admin/meetings?org=${organization.id}`)}
+          />
+        </TabsContent>
+
+        <TabsContent value="portal-accounts" className="mt-6">
+          <PortalAccountsTab 
+            organizationId={organization.id}
+            organizationName={organization.name}
           />
         </TabsContent>
 
