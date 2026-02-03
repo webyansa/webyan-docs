@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, addYears } from 'date-fns';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -232,11 +232,23 @@ export function SubscriptionEditDialog({
                     : 'اختر التاريخ'}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
                 <Calendar
                   mode="single"
                   selected={formData.subscription_start_date}
-                  onSelect={(date) => setFormData({ ...formData, subscription_start_date: date })}
+                  onSelect={(date) => {
+                    if (date) {
+                      // حساب تاريخ الانتهاء تلقائياً (سنة واحدة)
+                      const endDate = addYears(date, 1);
+                      setFormData({ 
+                        ...formData, 
+                        subscription_start_date: date,
+                        subscription_end_date: endDate
+                      });
+                    } else {
+                      setFormData({ ...formData, subscription_start_date: date });
+                    }
+                  }}
                 />
               </PopoverContent>
             </Popover>
@@ -260,7 +272,7 @@ export function SubscriptionEditDialog({
                     : 'اختر التاريخ'}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
                 <Calendar
                   mode="single"
                   selected={formData.subscription_end_date}
@@ -288,7 +300,7 @@ export function SubscriptionEditDialog({
                     : 'اختر التاريخ'}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
                 <Calendar
                   mode="single"
                   selected={formData.domain_expiration_date}
