@@ -198,6 +198,59 @@ export default function WebsiteRequestsPage() {
     },
   });
 
+  // Convert to Lead mutation
+  const convertToLeadMutation = useMutation({
+    mutationFn: async (submission: FormSubmission) => {
+      // Check if already converted
+      if (submission.lead_id) {
+        throw new Error('تم تحويل هذا الطلب مسبقاً');
+      }
+
+      // Create new lead from submission data
+      const { data: lead, error: leadError } = await supabase
+        .from('crm_leads')
+        .insert({
+          company_name: submission.organization_name,
+          contact_name: submission.contact_name,
+          contact_email: submission.email,
+          contact_phone: submission.phone,
+          lead_source: 'website',
+          source_details: `طلب عرض توضيحي - ${submission.submission_number}`,
+          notes: submission.notes,
+          utm_source: submission.utm_source,
+          utm_campaign: submission.utm_campaign,
+          stage: 'new',
+        })
+        .select()
+        .single();
+
+      if (leadError) throw leadError;
+
+      // Update submission to link to the new lead
+      const { error: updateError } = await supabase
+        .from('website_form_submissions')
+        .update({
+          lead_id: lead.id,
+          status: 'converted',
+          converted_at: new Date().toISOString(),
+        })
+        .eq('id', submission.id);
+
+      if (updateError) throw updateError;
+
+      return lead;
+    },
+    onSuccess: (lead) => {
+      queryClient.invalidateQueries({ queryKey: ['website-submissions'] });
+      queryClient.invalidateQueries({ queryKey: ['crm-leads'] });
+      toast.success('تم تحويل الطلب إلى عميل محتمل بنجاح');
+      setSelectedSubmission(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'فشل في تحويل الطلب');
+    },
+  });
+
   // Filter submissions by search
   const filteredSubmissions = submissions.filter((sub) => {
     if (!searchQuery) return true;
@@ -691,12 +744,26 @@ export default function WebsiteRequestsPage() {
                           </a>
                         </Button>
                       )}
-                      {selectedSubmission.lead_id && (
+                      {selectedSubmission.lead_id ? (
                         <Button variant="outline" className="w-full justify-start" asChild>
                           <a href={`/admin/crm/leads?id=${selectedSubmission.lead_id}`}>
                             <UserPlus className="h-4 w-4 ml-2" />
                             عرض العميل المحتمل
                           </a>
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="default" 
+                          className="w-full justify-start bg-purple-600 hover:bg-purple-700"
+                          onClick={() => convertToLeadMutation.mutate(selectedSubmission)}
+                          disabled={convertToLeadMutation.isPending}
+                        >
+                          {convertToLeadMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                          ) : (
+                            <UserPlus className="h-4 w-4 ml-2" />
+                          )}
+                          تحويل إلى عميل محتمل
                         </Button>
                       )}
                     </CardContent>
