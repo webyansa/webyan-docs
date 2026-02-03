@@ -194,6 +194,7 @@ export type Database = {
           csm_id: string | null
           customer_type: Database["public"]["Enums"]["customer_type"] | null
           customer_value: number | null
+          domain_expiration_date: string | null
           first_contract_date: string | null
           health_score: number | null
           health_status: string | null
@@ -216,6 +217,7 @@ export type Database = {
           subscription_plan: string | null
           subscription_start_date: string | null
           subscription_status: Database["public"]["Enums"]["subscription_status"]
+          subscription_value: number | null
           success_stage: string | null
           tags: string[] | null
           total_contract_value: number | null
@@ -234,6 +236,7 @@ export type Database = {
           csm_id?: string | null
           customer_type?: Database["public"]["Enums"]["customer_type"] | null
           customer_value?: number | null
+          domain_expiration_date?: string | null
           first_contract_date?: string | null
           health_score?: number | null
           health_status?: string | null
@@ -256,6 +259,7 @@ export type Database = {
           subscription_plan?: string | null
           subscription_start_date?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          subscription_value?: number | null
           success_stage?: string | null
           tags?: string[] | null
           total_contract_value?: number | null
@@ -274,6 +278,7 @@ export type Database = {
           csm_id?: string | null
           customer_type?: Database["public"]["Enums"]["customer_type"] | null
           customer_value?: number | null
+          domain_expiration_date?: string | null
           first_contract_date?: string | null
           health_score?: number | null
           health_status?: string | null
@@ -296,6 +301,7 @@ export type Database = {
           subscription_plan?: string | null
           subscription_start_date?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          subscription_value?: number | null
           success_stage?: string | null
           tags?: string[] | null
           total_contract_value?: number | null
@@ -2884,6 +2890,45 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
             referencedColumns: ["id"]
           },
         ]
