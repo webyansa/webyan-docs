@@ -9,12 +9,11 @@ import {
   Globe,
   MapPin,
   FileText,
-  Tag,
   User,
-  Calendar,
   Edit,
   Save,
   X,
+  UserCheck,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,10 +21,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { LifecycleBadge, LifecycleStage, lifecycleConfig } from '../LifecycleBadge';
 import { CustomerTypeBadge, CustomerType, customerTypeConfig } from '../CustomerTypeBadge';
+import { CustomerNotesSection } from '../CustomerNotesSection';
 
 interface BasicInfoTabProps {
   organization: {
@@ -43,6 +44,10 @@ interface BasicInfoTabProps {
     internal_notes?: string | null;
     tags?: string[] | null;
     created_at: string;
+    primary_contact_name?: string | null;
+    primary_contact_email?: string | null;
+    primary_contact_phone?: string | null;
+    use_org_contact_info?: boolean | null;
   };
   contacts: Array<{
     id: string;
@@ -79,7 +84,23 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
     city: organization.city || '',
     address: organization.address || '',
     internal_notes: organization.internal_notes || '',
+    primary_contact_name: organization.primary_contact_name || '',
+    primary_contact_email: organization.primary_contact_email || '',
+    primary_contact_phone: organization.primary_contact_phone || '',
+    use_org_contact_info: organization.use_org_contact_info || false,
   });
+
+  // Auto-fill primary contact when checkbox is checked
+  useEffect(() => {
+    if (form.use_org_contact_info) {
+      setForm(prev => ({
+        ...prev,
+        primary_contact_name: prev.name,
+        primary_contact_email: prev.contact_email,
+        primary_contact_phone: prev.contact_phone,
+      }));
+    }
+  }, [form.use_org_contact_info, form.name, form.contact_email, form.contact_phone]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -98,6 +119,10 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           city: form.city || null,
           address: form.address || null,
           internal_notes: form.internal_notes || null,
+          primary_contact_name: form.primary_contact_name || null,
+          primary_contact_email: form.primary_contact_email || null,
+          primary_contact_phone: form.primary_contact_phone || null,
+          use_org_contact_info: form.use_org_contact_info,
         })
         .eq('id', organization.id);
 
@@ -331,35 +356,78 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           </CardContent>
         </Card>
 
-        {/* Primary Contact */}
+        {/* Primary Contact (Authorized) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <User className="w-5 h-5 text-primary" />
-              جهة الاتصال الرئيسية
+              <UserCheck className="w-5 h-5 text-primary" />
+              جهة الاتصال المخولة
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {primaryContact ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                    {primaryContact.full_name.slice(0, 2)}
-                  </div>
-                  <div>
-                    <p className="font-medium">{primaryContact.full_name}</p>
-                    {primaryContact.job_title && (
-                      <p className="text-sm text-muted-foreground">{primaryContact.job_title}</p>
-                    )}
-                  </div>
+          <CardContent className="space-y-4">
+            {isEditing ? (
+              <>
+                <div className="flex items-center space-x-2 space-x-reverse">
+                  <Checkbox
+                    id="use_org_contact"
+                    checked={form.use_org_contact_info}
+                    onCheckedChange={(checked) => setForm({ ...form, use_org_contact_info: checked as boolean })}
+                  />
+                  <label htmlFor="use_org_contact" className="text-sm cursor-pointer">
+                    استخدام نفس بيانات المؤسسة
+                  </label>
                 </div>
-                <div className="text-sm space-y-1 text-muted-foreground">
-                  <p>{primaryContact.email}</p>
-                  {primaryContact.phone && <p>{primaryContact.phone}</p>}
+                <div className="space-y-2">
+                  <Label>اسم جهة الاتصال</Label>
+                  <Input
+                    value={form.primary_contact_name}
+                    onChange={(e) => setForm({ ...form, primary_contact_name: e.target.value })}
+                    disabled={form.use_org_contact_info}
+                  />
                 </div>
-              </div>
+                <div className="space-y-2">
+                  <Label>البريد الإلكتروني</Label>
+                  <Input
+                    type="email"
+                    value={form.primary_contact_email}
+                    onChange={(e) => setForm({ ...form, primary_contact_email: e.target.value })}
+                    disabled={form.use_org_contact_info}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>رقم الجوال</Label>
+                  <Input
+                    value={form.primary_contact_phone}
+                    onChange={(e) => setForm({ ...form, primary_contact_phone: e.target.value })}
+                    placeholder="05xxxxxxxx"
+                    disabled={form.use_org_contact_info}
+                  />
+                </div>
+              </>
             ) : (
-              <p className="text-muted-foreground text-center py-4">لا توجد جهة اتصال رئيسية</p>
+              <div className="space-y-3">
+                {organization.primary_contact_name ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                        {organization.primary_contact_name.slice(0, 2)}
+                      </div>
+                      <div>
+                        <p className="font-medium">{organization.primary_contact_name}</p>
+                        {organization.use_org_contact_info && (
+                          <Badge variant="outline" className="text-xs">نفس بيانات المؤسسة</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm space-y-1 text-muted-foreground">
+                      {organization.primary_contact_email && <p>{organization.primary_contact_email}</p>}
+                      {organization.primary_contact_phone && <p>{organization.primary_contact_phone}</p>}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">لم يتم تحديد جهة اتصال مخولة</p>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -369,7 +437,7 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <FileText className="w-5 h-5 text-primary" />
-              ملاحظات داخلية
+              ملاحظات داخلية سريعة
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -388,6 +456,13 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           </CardContent>
         </Card>
       </div>
+
+      {/* All Customer Notes */}
+      <CustomerNotesSection 
+        organizationId={organization.id} 
+        showAll={true}
+        title="جميع الملاحظات"
+      />
 
       {/* Contacts List */}
       <Card>

@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { CustomerNotesSection } from '../CustomerNotesSection';
 
 interface HostingTabProps {
   organizationId: string;
@@ -463,6 +464,13 @@ export function HostingTab({ organizationId }: HostingTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hosting Notes */}
+      <CustomerNotesSection 
+        organizationId={organizationId} 
+        noteType="hosting"
+        title="ملاحظات الاستضافة"
+      />
     </div>
   );
 }

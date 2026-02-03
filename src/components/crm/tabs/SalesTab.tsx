@@ -18,6 +18,7 @@ import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { OpportunityForm } from '@/components/crm/forms/OpportunityForm';
 import { opportunityStages } from '@/lib/crm/pipelineConfig';
+import { CustomerNotesSection } from '../CustomerNotesSection';
 
 interface SalesTabProps {
   organizationId: string;
@@ -318,6 +319,13 @@ export function SalesTab({ organizationId, organizationName }: SalesTabProps) {
           owner_id: null,
         } : undefined}
         onSuccess={handleFormSuccess}
+      />
+
+      {/* Sales Notes */}
+      <CustomerNotesSection 
+        organizationId={organizationId} 
+        noteType="sales"
+        title="ملاحظات المبيعات"
       />
     </div>
   );

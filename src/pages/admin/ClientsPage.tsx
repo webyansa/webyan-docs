@@ -14,8 +14,10 @@ import {
   Globe,
   Calendar,
   CheckCircle,
-  XCircle
+  XCircle,
+  Upload,
 } from 'lucide-react';
+import { ClientsImportDialog } from '@/components/crm/ClientsImportDialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -132,6 +134,7 @@ const ClientsPage = () => {
   const [editingOrg, setEditingOrg] = useState<ClientOrganization | null>(null);
   const [editingAccount, setEditingAccount] = useState<ClientAccount | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const [orgForm, setOrgForm] = useState({
     name: '',
@@ -475,6 +478,10 @@ const ClientsPage = () => {
           <p className="text-muted-foreground mt-1">إدارة المؤسسات وحسابات العملاء</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="w-4 h-4" />
+            استيراد Excel
+          </Button>
           <Dialog open={orgDialogOpen} onOpenChange={(open) => { setOrgDialogOpen(open); if (!open) resetOrgForm(); }}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -950,6 +957,13 @@ const ClientsPage = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Import Dialog */}
+      <ClientsImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={fetchData}
+      />
     </div>
   );
 };

@@ -25,6 +25,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { InvoiceForm } from '../InvoiceForm';
 import { PaymentForm } from '../PaymentForm';
+import { CustomerNotesSection } from '../CustomerNotesSection';
 
 interface Invoice {
   id: string;
@@ -361,6 +362,13 @@ export function InvoicesTab({ organizationId }: InvoicesTabProps) {
         }}
         onSuccess={handlePaymentSuccess}
         preselectedInvoiceId={selectedInvoiceForPayment}
+      />
+
+      {/* Invoice Notes */}
+      <CustomerNotesSection 
+        organizationId={organizationId} 
+        noteType="invoices"
+        title="ملاحظات الفواتير"
       />
     </div>
   );

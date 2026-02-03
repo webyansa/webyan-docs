@@ -210,6 +210,9 @@ export type Database = {
           name: string
           notes: string | null
           organization_type: Database["public"]["Enums"]["organization_type"]
+          primary_contact_email: string | null
+          primary_contact_name: string | null
+          primary_contact_phone: string | null
           registration_number: string | null
           renewal_date: string | null
           sales_owner_id: string | null
@@ -222,6 +225,7 @@ export type Database = {
           tags: string[] | null
           total_contract_value: number | null
           updated_at: string
+          use_org_contact_info: boolean | null
           website_url: string | null
         }
         Insert: {
@@ -252,6 +256,9 @@ export type Database = {
           name: string
           notes?: string | null
           organization_type?: Database["public"]["Enums"]["organization_type"]
+          primary_contact_email?: string | null
+          primary_contact_name?: string | null
+          primary_contact_phone?: string | null
           registration_number?: string | null
           renewal_date?: string | null
           sales_owner_id?: string | null
@@ -264,6 +271,7 @@ export type Database = {
           tags?: string[] | null
           total_contract_value?: number | null
           updated_at?: string
+          use_org_contact_info?: boolean | null
           website_url?: string | null
         }
         Update: {
@@ -294,6 +302,9 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_type?: Database["public"]["Enums"]["organization_type"]
+          primary_contact_email?: string | null
+          primary_contact_name?: string | null
+          primary_contact_phone?: string | null
           registration_number?: string | null
           renewal_date?: string | null
           sales_owner_id?: string | null
@@ -306,6 +317,7 @@ export type Database = {
           tags?: string[] | null
           total_contract_value?: number | null
           updated_at?: string
+          use_org_contact_info?: boolean | null
           website_url?: string | null
         }
         Relationships: [
@@ -1521,6 +1533,48 @@ export type Database = {
           {
             foreignKeyName: "crm_systems_account_id_fkey"
             columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string
+          note_type: string | null
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note: string
+          note_type?: string | null
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string
+          note_type?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_notes_organization_id_fkey"
+            columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "client_organizations"
             referencedColumns: ["id"]
@@ -2890,45 +2944,6 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff_members"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      subscription_notes: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          note: string
-          organization_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          note: string
-          organization_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          note?: string
-          organization_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_notes_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "staff_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "client_organizations"
             referencedColumns: ["id"]
           },
         ]
