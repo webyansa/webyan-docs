@@ -283,8 +283,7 @@ export default function CustomerProfilePage() {
         <TabsContent value="subscription" className="mt-6">
           <SubscriptionTab 
             organization={organization}
-            onUpgrade={() => toast.info('سيتم إضافة هذه الميزة قريباً')}
-            onRenew={() => toast.info('سيتم إضافة هذه الميزة قريباً')}
+            onUpdate={fetchData}
           />
         </TabsContent>
 
