@@ -127,23 +127,32 @@ export function ContractDocumentationModal({
   // Validation helpers
   const hasExistingContract = !!existingData?.contractDoc;
   const hasExistingProject = !!existingData?.project;
+  // Allow submission if: no project exists AND (no contract OR contract exists but we can complete project creation)
   const isTeamComplete = status !== 'signed' || (!!implementerId && !!csmId);
   const areDatesComplete = status !== 'signed' || (!!receivedDate && !!expectedDeliveryDate);
-  const canSubmit = !hasExistingContract && !hasExistingProject && isTeamComplete && areDatesComplete && (status !== 'signed' || !!signedDate);
+  
+  // Can submit if:
+  // 1. No project exists (we can always create a new project)
+  // 2. Team and dates are complete
+  // 3. Signed date is set when status is signed
+  const canSubmit = !hasExistingProject && isTeamComplete && areDatesComplete && (status !== 'signed' || !!signedDate);
 
   const getValidationMessage = () => {
-    if (hasExistingContract) {
-      return {
-        type: 'error' as const,
-        message: 'لا يمكن توثيق العقد مرة أخرى. العقد موثق مسبقًا.',
-        action: hasExistingProject ? 'project' : null,
-      };
-    }
+    // Only block if project already exists - contract can be updated
     if (hasExistingProject) {
       return {
         type: 'error' as const,
         message: 'يوجد مشروع قائم مرتبط بهذا العرض. انتقل إلى المشاريع لإدارته.',
         action: 'project',
+        projectId: existingData.project.id,
+      };
+    }
+    // Info: Contract exists but no project - we can complete the process
+    if (hasExistingContract && !hasExistingProject) {
+      return {
+        type: 'info' as const,
+        message: 'توجد وثيقة عقد سابقة. سيتم تحديثها وإنشاء المشروع.',
+        action: null,
       };
     }
     if (status === 'signed' && !isTeamComplete) {
@@ -168,17 +177,7 @@ export function ContractDocumentationModal({
   // Create contract and project mutation
   const createContractAndProjectMutation = useMutation({
     mutationFn: async () => {
-      // Double-check for existing records (race condition protection)
-      const { data: checkContract } = await supabase
-        .from('contract_documentation')
-        .select('id')
-        .eq('quote_id', quoteId)
-        .maybeSingle();
-      
-      if (checkContract) {
-        throw new Error('CONTRACT_ALREADY_DOCUMENTED');
-      }
-
+      // Double-check for existing project (race condition protection)
       const { data: checkProject } = await supabase
         .from('crm_implementations')
         .select('id')
@@ -189,26 +188,55 @@ export function ContractDocumentationModal({
         throw new Error('PROJECT_ALREADY_EXISTS');
       }
 
+      // Check for existing contract - we'll update it instead of failing
+      const { data: existingContract } = await supabase
+        .from('contract_documentation')
+        .select('id')
+        .eq('quote_id', quoteId)
+        .maybeSingle();
+
       // Simple project name: مشروع - اسم العميل
       const projectName = `مشروع - ${accountName}`;
 
-      // 1. Create contract documentation
-      const { data: contractDoc, error: contractError } = await supabase
-        .from('contract_documentation')
-        .insert({
-          quote_id: quoteId,
-          opportunity_id: opportunityId || null,
-          account_id: accountId,
-          status,
-          signed_date: status === 'signed' ? format(signedDate, 'yyyy-MM-dd') : null,
-          contract_type: contractType || null,
-          notes: notes || null,
-          created_by: staffId || null,
-        })
-        .select()
-        .single();
+      let contractDoc;
 
-      if (contractError) throw contractError;
+      // 1. Create or update contract documentation
+      if (existingContract) {
+        // Update existing contract
+        const { data: updatedContract, error: updateError } = await supabase
+          .from('contract_documentation')
+          .update({
+            status,
+            signed_date: status === 'signed' ? format(signedDate, 'yyyy-MM-dd') : null,
+            contract_type: contractType || null,
+            notes: notes || null,
+          })
+          .eq('id', existingContract.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        contractDoc = updatedContract;
+      } else {
+        // Create new contract
+        const { data: newContract, error: contractError } = await supabase
+          .from('contract_documentation')
+          .insert({
+            quote_id: quoteId,
+            opportunity_id: opportunityId || null,
+            account_id: accountId,
+            status,
+            signed_date: status === 'signed' ? format(signedDate, 'yyyy-MM-dd') : null,
+            contract_type: contractType || null,
+            notes: notes || null,
+            created_by: staffId || null,
+          })
+          .select()
+          .single();
+
+        if (contractError) throw contractError;
+        contractDoc = newContract;
+      }
 
       let project = null;
 
@@ -420,9 +448,7 @@ export function ContractDocumentationModal({
       }
     },
     onError: (error: any) => {
-      if (error.message === 'CONTRACT_ALREADY_DOCUMENTED') {
-        toast.error('لا يمكن توثيق العقد مرة أخرى. العقد موثق مسبقًا.');
-      } else if (error.message === 'PROJECT_ALREADY_EXISTS') {
+      if (error.message === 'PROJECT_ALREADY_EXISTS') {
         toast.error('يوجد مشروع قائم مرتبط بهذا العرض');
       } else {
         toast.error('حدث خطأ: ' + error.message);
@@ -553,17 +579,17 @@ export function ContractDocumentationModal({
 
             {/* Validation Alert */}
             {validationInfo && (
-              <Alert variant={validationInfo.type === 'error' ? 'destructive' : 'default'}>
-                <AlertTriangle className="h-4 w-4" />
+              <Alert variant={validationInfo.type === 'error' ? 'destructive' : validationInfo.type === 'info' ? 'default' : 'default'} className={validationInfo.type === 'info' ? 'border-blue-200 bg-blue-50' : ''}>
+                <AlertTriangle className={cn("h-4 w-4", validationInfo.type === 'info' && 'text-blue-600')} />
                 <AlertDescription className="flex items-center justify-between">
-                  <span>{validationInfo.message}</span>
-                  {validationInfo.action === 'project' && existingData?.project && (
+                  <span className={validationInfo.type === 'info' ? 'text-blue-800' : ''}>{validationInfo.message}</span>
+                  {validationInfo.action === 'project' && validationInfo.projectId && (
                     <Button
                       variant="link"
                       size="sm"
                       className="p-0 h-auto"
                       onClick={() => {
-                        navigate(`/admin/projects/${existingData.project!.id}`);
+                        navigate(`/admin/projects/${validationInfo.projectId}`);
                         handleClose();
                       }}
                     >
@@ -575,8 +601,8 @@ export function ContractDocumentationModal({
               </Alert>
             )}
 
-            {/* Only show form if no existing contract/project */}
-            {!hasExistingContract && !hasExistingProject && (
+            {/* Show form if no existing project (contract can be updated) */}
+            {!hasExistingProject && (
               <>
                 {/* Section 1: Contract Documentation */}
                 <div className="space-y-4">
@@ -809,7 +835,7 @@ export function ContractDocumentationModal({
           <Button variant="outline" onClick={handleClose}>
             إلغاء
           </Button>
-          {!hasExistingContract && !hasExistingProject && (
+          {!hasExistingProject && (
             <Button 
               onClick={() => createContractAndProjectMutation.mutate()}
               disabled={!canSubmit || createContractAndProjectMutation.isPending}
@@ -817,7 +843,10 @@ export function ContractDocumentationModal({
               {createContractAndProjectMutation.isPending && (
                 <Loader2 className="ml-2 h-4 w-4 animate-spin" />
               )}
-              {status === 'signed' ? 'توثيق العقد وإنشاء المشروع' : 'حفظ التوثيق'}
+              {hasExistingContract 
+                ? (status === 'signed' ? 'تحديث العقد وإنشاء المشروع' : 'تحديث التوثيق')
+                : (status === 'signed' ? 'توثيق العقد وإنشاء المشروع' : 'حفظ التوثيق')
+              }
             </Button>
           )}
         </DialogFooter>
