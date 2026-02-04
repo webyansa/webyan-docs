@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +69,7 @@ type ModalType = 'note' | 'schedule_meeting' | 'meeting_report' | 'create_quote'
 
 export default function DealsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,11 +80,7 @@ export default function DealsPage() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [targetStage, setTargetStage] = useState<DealStage | null>(null);
 
-  useEffect(() => {
-    fetchDeals();
-  }, []);
-
-  const fetchDeals = async () => {
+  const fetchDeals = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('crm_opportunities')
@@ -112,7 +110,12 @@ export default function DealsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchDeals();
+  }, [fetchDeals]);
+
 
   const openModal = (modal: ModalType, deal: Deal, stage?: DealStage) => {
     setSelectedDeal(deal);
