@@ -8,7 +8,6 @@ import {
   Phone,
   Globe,
   MapPin,
-  FileText,
   User,
   Edit,
   Save,
@@ -19,7 +18,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -78,7 +76,9 @@ const organizationTypes = [
 
 export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
   const [form, setForm] = useState({
     name: organization.name,
     organization_type: organization.organization_type,
@@ -88,9 +88,7 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
     website_url: organization.website_url || '',
     contact_email: organization.contact_email,
     contact_phone: organization.contact_phone || '',
-    city: organization.city || '',
     address: organization.address || '',
-    internal_notes: organization.internal_notes || '',
     primary_contact_name: organization.primary_contact_name || '',
     primary_contact_email: organization.primary_contact_email || '',
     primary_contact_phone: organization.primary_contact_phone || '',
@@ -102,6 +100,7 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
     secondary_number: organization.secondary_number || '',
     district: organization.district || '',
     postal_code: organization.postal_code || '',
+    city: organization.city || '',
   });
 
   // Auto-fill primary contact when checkbox is checked
@@ -130,20 +129,11 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           website_url: form.website_url || null,
           contact_email: form.contact_email,
           contact_phone: form.contact_phone || null,
-          city: form.city || null,
           address: form.address || null,
-          internal_notes: form.internal_notes || null,
           primary_contact_name: form.primary_contact_name || null,
           primary_contact_email: form.primary_contact_email || null,
           primary_contact_phone: form.primary_contact_phone || null,
           use_org_contact_info: form.use_org_contact_info,
-          // حقول العنوان الوطني
-          tax_number: form.tax_number || null,
-          street_name: form.street_name || null,
-          building_number: form.building_number || null,
-          secondary_number: form.secondary_number || null,
-          district: form.district || null,
-          postal_code: form.postal_code || null,
         })
         .eq('id', organization.id);
 
@@ -157,6 +147,35 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
       toast.error('حدث خطأ أثناء الحفظ');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveAddress = async () => {
+    setSavingAddress(true);
+    try {
+      const { error } = await supabase
+        .from('client_organizations')
+        .update({
+          tax_number: form.tax_number || null,
+          street_name: form.street_name || null,
+          building_number: form.building_number || null,
+          secondary_number: form.secondary_number || null,
+          district: form.district || null,
+          postal_code: form.postal_code || null,
+          city: form.city || null,
+        })
+        .eq('id', organization.id);
+
+      if (error) throw error;
+      
+      toast.success('تم حفظ العنوان الوطني');
+      setIsEditingAddress(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error saving address:', error);
+      toast.error('حدث خطأ أثناء حفظ العنوان');
+    } finally {
+      setSavingAddress(false);
     }
   };
 
@@ -320,21 +339,13 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                     placeholder="https://example.com"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>المدينة</Label>
-                    <Input
-                      value={form.city}
-                      onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>العنوان</Label>
-                    <Input
-                      value={form.address}
-                      onChange={(e) => setForm({ ...form, address: e.target.value })}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label>العنوان</Label>
+                  <Input
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    placeholder="العنوان التفصيلي"
+                  />
                 </div>
               </>
             ) : (
@@ -366,10 +377,10 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                     </a>
                   </div>
                 )}
-                {organization.city && (
+                {organization.address && (
                   <div className="flex items-center gap-3">
                     <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span>{organization.city}{organization.address ? ` - ${organization.address}` : ''}</span>
+                    <span>{organization.address}</span>
                   </div>
                 )}
               </div>
@@ -455,14 +466,31 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
 
         {/* National Address - العنوان الوطني */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">
               <MapPin className="w-5 h-5 text-primary" />
               العنوان الوطني
             </CardTitle>
+            {isEditingAddress ? (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsEditingAddress(false)} disabled={savingAddress}>
+                  <X className="w-4 h-4 ml-1" />
+                  إلغاء
+                </Button>
+                <Button size="sm" onClick={handleSaveAddress} disabled={savingAddress}>
+                  <Save className="w-4 h-4 ml-1" />
+                  {savingAddress ? 'جاري الحفظ...' : 'حفظ'}
+                </Button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setIsEditingAddress(true)}>
+                <Edit className="w-4 h-4 ml-1" />
+                {organization.tax_number || organization.building_number || organization.street_name ? 'تعديل' : 'إضافة عنوان'}
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
-            {isEditing ? (
+            {isEditingAddress ? (
               <>
                 <div className="space-y-2">
                   <Label>الرقم الضريبي</Label>
@@ -530,81 +558,64 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                 </div>
               </>
             ) : (
-              <div className="space-y-4">
-                {organization.tax_number && (
-                  <div className="flex justify-between items-start">
-                    <span className="text-muted-foreground">الرقم الضريبي</span>
-                    <span className="font-mono" dir="ltr">{organization.tax_number}</span>
+              <div className="space-y-3">
+                {(organization.tax_number || organization.building_number || organization.street_name || organization.district || organization.postal_code || organization.city) ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      {organization.tax_number && (
+                        <div className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="text-muted-foreground text-sm">الرقم الضريبي</span>
+                          <span className="font-mono font-medium" dir="ltr">{organization.tax_number}</span>
+                        </div>
+                      )}
+                      {organization.building_number && (
+                        <div className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="text-muted-foreground text-sm">رقم المبنى</span>
+                          <span className="font-medium" dir="ltr">{organization.building_number}</span>
+                        </div>
+                      )}
+                      {organization.secondary_number && (
+                        <div className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="text-muted-foreground text-sm">الرقم الفرعي</span>
+                          <span className="font-medium" dir="ltr">{organization.secondary_number}</span>
+                        </div>
+                      )}
+                      {organization.street_name && (
+                        <div className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="text-muted-foreground text-sm">الشارع</span>
+                          <span className="font-medium">{organization.street_name}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      {organization.district && (
+                        <div className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="text-muted-foreground text-sm">الحي</span>
+                          <span className="font-medium">{organization.district}</span>
+                        </div>
+                      )}
+                      {organization.city && (
+                        <div className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="text-muted-foreground text-sm">المدينة</span>
+                          <span className="font-medium">{organization.city}</span>
+                        </div>
+                      )}
+                      {organization.postal_code && (
+                        <div className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="text-muted-foreground text-sm">الرمز البريدي</span>
+                          <span className="font-medium" dir="ltr">{organization.postal_code}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  {organization.building_number && (
-                    <div className="flex justify-between items-start">
-                      <span className="text-muted-foreground">رقم المبنى</span>
-                      <span dir="ltr">{organization.building_number}</span>
-                    </div>
-                  )}
-                  {organization.secondary_number && (
-                    <div className="flex justify-between items-start">
-                      <span className="text-muted-foreground">الرقم الفرعي</span>
-                      <span dir="ltr">{organization.secondary_number}</span>
-                    </div>
-                  )}
-                </div>
-                {organization.street_name && (
-                  <div className="flex justify-between items-start">
-                    <span className="text-muted-foreground">الشارع</span>
-                    <span>{organization.street_name}</span>
+                ) : (
+                  <div className="text-center py-8">
+                    <MapPin className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+                    <p className="text-muted-foreground">لم يتم إدخال العنوان الوطني بعد</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">اضغط على "إضافة عنوان" لإضافة بيانات العنوان الوطني</p>
                   </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  {organization.district && (
-                    <div className="flex justify-between items-start">
-                      <span className="text-muted-foreground">الحي</span>
-                      <span>{organization.district}</span>
-                    </div>
-                  )}
-                  {organization.postal_code && (
-                    <div className="flex justify-between items-start">
-                      <span className="text-muted-foreground">الرمز البريدي</span>
-                      <span dir="ltr">{organization.postal_code}</span>
-                    </div>
-                  )}
-                </div>
-                {organization.city && (
-                  <div className="flex justify-between items-start">
-                    <span className="text-muted-foreground">المدينة</span>
-                    <span>{organization.city}</span>
-                  </div>
-                )}
-                {!organization.tax_number && !organization.building_number && !organization.street_name && !organization.district && !organization.postal_code && !organization.city && (
-                  <p className="text-muted-foreground text-center py-4">لم يتم إدخال العنوان الوطني</p>
                 )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Internal Notes */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="w-5 h-5 text-primary" />
-              ملاحظات داخلية سريعة
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isEditing ? (
-              <Textarea
-                value={form.internal_notes}
-                onChange={(e) => setForm({ ...form, internal_notes: e.target.value })}
-                placeholder="ملاحظات خاصة بالفريق الداخلي..."
-                rows={4}
-              />
-            ) : (
-              <p className={organization.internal_notes ? 'text-sm whitespace-pre-wrap' : 'text-muted-foreground text-center py-4'}>
-                {organization.internal_notes || 'لا توجد ملاحظات'}
-              </p>
             )}
           </CardContent>
         </Card>
