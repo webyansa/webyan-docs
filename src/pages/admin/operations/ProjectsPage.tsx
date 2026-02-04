@@ -36,8 +36,8 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
 
-  // Fetch projects with staleTime: 0 to always get fresh data
-  const { data: projects = [], isLoading } = useQuery({
+  // Fetch projects with aggressive refetch settings
+  const { data: projects = [], isLoading, refetch } = useQuery({
     queryKey: ['projects-list'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -55,7 +55,9 @@ export default function ProjectsPage() {
       if (error) throw error;
       return data;
     },
-    staleTime: 0, // Always refetch to ensure fresh data
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   // Filter projects

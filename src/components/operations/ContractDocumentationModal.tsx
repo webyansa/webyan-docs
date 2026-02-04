@@ -341,18 +341,54 @@ export function ContractDocumentationModal({
       return { contractDoc, project, projectName };
     },
     onSuccess: async (data) => {
-      // Invalidate all related queries
-      queryClient.invalidateQueries({ queryKey: ['quote-contract-status', quoteId] });
-      queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
-      queryClient.invalidateQueries({ queryKey: ['quote'] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['projects-list'] });
-      queryClient.invalidateQueries({ queryKey: ['implementations'] });
-      queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
+      // Invalidate all related queries - comprehensive list
+      const queriesToInvalidate = [
+        ['quote-contract-status', quoteId],
+        ['crm-quote-details', quoteId],
+        ['quote'],
+        ['projects'],
+        ['projects-list'],
+        ['implementations'],
+        ['crm-quotes'],
+        ['operations-projects'],
+        ['client-projects'],
+        ['dashboard-stats'],
+        ['crm-opportunities'],
+        ['deals'],
+      ];
+
+      await Promise.all(
+        queriesToInvalidate.map(key => 
+          queryClient.invalidateQueries({ queryKey: key })
+        )
+      );
       
       if (data.project) {
         // Pre-cache the project data immediately for instant navigation
         queryClient.setQueryData(['project', data.project.id], data.project);
+        
+        // Verify project is readable with retry logic
+        let retries = 3;
+        let projectVerified = false;
+        
+        while (retries > 0 && !projectVerified) {
+          const { data: verified } = await supabase
+            .from('crm_implementations')
+            .select('id')
+            .eq('id', data.project.id)
+            .maybeSingle();
+          
+          if (verified) {
+            projectVerified = true;
+          } else {
+            await new Promise(r => setTimeout(r, 300));
+            retries--;
+          }
+        }
+
+        if (!projectVerified) {
+          toast.warning('تم إنشاء المشروع لكن قد يحتاج لتحديث الصفحة');
+        }
         
         // Also prefetch the full project data to ensure it's ready
         await queryClient.prefetchQuery({

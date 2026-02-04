@@ -24,6 +24,7 @@ import {
   Copy,
   Code,
   Loader2,
+  Target,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -248,6 +249,87 @@ export default function WebsiteRequestsPage() {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'فشل في تحويل الطلب');
+    },
+  });
+
+  // Convert to Opportunity mutation (تحويل مباشر للفرص)
+  const convertToOpportunityMutation = useMutation({
+    mutationFn: async (submission: FormSubmission) => {
+      // Check if already converted
+      if (submission.opportunity_id) {
+        throw new Error('تم تحويل هذا الطلب إلى فرصة مسبقاً');
+      }
+
+      // 1. Create client organization (as trial prospect)
+      const { data: org, error: orgError } = await supabase
+        .from('client_organizations')
+        .insert([{
+          name: submission.organization_name,
+          contact_email: submission.email,
+          contact_phone: submission.phone,
+          city: submission.city,
+          subscription_status: 'trial' as const,
+          notes: submission.notes,
+        }])
+        .select()
+        .single();
+
+      if (orgError) throw orgError;
+
+      // 2. Create opportunity linked to the organization
+      const { data: opportunity, error: oppError } = await supabase
+        .from('crm_opportunities')
+        .insert({
+          name: `فرصة - ${submission.organization_name}`,
+          account_id: org.id,
+          stage: 'new_opportunity',
+          status: 'open',
+          opportunity_type: submission.interest_type || 'subscription',
+          expected_value: 0,
+          probability: 10,
+          description: `مصدر: طلب عرض توضيحي - ${submission.submission_number}`,
+        })
+        .select()
+        .single();
+
+      if (oppError) throw oppError;
+
+      // 3. Update submission to link to the opportunity
+      const { error: updateError } = await supabase
+        .from('website_form_submissions')
+        .update({
+          opportunity_id: opportunity.id,
+          status: 'converted',
+          converted_at: new Date().toISOString(),
+        })
+        .eq('id', submission.id);
+
+      if (updateError) throw updateError;
+
+      // 4. Add to client timeline
+      await supabase.from('client_timeline').insert({
+        organization_id: org.id,
+        event_type: 'lead_captured',
+        title: 'تم إنشاء الفرصة من طلب الموقع',
+        description: `رقم الطلب: ${submission.submission_number}`,
+        metadata: {
+          submission_id: submission.id,
+          interest_type: submission.interest_type,
+        },
+      });
+
+      return { org, opportunity };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['website-submissions'] });
+      queryClient.invalidateQueries({ queryKey: ['crm-opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['client-organizations'] });
+      toast.success('تم تحويل الطلب إلى فرصة بنجاح');
+      setSelectedSubmission(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'فشل في تحويل الطلب إلى فرصة');
     },
   });
 
@@ -751,20 +833,42 @@ export default function WebsiteRequestsPage() {
                             عرض العميل المحتمل
                           </a>
                         </Button>
-                      ) : (
-                        <Button 
-                          variant="default" 
-                          className="w-full justify-start bg-purple-600 hover:bg-purple-700"
-                          onClick={() => convertToLeadMutation.mutate(selectedSubmission)}
-                          disabled={convertToLeadMutation.isPending}
-                        >
-                          {convertToLeadMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 ml-2 animate-spin" />
-                          ) : (
-                            <UserPlus className="h-4 w-4 ml-2" />
-                          )}
-                          تحويل إلى عميل محتمل
+                      ) : selectedSubmission.opportunity_id ? (
+                        <Button variant="outline" className="w-full justify-start" asChild>
+                          <a href={`/admin/crm/deals/${selectedSubmission.opportunity_id}`}>
+                            <Target className="h-4 w-4 ml-2" />
+                            عرض الفرصة
+                          </a>
                         </Button>
+                      ) : (
+                        <div className="space-y-2">
+                          <Button 
+                            variant="default" 
+                            className="w-full justify-start bg-green-600 hover:bg-green-700"
+                            onClick={() => convertToOpportunityMutation.mutate(selectedSubmission)}
+                            disabled={convertToOpportunityMutation.isPending || convertToLeadMutation.isPending}
+                          >
+                            {convertToOpportunityMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                            ) : (
+                              <Target className="h-4 w-4 ml-2" />
+                            )}
+                            تحويل إلى فرصة (موصى به)
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            className="w-full justify-start"
+                            onClick={() => convertToLeadMutation.mutate(selectedSubmission)}
+                            disabled={convertToLeadMutation.isPending || convertToOpportunityMutation.isPending}
+                          >
+                            {convertToLeadMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                            ) : (
+                              <UserPlus className="h-4 w-4 ml-2" />
+                            )}
+                            تحويل إلى عميل محتمل
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
