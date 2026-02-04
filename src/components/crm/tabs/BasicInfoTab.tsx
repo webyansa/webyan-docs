@@ -76,9 +76,7 @@ const organizationTypes = [
 
 export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [savingAddress, setSavingAddress] = useState(false);
   const [form, setForm] = useState({
     name: organization.name,
     organization_type: organization.organization_type,
@@ -134,6 +132,14 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           primary_contact_email: form.primary_contact_email || null,
           primary_contact_phone: form.primary_contact_phone || null,
           use_org_contact_info: form.use_org_contact_info,
+          // حقول العنوان الوطني
+          tax_number: form.tax_number || null,
+          street_name: form.street_name || null,
+          building_number: form.building_number || null,
+          secondary_number: form.secondary_number || null,
+          district: form.district || null,
+          postal_code: form.postal_code || null,
+          city: form.city || null,
         })
         .eq('id', organization.id);
 
@@ -150,56 +156,54 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
     }
   };
 
-  const handleSaveAddress = async () => {
-    setSavingAddress(true);
-    try {
-      const { error } = await supabase
-        .from('client_organizations')
-        .update({
-          tax_number: form.tax_number || null,
-          street_name: form.street_name || null,
-          building_number: form.building_number || null,
-          secondary_number: form.secondary_number || null,
-          district: form.district || null,
-          postal_code: form.postal_code || null,
-          city: form.city || null,
-        })
-        .eq('id', organization.id);
-
-      if (error) throw error;
-      
-      toast.success('تم حفظ العنوان الوطني');
-      setIsEditingAddress(false);
-      onUpdate();
-    } catch (error) {
-      console.error('Error saving address:', error);
-      toast.error('حدث خطأ أثناء حفظ العنوان');
-    } finally {
-      setSavingAddress(false);
-    }
+  const handleCancel = () => {
+    // Reset form to original values
+    setForm({
+      name: organization.name,
+      organization_type: organization.organization_type,
+      customer_type: organization.customer_type,
+      lifecycle_stage: organization.lifecycle_stage,
+      registration_number: organization.registration_number || '',
+      website_url: organization.website_url || '',
+      contact_email: organization.contact_email,
+      contact_phone: organization.contact_phone || '',
+      address: organization.address || '',
+      primary_contact_name: organization.primary_contact_name || '',
+      primary_contact_email: organization.primary_contact_email || '',
+      primary_contact_phone: organization.primary_contact_phone || '',
+      use_org_contact_info: organization.use_org_contact_info || false,
+      tax_number: organization.tax_number || '',
+      street_name: organization.street_name || '',
+      building_number: organization.building_number || '',
+      secondary_number: organization.secondary_number || '',
+      district: organization.district || '',
+      postal_code: organization.postal_code || '',
+      city: organization.city || '',
+    });
+    setIsEditing(false);
   };
 
   const primaryContact = contacts.find(c => c.is_primary_contact);
 
   return (
     <div className="space-y-6">
-      {/* Edit Mode Toggle */}
+      {/* Edit Mode Toggle - زر واحد فقط للتعديل */}
       <div className="flex justify-end">
         {isEditing ? (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={saving}>
+            <Button variant="outline" size="sm" onClick={handleCancel} disabled={saving}>
               <X className="w-4 h-4 ml-2" />
               إلغاء
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saving}>
               <Save className="w-4 h-4 ml-2" />
-              {saving ? 'جاري الحفظ...' : 'حفظ'}
+              {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
             </Button>
           </div>
         ) : (
           <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
             <Edit className="w-4 h-4 ml-2" />
-            تعديل
+            تعديل البيانات
           </Button>
         )}
       </div>
@@ -465,32 +469,15 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
         </Card>
 
         {/* National Address - العنوان الوطني */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card>
+          <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <MapPin className="w-5 h-5 text-primary" />
               العنوان الوطني
             </CardTitle>
-            {isEditingAddress ? (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setIsEditingAddress(false)} disabled={savingAddress}>
-                  <X className="w-4 h-4 ml-1" />
-                  إلغاء
-                </Button>
-                <Button size="sm" onClick={handleSaveAddress} disabled={savingAddress}>
-                  <Save className="w-4 h-4 ml-1" />
-                  {savingAddress ? 'جاري الحفظ...' : 'حفظ'}
-                </Button>
-              </div>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => setIsEditingAddress(true)}>
-                <Edit className="w-4 h-4 ml-1" />
-                {organization.tax_number || organization.building_number || organization.street_name ? 'تعديل' : 'إضافة عنوان'}
-              </Button>
-            )}
           </CardHeader>
           <CardContent className="space-y-4">
-            {isEditingAddress ? (
+            {isEditing ? (
               <>
                 <div className="space-y-2">
                   <Label>الرقم الضريبي</Label>
@@ -560,14 +547,14 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
             ) : (
               <div className="space-y-3">
                 {(organization.tax_number || organization.building_number || organization.street_name || organization.district || organization.postal_code || organization.city) ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                      {organization.tax_number && (
-                        <div className="flex justify-between items-center py-2 border-b border-border/50">
-                          <span className="text-muted-foreground text-sm">الرقم الضريبي</span>
-                          <span className="font-mono font-medium" dir="ltr">{organization.tax_number}</span>
-                        </div>
-                      )}
+                  <div className="space-y-3">
+                    {organization.tax_number && (
+                      <div className="flex justify-between items-center py-2 border-b border-border/50">
+                        <span className="text-muted-foreground text-sm">الرقم الضريبي</span>
+                        <span className="font-mono font-medium" dir="ltr">{organization.tax_number}</span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
                       {organization.building_number && (
                         <div className="flex justify-between items-center py-2 border-b border-border/50">
                           <span className="text-muted-foreground text-sm">رقم المبنى</span>
@@ -580,24 +567,18 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                           <span className="font-medium" dir="ltr">{organization.secondary_number}</span>
                         </div>
                       )}
-                      {organization.street_name && (
-                        <div className="flex justify-between items-center py-2 border-b border-border/50">
-                          <span className="text-muted-foreground text-sm">الشارع</span>
-                          <span className="font-medium">{organization.street_name}</span>
-                        </div>
-                      )}
                     </div>
-                    <div className="space-y-3">
+                    {organization.street_name && (
+                      <div className="flex justify-between items-center py-2 border-b border-border/50">
+                        <span className="text-muted-foreground text-sm">الشارع</span>
+                        <span className="font-medium">{organization.street_name}</span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
                       {organization.district && (
                         <div className="flex justify-between items-center py-2 border-b border-border/50">
                           <span className="text-muted-foreground text-sm">الحي</span>
                           <span className="font-medium">{organization.district}</span>
-                        </div>
-                      )}
-                      {organization.city && (
-                        <div className="flex justify-between items-center py-2 border-b border-border/50">
-                          <span className="text-muted-foreground text-sm">المدينة</span>
-                          <span className="font-medium">{organization.city}</span>
                         </div>
                       )}
                       {organization.postal_code && (
@@ -607,12 +588,17 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                         </div>
                       )}
                     </div>
+                    {organization.city && (
+                      <div className="flex justify-between items-center py-2 border-b border-border/50">
+                        <span className="text-muted-foreground text-sm">المدينة</span>
+                        <span className="font-medium">{organization.city}</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <MapPin className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                    <p className="text-muted-foreground">لم يتم إدخال العنوان الوطني بعد</p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">اضغط على "إضافة عنوان" لإضافة بيانات العنوان الوطني</p>
+                  <div className="text-center py-6">
+                    <MapPin className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
+                    <p className="text-muted-foreground text-sm">لم يتم إدخال العنوان الوطني بعد</p>
                   </div>
                 )}
               </div>
