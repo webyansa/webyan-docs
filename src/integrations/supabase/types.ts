@@ -186,6 +186,7 @@ export type Database = {
           address: string | null
           assigned_account_manager: string | null
           auto_renewal: boolean | null
+          building_number: string | null
           city: string | null
           contact_email: string
           contact_phone: string | null
@@ -194,6 +195,7 @@ export type Database = {
           csm_id: string | null
           customer_type: Database["public"]["Enums"]["customer_type"] | null
           customer_value: number | null
+          district: string | null
           domain_expiration_date: string | null
           first_contract_date: string | null
           health_score: number | null
@@ -210,12 +212,15 @@ export type Database = {
           name: string
           notes: string | null
           organization_type: Database["public"]["Enums"]["organization_type"]
+          postal_code: string | null
           primary_contact_email: string | null
           primary_contact_name: string | null
           primary_contact_phone: string | null
           registration_number: string | null
           renewal_date: string | null
           sales_owner_id: string | null
+          secondary_number: string | null
+          street_name: string | null
           subscription_end_date: string | null
           subscription_plan: string | null
           subscription_start_date: string | null
@@ -223,6 +228,7 @@ export type Database = {
           subscription_value: number | null
           success_stage: string | null
           tags: string[] | null
+          tax_number: string | null
           total_contract_value: number | null
           updated_at: string
           use_org_contact_info: boolean | null
@@ -232,6 +238,7 @@ export type Database = {
           address?: string | null
           assigned_account_manager?: string | null
           auto_renewal?: boolean | null
+          building_number?: string | null
           city?: string | null
           contact_email: string
           contact_phone?: string | null
@@ -240,6 +247,7 @@ export type Database = {
           csm_id?: string | null
           customer_type?: Database["public"]["Enums"]["customer_type"] | null
           customer_value?: number | null
+          district?: string | null
           domain_expiration_date?: string | null
           first_contract_date?: string | null
           health_score?: number | null
@@ -256,12 +264,15 @@ export type Database = {
           name: string
           notes?: string | null
           organization_type?: Database["public"]["Enums"]["organization_type"]
+          postal_code?: string | null
           primary_contact_email?: string | null
           primary_contact_name?: string | null
           primary_contact_phone?: string | null
           registration_number?: string | null
           renewal_date?: string | null
           sales_owner_id?: string | null
+          secondary_number?: string | null
+          street_name?: string | null
           subscription_end_date?: string | null
           subscription_plan?: string | null
           subscription_start_date?: string | null
@@ -269,6 +280,7 @@ export type Database = {
           subscription_value?: number | null
           success_stage?: string | null
           tags?: string[] | null
+          tax_number?: string | null
           total_contract_value?: number | null
           updated_at?: string
           use_org_contact_info?: boolean | null
@@ -278,6 +290,7 @@ export type Database = {
           address?: string | null
           assigned_account_manager?: string | null
           auto_renewal?: boolean | null
+          building_number?: string | null
           city?: string | null
           contact_email?: string
           contact_phone?: string | null
@@ -286,6 +299,7 @@ export type Database = {
           csm_id?: string | null
           customer_type?: Database["public"]["Enums"]["customer_type"] | null
           customer_value?: number | null
+          district?: string | null
           domain_expiration_date?: string | null
           first_contract_date?: string | null
           health_score?: number | null
@@ -302,12 +316,15 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_type?: Database["public"]["Enums"]["organization_type"]
+          postal_code?: string | null
           primary_contact_email?: string | null
           primary_contact_name?: string | null
           primary_contact_phone?: string | null
           registration_number?: string | null
           renewal_date?: string | null
           sales_owner_id?: string | null
+          secondary_number?: string | null
+          street_name?: string | null
           subscription_end_date?: string | null
           subscription_plan?: string | null
           subscription_start_date?: string | null
@@ -315,6 +332,7 @@ export type Database = {
           subscription_value?: number | null
           success_stage?: string | null
           tags?: string[] | null
+          tax_number?: string | null
           total_contract_value?: number | null
           updated_at?: string
           use_org_contact_info?: boolean | null
