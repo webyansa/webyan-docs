@@ -48,6 +48,13 @@ interface BasicInfoTabProps {
     primary_contact_email?: string | null;
     primary_contact_phone?: string | null;
     use_org_contact_info?: boolean | null;
+    // حقول العنوان الوطني
+    tax_number?: string | null;
+    street_name?: string | null;
+    building_number?: string | null;
+    secondary_number?: string | null;
+    district?: string | null;
+    postal_code?: string | null;
   };
   contacts: Array<{
     id: string;
@@ -88,6 +95,13 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
     primary_contact_email: organization.primary_contact_email || '',
     primary_contact_phone: organization.primary_contact_phone || '',
     use_org_contact_info: organization.use_org_contact_info || false,
+    // حقول العنوان الوطني
+    tax_number: organization.tax_number || '',
+    street_name: organization.street_name || '',
+    building_number: organization.building_number || '',
+    secondary_number: organization.secondary_number || '',
+    district: organization.district || '',
+    postal_code: organization.postal_code || '',
   });
 
   // Auto-fill primary contact when checkbox is checked
@@ -123,6 +137,13 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           primary_contact_email: form.primary_contact_email || null,
           primary_contact_phone: form.primary_contact_phone || null,
           use_org_contact_info: form.use_org_contact_info,
+          // حقول العنوان الوطني
+          tax_number: form.tax_number || null,
+          street_name: form.street_name || null,
+          building_number: form.building_number || null,
+          secondary_number: form.secondary_number || null,
+          district: form.district || null,
+          postal_code: form.postal_code || null,
         })
         .eq('id', organization.id);
 
@@ -426,6 +447,138 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                   </>
                 ) : (
                   <p className="text-muted-foreground text-center py-4">لم يتم تحديد جهة اتصال مخولة</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* National Address - العنوان الوطني */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MapPin className="w-5 h-5 text-primary" />
+              العنوان الوطني
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isEditing ? (
+              <>
+                <div className="space-y-2">
+                  <Label>الرقم الضريبي</Label>
+                  <Input
+                    value={form.tax_number}
+                    onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+                    placeholder="300000000000003"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>رقم المبنى</Label>
+                    <Input
+                      value={form.building_number}
+                      onChange={(e) => setForm({ ...form, building_number: e.target.value })}
+                      placeholder="1234"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>الرقم الفرعي</Label>
+                    <Input
+                      value={form.secondary_number}
+                      onChange={(e) => setForm({ ...form, secondary_number: e.target.value })}
+                      placeholder="5678"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>اسم الشارع</Label>
+                  <Input
+                    value={form.street_name}
+                    onChange={(e) => setForm({ ...form, street_name: e.target.value })}
+                    placeholder="شارع الملك فهد"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>الحي</Label>
+                    <Input
+                      value={form.district}
+                      onChange={(e) => setForm({ ...form, district: e.target.value })}
+                      placeholder="العليا"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>الرمز البريدي</Label>
+                    <Input
+                      value={form.postal_code}
+                      onChange={(e) => setForm({ ...form, postal_code: e.target.value })}
+                      placeholder="12345"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>المدينة</Label>
+                  <Input
+                    value={form.city}
+                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    placeholder="الرياض"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                {organization.tax_number && (
+                  <div className="flex justify-between items-start">
+                    <span className="text-muted-foreground">الرقم الضريبي</span>
+                    <span className="font-mono" dir="ltr">{organization.tax_number}</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  {organization.building_number && (
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground">رقم المبنى</span>
+                      <span dir="ltr">{organization.building_number}</span>
+                    </div>
+                  )}
+                  {organization.secondary_number && (
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground">الرقم الفرعي</span>
+                      <span dir="ltr">{organization.secondary_number}</span>
+                    </div>
+                  )}
+                </div>
+                {organization.street_name && (
+                  <div className="flex justify-between items-start">
+                    <span className="text-muted-foreground">الشارع</span>
+                    <span>{organization.street_name}</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  {organization.district && (
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground">الحي</span>
+                      <span>{organization.district}</span>
+                    </div>
+                  )}
+                  {organization.postal_code && (
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground">الرمز البريدي</span>
+                      <span dir="ltr">{organization.postal_code}</span>
+                    </div>
+                  )}
+                </div>
+                {organization.city && (
+                  <div className="flex justify-between items-start">
+                    <span className="text-muted-foreground">المدينة</span>
+                    <span>{organization.city}</span>
+                  </div>
+                )}
+                {!organization.tax_number && !organization.building_number && !organization.street_name && !organization.district && !organization.postal_code && !organization.city && (
+                  <p className="text-muted-foreground text-center py-4">لم يتم إدخال العنوان الوطني</p>
                 )}
               </div>
             )}

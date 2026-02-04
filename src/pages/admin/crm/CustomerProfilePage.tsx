@@ -46,6 +46,18 @@ interface OrganizationData {
     id: string;
     full_name: string;
   } | null;
+  // حقول العنوان الوطني
+  tax_number: string | null;
+  street_name: string | null;
+  building_number: string | null;
+  secondary_number: string | null;
+  district: string | null;
+  postal_code: string | null;
+  // حقول جهة الاتصال المخولة
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  primary_contact_phone: string | null;
+  use_org_contact_info: boolean | null;
 }
 
 interface ContactData {
