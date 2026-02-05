@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +27,7 @@ const interestTypeLabels: Record<string, string> = {
   'consulting': 'استشارة/تحول رقمي'
 };
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -247,7 +246,7 @@ serve(async (req: Request) => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            from: "Webyan <noreply@webyan.net>",
+            from: "Webyan <noreply@webyan.sa>",
             to: [body.email],
             subject: "تم استلام طلب العرض التوضيحي - ويبيان",
             html: `
@@ -305,7 +304,7 @@ serve(async (req: Request) => {
                       </table>
                       
                       <p style="color: #475569; line-height: 1.8; margin: 20px 0 0 0;">
-                        إذا كان لديكم أي استفسار، يمكنكم التواصل معنا عبر البريد الإلكتروني: <a href="mailto:support@webyan.net" style="color: #0ea5e9;">support@webyan.net</a>
+                        إذا كان لديكم أي استفسار، يمكنكم التواصل معنا عبر البريد الإلكتروني: <a href="mailto:support@webyan.sa" style="color: #0ea5e9;">support@webyan.sa</a>
                       </p>
                     </td>
                   </tr>

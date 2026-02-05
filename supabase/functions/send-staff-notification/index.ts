@@ -128,7 +128,7 @@ const handler = async (req: Request): Promise<Response> => {
       to: staff_email,
       subject: template.subject,
       html: template.html,
-      from: "نظام ويبيان <support@webyan.net>",
+      from: "نظام ويبيان <support@webyan.sa>",
     });
 
     console.log(`Staff notification sent via ${result.method}:`, result);
