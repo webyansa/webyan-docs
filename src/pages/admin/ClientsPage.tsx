@@ -27,6 +27,9 @@ import {
   List,
   ArrowUpDown,
   RefreshCw,
+  Loader2,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { ClientsImportDialog } from '@/components/crm/ClientsImportDialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -42,6 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -157,6 +161,12 @@ const ClientsPage = () => {
   const [editingAccount, setEditingAccount] = useState<ClientAccount | null>(null);
   const [saving, setSaving] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  
+  // Selection states for bulk operations
+  const [selectedOrgIds, setSelectedOrgIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [deleteSelectedDialogOpen, setDeleteSelectedDialogOpen] = useState(false);
   
   // Filter states
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -451,6 +461,11 @@ const ClientsPage = () => {
       if (data?.error) throw new Error(data.error);
 
       toast.success('تم حذف المؤسسة بنجاح');
+      setSelectedOrgIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(org.id);
+        return newSet;
+      });
       fetchData();
     } catch (error: any) {
       console.error('Error deleting organization:', error);
@@ -492,6 +507,119 @@ const ClientsPage = () => {
     } catch (error) {
       console.error('Error toggling organization status:', error);
       toast.error('حدث خطأ');
+    }
+  };
+
+  // Bulk selection functions
+  const toggleOrgSelection = (orgId: string) => {
+    setSelectedOrgIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orgId)) {
+        newSet.delete(orgId);
+      } else {
+        newSet.add(orgId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedOrgIds.size === filteredOrganizations.length) {
+      setSelectedOrgIds(new Set());
+    } else {
+      setSelectedOrgIds(new Set(filteredOrganizations.map(org => org.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedOrgIds(new Set());
+  };
+
+  const isAllSelected = filteredOrganizations.length > 0 && selectedOrgIds.size === filteredOrganizations.length;
+  const isSomeSelected = selectedOrgIds.size > 0 && selectedOrgIds.size < filteredOrganizations.length;
+
+  // Bulk delete functions
+  const handleBulkDeleteSelected = async () => {
+    if (selectedOrgIds.size === 0) return;
+    
+    setBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+    
+    try {
+      for (const orgId of selectedOrgIds) {
+        try {
+          const { data, error } = await supabase.functions.invoke('delete-client', {
+            body: { organization_id: orgId, delete_organization: true }
+          });
+
+          if (error || data?.error) {
+            failCount++;
+          } else {
+            successCount++;
+          }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`تم حذف ${successCount} مؤسسة بنجاح`);
+      }
+      if (failCount > 0) {
+        toast.error(`فشل حذف ${failCount} مؤسسة`);
+      }
+      
+      setSelectedOrgIds(new Set());
+      setDeleteSelectedDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error in bulk delete:', error);
+      toast.error('حدث خطأ أثناء الحذف');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleDeleteAllFiltered = async () => {
+    if (filteredOrganizations.length === 0) return;
+    
+    setBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+    
+    try {
+      for (const org of filteredOrganizations) {
+        try {
+          const { data, error } = await supabase.functions.invoke('delete-client', {
+            body: { organization_id: org.id, delete_organization: true }
+          });
+
+          if (error || data?.error) {
+            failCount++;
+          } else {
+            successCount++;
+          }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`تم حذف ${successCount} مؤسسة بنجاح`);
+      }
+      if (failCount > 0) {
+        toast.error(`فشل حذف ${failCount} مؤسسة`);
+      }
+      
+      setSelectedOrgIds(new Set());
+      setDeleteAllDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error in delete all:', error);
+      toast.error('حدث خطأ أثناء الحذف');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -1124,7 +1252,62 @@ const ClientsPage = () => {
         </TabsList>
 
         {/* Organizations Tab */}
-        <TabsContent value="organizations" className="mt-4">
+        <TabsContent value="organizations" className="mt-4 space-y-4">
+          {/* Bulk Actions Bar */}
+          {filteredOrganizations.length > 0 && (
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={toggleSelectAll}
+                  className="h-5 w-5"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedOrgIds.size > 0 
+                    ? `تم تحديد ${selectedOrgIds.size} من ${filteredOrganizations.length}` 
+                    : `تحديد الكل (${filteredOrganizations.length})`
+                  }
+                </span>
+                {selectedOrgIds.size > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearSelection} className="h-7 px-2 text-xs">
+                    إلغاء التحديد
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedOrgIds.size > 0 && (
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setDeleteSelectedDialogOpen(true)}
+                    className="gap-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    حذف المحدد ({selectedOrgIds.size})
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1">
+                      <Trash2 className="w-4 h-4" />
+                      حذف الكل
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => setDeleteAllDialogOpen(true)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 ml-2" />
+                      حذف جميع النتائج ({filteredOrganizations.length})
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          )}
+
           {filteredOrganizations.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
@@ -1148,11 +1331,17 @@ const ClientsPage = () => {
               {filteredOrganizations.map(org => {
                 const status = statusConfig[org.subscription_status];
                 const StatusIcon = status?.icon || CheckCircle;
+                const isSelected = selectedOrgIds.has(org.id);
                 return (
-                  <Card key={org.id} className={`group hover:shadow-md transition-all ${!org.is_active ? 'opacity-60' : ''}`}>
+                  <Card key={org.id} className={`group hover:shadow-md transition-all ${!org.is_active ? 'opacity-60' : ''} ${isSelected ? 'ring-2 ring-primary' : ''}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-4 flex-1 min-w-0">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleOrgSelection(org.id)}
+                            className="h-5 w-5 mt-1 flex-shrink-0"
+                          />
                           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0">
                             <Building2 className="w-6 h-6 text-primary" />
                           </div>
@@ -1169,7 +1358,7 @@ const ClientsPage = () => {
                                 {status?.label}
                               </span>
                               {!org.is_active && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20">
                                   معطل
                                 </span>
                               )}
@@ -1256,6 +1445,12 @@ const ClientsPage = () => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-muted/50">
+                      <th className="text-right p-3 font-medium text-sm w-[50px]">
+                        <Checkbox
+                          checked={isAllSelected}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </th>
                       <th className="text-right p-3 font-medium text-sm">المؤسسة</th>
                       <th className="text-right p-3 font-medium text-sm">البريد</th>
                       <th className="text-right p-3 font-medium text-sm">الهاتف</th>
@@ -1267,8 +1462,15 @@ const ClientsPage = () => {
                   <tbody>
                     {filteredOrganizations.map(org => {
                       const status = statusConfig[org.subscription_status];
+                      const isSelected = selectedOrgIds.has(org.id);
                       return (
-                        <tr key={org.id} className={`border-b hover:bg-muted/30 ${!org.is_active ? 'opacity-60' : ''}`}>
+                        <tr key={org.id} className={`border-b hover:bg-muted/30 ${!org.is_active ? 'opacity-60' : ''} ${isSelected ? 'bg-primary/5' : ''}`}>
+                          <td className="p-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleOrgSelection(org.id)}
+                            />
+                          </td>
                           <td className="p-3">
                             <Link to={`/admin/clients/${org.id}`} className="font-medium hover:text-primary">
                               {org.name}
@@ -1406,6 +1608,82 @@ const ClientsPage = () => {
         onOpenChange={setImportDialogOpen}
         onSuccess={fetchData}
       />
+
+      {/* Delete Selected Confirmation Dialog */}
+      <AlertDialog open={deleteSelectedDialogOpen} onOpenChange={setDeleteSelectedDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              تأكيد حذف المؤسسات المحددة
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              هل أنت متأكد من حذف <strong>{selectedOrgIds.size}</strong> مؤسسة؟
+              <br />
+              <span className="text-destructive">سيتم حذف جميع البيانات والحسابات المرتبطة بها بشكل نهائي.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel disabled={bulkDeleting}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDeleteSelected}
+              disabled={bulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                  جاري الحذف...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 ml-2" />
+                  حذف {selectedOrgIds.size} مؤسسة
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete All Confirmation Dialog */}
+      <AlertDialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              تأكيد حذف جميع المؤسسات
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              هل أنت متأكد من حذف <strong>جميع</strong> المؤسسات في النتائج الحالية ({filteredOrganizations.length} مؤسسة)؟
+              <br />
+              <span className="text-destructive font-semibold">⚠️ هذا الإجراء لا يمكن التراجع عنه!</span>
+              <br />
+              سيتم حذف جميع البيانات والحسابات المرتبطة بها بشكل نهائي.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel disabled={bulkDeleting}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAllFiltered}
+              disabled={bulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                  جاري الحذف...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 ml-2" />
+                  حذف الكل ({filteredOrganizations.length})
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, Loader2, AlertTriangle, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -43,6 +44,7 @@ interface ParsedClient {
   subscription_plan: string;
   isValid: boolean;
   errors: string[];
+  autoFilled: string[];
 }
 
 const organizationTypeMap: Record<string, string> = {
@@ -70,6 +72,8 @@ const subscriptionStatusMap: Record<string, string> = {
   'expired': 'expired',
   'cancelled': 'cancelled',
 };
+
+const DEFAULT_REGISTRATION_NUMBER = '123456789';
 
 export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsImportDialogProps) {
   const [parsedData, setParsedData] = useState<ParsedClient[]>([]);
@@ -127,16 +131,49 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
 
         const parsed: ParsedClient[] = jsonData.map((row: any) => {
           const errors: string[] = [];
+          const autoFilled: string[] = [];
           
           const name = row['اسم المؤسسة']?.toString().trim() || '';
           const contact_email = row['البريد الإلكتروني']?.toString().trim() || '';
+          const contact_phone = row['رقم الهاتف']?.toString().trim() || '';
           const orgType = row['نوع المؤسسة']?.toString().trim() || '';
           const status = row['حالة الاشتراك']?.toString().trim() || '';
+          
+          // Get primary contact info from file
+          let primary_contact_name = row['اسم جهة الاتصال']?.toString().trim() || '';
+          let primary_contact_email = row['بريد جهة الاتصال']?.toString().trim() || '';
+          let primary_contact_phone = row['جوال جهة الاتصال']?.toString().trim() || '';
+          
+          // Get registration number
+          let registration_number = row['رقم الترخيص']?.toString().trim() || '';
 
+          // Validation
           if (!name) errors.push('اسم المؤسسة مطلوب');
           if (!contact_email) errors.push('البريد الإلكتروني مطلوب');
           else if (!validateEmail(contact_email)) errors.push('البريد الإلكتروني غير صالح');
           
+          // Smart auto-fill: If no primary contact info, use organization info
+          if (!primary_contact_name && name) {
+            primary_contact_name = name;
+            autoFilled.push('اسم جهة الاتصال');
+          }
+          
+          if (!primary_contact_email && contact_email) {
+            primary_contact_email = contact_email;
+            autoFilled.push('بريد جهة الاتصال');
+          }
+          
+          if (!primary_contact_phone && contact_phone) {
+            primary_contact_phone = contact_phone;
+            autoFilled.push('جوال جهة الاتصال');
+          }
+          
+          // Smart auto-fill: If no registration number, use default
+          if (!registration_number) {
+            registration_number = DEFAULT_REGISTRATION_NUMBER;
+            autoFilled.push('رقم الترخيص');
+          }
+
           const mappedOrgType = organizationTypeMap[orgType] || 'other';
           const mappedStatus = subscriptionStatusMap[status] || 'trial';
 
@@ -144,17 +181,18 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
             name,
             organization_type: mappedOrgType,
             contact_email,
-            contact_phone: row['رقم الهاتف']?.toString().trim() || '',
+            contact_phone,
             city: row['المدينة']?.toString().trim() || '',
-            registration_number: row['رقم الترخيص']?.toString().trim() || '',
+            registration_number,
             website_url: row['الموقع الإلكتروني']?.toString().trim() || '',
-            primary_contact_name: row['اسم جهة الاتصال']?.toString().trim() || '',
-            primary_contact_email: row['بريد جهة الاتصال']?.toString().trim() || '',
-            primary_contact_phone: row['جوال جهة الاتصال']?.toString().trim() || '',
+            primary_contact_name,
+            primary_contact_email,
+            primary_contact_phone,
             subscription_status: mappedStatus,
             subscription_plan: row['الباقة']?.toString().trim() || 'basic',
             isValid: errors.length === 0,
             errors,
+            autoFilled,
           };
         });
 
@@ -200,13 +238,14 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
         contact_email: client.contact_email,
         contact_phone: client.contact_phone || null,
         city: client.city || null,
-        registration_number: client.registration_number || null,
+        registration_number: client.registration_number || DEFAULT_REGISTRATION_NUMBER,
         website_url: client.website_url || null,
         primary_contact_name: client.primary_contact_name || null,
         primary_contact_email: client.primary_contact_email || null,
         primary_contact_phone: client.primary_contact_phone || null,
         subscription_status: client.subscription_status as any,
         subscription_plan: client.subscription_plan || null,
+        use_org_contact_info: !client.autoFilled.length ? false : true,
       }));
 
       const { error } = await supabase
@@ -215,7 +254,13 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
 
       if (error) throw error;
 
-      toast.success(`تم استيراد ${validClients.length} عميل بنجاح`);
+      const autoFilledCount = validClients.filter(c => c.autoFilled.length > 0).length;
+      if (autoFilledCount > 0) {
+        toast.success(`تم استيراد ${validClients.length} عميل بنجاح (${autoFilledCount} تم تعبئة بياناتهم تلقائياً)`);
+      } else {
+        toast.success(`تم استيراد ${validClients.length} عميل بنجاح`);
+      }
+      
       setParsedData([]);
       onSuccess();
       onOpenChange(false);
@@ -229,6 +274,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
 
   const validCount = parsedData.filter(c => c.isValid).length;
   const invalidCount = parsedData.filter(c => !c.isValid).length;
+  const autoFilledCount = parsedData.filter(c => c.autoFilled.length > 0).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -258,6 +304,15 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
               تحميل النموذج
             </Button>
           </div>
+
+          {/* Smart Import Info */}
+          <Alert className="border-blue-200 bg-blue-50">
+            <Info className="w-4 h-4 text-blue-600" />
+            <AlertDescription className="text-blue-800 text-sm">
+              <strong>استيراد ذكي:</strong> في حال عدم وجود بيانات جهة الاتصال المخولة، سيتم استخدام بيانات المؤسسة تلقائياً. 
+              كما سيتم إضافة رقم ترخيص افتراضي ({DEFAULT_REGISTRATION_NUMBER}) للسجلات الناقصة.
+            </AlertDescription>
+          </Alert>
 
           {/* Upload Area */}
           {parsedData.length === 0 && (
@@ -290,7 +345,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
           {/* Preview Data */}
           {parsedData.length > 0 && (
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <Badge variant="secondary" className="gap-1">
                   <CheckCircle className="w-3 h-3 text-green-600" />
                   صالح: {validCount}
@@ -301,18 +356,24 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                     غير صالح: {invalidCount}
                   </Badge>
                 )}
+                {autoFilledCount > 0 && (
+                  <Badge variant="outline" className="gap-1 border-blue-300 text-blue-700 bg-blue-50">
+                    <Info className="w-3 h-3" />
+                    تعبئة تلقائية: {autoFilledCount}
+                  </Badge>
+                )}
               </div>
 
-              <ScrollArea className="h-[250px] border rounded-lg">
+              <ScrollArea className="h-[280px] border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[50px] sticky top-0 bg-background">الحالة</TableHead>
                       <TableHead className="sticky top-0 bg-background">اسم المؤسسة</TableHead>
                       <TableHead className="sticky top-0 bg-background">البريد الإلكتروني</TableHead>
-                      <TableHead className="sticky top-0 bg-background">نوع المؤسسة</TableHead>
-                      <TableHead className="sticky top-0 bg-background">المدينة</TableHead>
-                      <TableHead className="sticky top-0 bg-background">الأخطاء</TableHead>
+                      <TableHead className="sticky top-0 bg-background">رقم الترخيص</TableHead>
+                      <TableHead className="sticky top-0 bg-background">جهة الاتصال</TableHead>
+                      <TableHead className="sticky top-0 bg-background">ملاحظات</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -327,13 +388,33 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                         </TableCell>
                         <TableCell className="font-medium">{client.name || '-'}</TableCell>
                         <TableCell>{client.contact_email || '-'}</TableCell>
-                        <TableCell>{client.organization_type}</TableCell>
-                        <TableCell>{client.city || '-'}</TableCell>
+                        <TableCell>
+                          <span className={client.autoFilled.includes('رقم الترخيص') ? 'text-blue-600' : ''}>
+                            {client.registration_number || '-'}
+                          </span>
+                          {client.autoFilled.includes('رقم الترخيص') && (
+                            <span className="text-xs text-blue-500 mr-1">(افتراضي)</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className={client.autoFilled.includes('بريد جهة الاتصال') ? 'text-blue-600' : ''}>
+                            {client.primary_contact_email || '-'}
+                          </span>
+                          {client.autoFilled.includes('بريد جهة الاتصال') && (
+                            <span className="text-xs text-blue-500 mr-1">(من المؤسسة)</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {client.errors.length > 0 && (
                             <div className="flex items-center gap-1 text-destructive text-xs">
                               <AlertTriangle className="w-3 h-3" />
                               {client.errors.join('، ')}
+                            </div>
+                          )}
+                          {client.autoFilled.length > 0 && client.errors.length === 0 && (
+                            <div className="flex items-center gap-1 text-blue-600 text-xs">
+                              <Info className="w-3 h-3" />
+                              تعبئة تلقائية: {client.autoFilled.join('، ')}
                             </div>
                           )}
                         </TableCell>
