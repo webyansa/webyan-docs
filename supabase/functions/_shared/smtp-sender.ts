@@ -1,10 +1,7 @@
 // مكتبة إرسال البريد الموحدة - تدعم SMTP مخصص مع fallback لـ Resend
 // Unified Email Sender - Supports custom SMTP with Resend fallback
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
-import { BufReader, BufWriter, TextProtoReader } from "https://deno.land/x/smtp@v0.7.0/deps.ts";
-import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 export interface SmtpSettings {
   smtp_enabled: boolean;
@@ -59,7 +56,6 @@ async function logEmailSend(params: {
 }): Promise<void> {
   try {
     const supabase = getSupabaseClient();
-    // Use type assertion since edge functions don't have auto-generated types
     await (supabase.from('email_logs') as any).insert({
       recipient_email: params.recipientEmail,
       subject: params.subject,
@@ -71,7 +67,6 @@ async function logEmailSend(params: {
     });
   } catch (error) {
     console.error('Failed to log email:', error);
-    // Don't throw - logging failure shouldn't break email sending
   }
 }
 
@@ -115,30 +110,6 @@ export async function getBaseUrl(): Promise<string> {
   return settings.public_base_url;
 }
 
-// SMTP Helper functions
-const readSmtpResponse = async (reader: TextProtoReader) => {
-  const first = await reader.readLine();
-  if (!first) throw new Error("SMTP: no response");
-  const code = Number(first.slice(0, 3));
-  const isMulti = first.length >= 4 && first[3] === "-";
-  const lines: string[] = [first];
-  if (isMulti) {
-    while (true) {
-      const line = await reader.readLine();
-      if (!line) break;
-      lines.push(line);
-      if (line.startsWith(String(code)) && line[3] === " ") break;
-    }
-  }
-  return { code, lines };
-};
-
-const writeLine = async (writer: BufWriter, line: string) => {
-  const enc = new TextEncoder();
-  await writer.write(enc.encode(`${line}\r\n`));
-  await writer.flush();
-};
-
 /**
  * Send email via STARTTLS (for port 587)
  */
@@ -155,71 +126,77 @@ async function sendViaStartTLS(params: {
   const tcpConn = await Deno.connect({ hostname: params.hostname, port: params.port });
   let conn: Deno.Conn = tcpConn;
 
-  const makeIO = (c: Deno.Conn) => {
-    const reader = new TextProtoReader(new BufReader(c));
-    const writer = new BufWriter(c);
-    return { reader, writer };
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  const read = async (c: Deno.Conn): Promise<string> => {
+    const buf = new Uint8Array(4096);
+    const n = await c.read(buf);
+    return n ? decoder.decode(buf.subarray(0, n)) : "";
   };
 
-  let { reader, writer } = makeIO(conn);
+  const write = async (c: Deno.Conn, data: string): Promise<void> => {
+    await c.write(encoder.encode(data + "\r\n"));
+  };
 
-  const assert2xx3xx = (code: number, expected: number | number[]) => {
-    const ok = Array.isArray(expected) ? expected.includes(code) : code === expected;
-    if (!ok) throw new Error(`SMTP unexpected response code ${code}`);
+  const expect = async (c: Deno.Conn, code: number): Promise<string> => {
+    const response = await read(c);
+    if (!response.startsWith(String(code))) {
+      throw new Error(`SMTP: expected ${code}, got: ${response.trim()}`);
+    }
+    return response;
   };
 
   // Greeting
-  let res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 220);
+  await expect(conn, 220);
 
   // EHLO
-  await writeLine(writer, `EHLO ${params.hostname}`);
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 250);
+  await write(conn, `EHLO ${params.hostname}`);
+  const ehloResponse = await expect(conn, 250);
 
-  const supportsStartTLS = res.lines.some((l) => l.toUpperCase().includes("STARTTLS"));
-  if (!supportsStartTLS) {
-    throw new Error("Server does not advertise STARTTLS");
+  if (!ehloResponse.toUpperCase().includes("STARTTLS")) {
+    throw new Error("Server does not support STARTTLS");
   }
 
   // STARTTLS
-  await writeLine(writer, "STARTTLS");
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 220);
+  await write(conn, "STARTTLS");
+  await expect(conn, 220);
 
-  // Upgrade connection to TLS
+  // Upgrade to TLS
   const tlsConn = await Deno.startTls(tcpConn, { hostname: params.hostname });
   conn = tlsConn;
-  ({ reader, writer } = makeIO(conn));
 
   // EHLO again over TLS
-  await writeLine(writer, `EHLO ${params.hostname}`);
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 250);
+  await write(conn, `EHLO ${params.hostname}`);
+  await expect(conn, 250);
 
   // AUTH LOGIN
-  await writeLine(writer, "AUTH LOGIN");
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 334);
-  await writeLine(writer, btoa(params.username));
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 334);
-  await writeLine(writer, btoa(params.password));
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, [235, 503]);
+  await write(conn, "AUTH LOGIN");
+  await expect(conn, 334);
+  await write(conn, btoa(params.username));
+  await expect(conn, 334);
+  await write(conn, btoa(params.password));
+  const authResp = await read(conn);
+  if (!authResp.startsWith("235") && !authResp.startsWith("503")) {
+    throw new Error(`AUTH failed: ${authResp.trim()}`);
+  }
 
-  // MAIL FROM / RCPT TO / DATA
-  await writeLine(writer, `MAIL FROM:<${params.from}>`);
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 250);
-  await writeLine(writer, `RCPT TO:<${params.to}>`);
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, [250, 251]);
-  await writeLine(writer, "DATA");
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 354);
+  // MAIL FROM
+  await write(conn, `MAIL FROM:<${params.from}>`);
+  await expect(conn, 250);
 
-  // MIME message
+  // RCPT TO
+  await write(conn, `RCPT TO:<${params.to}>`);
+  const rcptResp = await read(conn);
+  if (!rcptResp.startsWith("250") && !rcptResp.startsWith("251")) {
+    throw new Error(`RCPT TO failed: ${rcptResp.trim()}`);
+  }
+
+  // DATA
+  await write(conn, "DATA");
+  await expect(conn, 354);
+
+  // Build MIME message
   const msg = [
     `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`,
     `From: ${params.from}`,
@@ -232,20 +209,104 @@ async function sendViaStartTLS(params: {
     ".",
   ].join("\r\n");
 
-  const enc = new TextEncoder();
-  await writer.write(enc.encode(msg + "\r\n"));
-  await writer.flush();
-
-  res = await readSmtpResponse(reader);
-  assert2xx3xx(res.code, 250);
+  await conn.write(encoder.encode(msg + "\r\n"));
+  await expect(conn, 250);
 
   // QUIT
-  await writeLine(writer, "QUIT");
-  try {
-    await readSmtpResponse(reader);
-  } catch {
-    // ignore
+  await write(conn, "QUIT");
+  try { await read(conn); } catch { /* ignore */ }
+  await conn.close();
+}
+
+/**
+ * Send email via SSL (for port 465)
+ */
+async function sendViaSSL(params: {
+  hostname: string;
+  port: number;
+  username: string;
+  password: string;
+  from: string;
+  fromName: string;
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<void> {
+  const conn = await Deno.connectTls({ hostname: params.hostname, port: params.port });
+  
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  const read = async (): Promise<string> => {
+    const buf = new Uint8Array(4096);
+    const n = await conn.read(buf);
+    return n ? decoder.decode(buf.subarray(0, n)) : "";
+  };
+
+  const write = async (data: string): Promise<void> => {
+    await conn.write(encoder.encode(data + "\r\n"));
+  };
+
+  const expect = async (code: number): Promise<string> => {
+    const response = await read();
+    if (!response.startsWith(String(code))) {
+      throw new Error(`SMTP SSL: expected ${code}, got: ${response.trim()}`);
+    }
+    return response;
+  };
+
+  // Greeting
+  await expect(220);
+
+  // EHLO
+  await write(`EHLO ${params.hostname}`);
+  await expect(250);
+
+  // AUTH LOGIN
+  await write("AUTH LOGIN");
+  await expect(334);
+  await write(btoa(params.username));
+  await expect(334);
+  await write(btoa(params.password));
+  const authResp = await read();
+  if (!authResp.startsWith("235") && !authResp.startsWith("503")) {
+    throw new Error(`AUTH failed: ${authResp.trim()}`);
   }
+
+  // MAIL FROM
+  await write(`MAIL FROM:<${params.from}>`);
+  await expect(250);
+
+  // RCPT TO
+  await write(`RCPT TO:<${params.to}>`);
+  const rcptResp = await read();
+  if (!rcptResp.startsWith("250") && !rcptResp.startsWith("251")) {
+    throw new Error(`RCPT TO failed: ${rcptResp.trim()}`);
+  }
+
+  // DATA
+  await write("DATA");
+  await expect(354);
+
+  // Build MIME message
+  const msg = [
+    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`,
+    `From: ${params.fromName} <${params.from}>`,
+    `To: ${params.to}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/html; charset="utf-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    params.html,
+    ".",
+  ].join("\r\n");
+
+  await conn.write(encoder.encode(msg + "\r\n"));
+  await expect(250);
+
+  // QUIT
+  await write("QUIT");
+  try { await read(); } catch { /* ignore */ }
   await conn.close();
 }
 
@@ -272,43 +333,35 @@ async function sendViaSmtp(settings: SmtpSettings, params: EmailParams): Promise
         html: params.html,
       });
     } else if (smtp_encryption === "ssl" || port === 465) {
-      const client = new SmtpClient();
-      await client.connectTLS({
+      await sendViaSSL({
         hostname: smtp_host,
-        port: port,
+        port,
         username: smtp_username,
         password: smtp_password,
-      });
-      await client.send({
-        from: `${fromName} <${fromEmail}>`,
+        from: fromEmail,
+        fromName,
         to: toEmail,
         subject: params.subject,
-        content: "text/html",
         html: params.html,
       });
-      await client.close();
     } else {
-      const client = new SmtpClient();
-      await client.connect({
+      // Fallback to STARTTLS for other configurations
+      await sendViaStartTLS({
         hostname: smtp_host,
-        port: port,
+        port,
         username: smtp_username,
         password: smtp_password,
-      });
-      await client.send({
-        from: `${fromName} <${fromEmail}>`,
+        from: fromEmail,
         to: toEmail,
         subject: params.subject,
-        content: "text/html",
         html: params.html,
       });
-      await client.close();
     }
   }
 }
 
 /**
- * Send email via Resend
+ * Send email via Resend API
  */
 async function sendViaResend(params: EmailParams, senderName: string = "ويبيان"): Promise<void> {
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -316,15 +369,26 @@ async function sendViaResend(params: EmailParams, senderName: string = "ويبي
     throw new Error("RESEND_API_KEY غير مُعدّ");
   }
 
-  const resend = new Resend(resendApiKey);
   const toEmails = Array.isArray(params.to) ? params.to : [params.to];
   
-  await resend.emails.send({
-    from: params.from || `${senderName} <support@webyan.net>`,
-    to: toEmails,
-    subject: params.subject,
-    html: params.html,
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${resendApiKey}`,
+    },
+    body: JSON.stringify({
+      from: params.from || `${senderName} <support@webyan.net>`,
+      to: toEmails,
+      subject: params.subject,
+      html: params.html,
+    }),
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Resend API error: ${errorText}`);
+  }
 }
 
 /**
@@ -341,7 +405,6 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
       await sendViaSmtp(settings, params);
       console.log("Email sent successfully via custom SMTP");
       
-      // Log success
       await logEmailSend({
         recipientEmail,
         subject: params.subject,
@@ -361,7 +424,6 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
         await sendViaResend(params, settings.smtp_sender_name);
         console.log("Email sent successfully via Resend (fallback)");
         
-        // Log fallback success
         await logEmailSend({
           recipientEmail,
           subject: params.subject,
@@ -377,7 +439,6 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
         const resendErrorMsg = resendError instanceof Error ? resendError.message : String(resendError);
         console.error("Resend fallback also failed:", resendErrorMsg);
         
-        // Log complete failure
         await logEmailSend({
           recipientEmail,
           subject: params.subject,
@@ -403,7 +464,6 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
     await sendViaResend(params, settings.smtp_sender_name);
     console.log("Email sent successfully via Resend");
     
-    // Log success
     await logEmailSend({
       recipientEmail,
       subject: params.subject,
@@ -417,7 +477,6 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error("Resend failed:", errorMsg);
     
-    // Log failure
     await logEmailSend({
       recipientEmail,
       subject: params.subject,

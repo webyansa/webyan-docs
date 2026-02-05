@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { sendEmail, getSmtpSettings } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +24,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -129,14 +129,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const taxAmount = quote.tax_amount || (afterDiscount * taxRate / 100);
     const totalAmount = quote.total_amount || (afterDiscount + taxAmount);
 
-    // Get base URL
-    const { data: baseUrlSetting } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'public_base_url')
-      .single();
-    
-    const baseUrl = baseUrlSetting?.value || 'https://docs.webyan.net';
+    // Get base URL from settings
+    const settings = await getSmtpSettings();
+    const baseUrl = settings.public_base_url || 'https://docs.webyan.net';
     const quoteUrl = `${baseUrl}/admin/crm/quotes/${quote_id}`;
 
     // Build invoice description
@@ -173,33 +168,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
       paymentMethodLabels,
     });
 
-    // Send email via Resend
-    if (resendApiKey) {
-      const emailResponse = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${resendApiKey}`,
-        },
-        body: JSON.stringify({
-          from: "Webyan <support@webyan.net>",
-          to: [accountsEmail],
-          subject: `طلب إصدار فاتورة – ${org.name} – عرض سعر ${quote.quote_number}`,
-          html: emailHtml,
-        }),
-      });
+    // Send email using unified smtp-sender (SMTP with Resend fallback)
+    const emailResult = await sendEmail({
+      to: accountsEmail,
+      subject: `طلب إصدار فاتورة – ${org.name} – عرض سعر ${quote.quote_number}`,
+      html: emailHtml,
+      emailType: 'invoice_request',
+    });
 
-      if (!emailResponse.ok) {
-        const errorText = await emailResponse.text();
-        console.error("Resend error:", errorText);
-      }
+    if (!emailResult.success) {
+      console.error('Email send failed:', emailResult.error);
+      // Still return success for the request creation, but note the email issue
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          request_number: requestNumber,
+          message: "تم إنشاء طلب الفاتورة ولكن فشل إرسال البريد",
+          email_error: emailResult.error,
+          email_sent: false
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    console.log(`Email sent successfully via ${emailResult.method}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         request_number: requestNumber,
-        message: "تم إرسال طلب الفاتورة بنجاح" 
+        message: "تم إرسال طلب الفاتورة بنجاح",
+        email_sent: true,
+        email_method: emailResult.method
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
