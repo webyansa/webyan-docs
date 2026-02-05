@@ -363,13 +363,16 @@ async function sendViaSmtp(settings: SmtpSettings, params: EmailParams): Promise
 /**
  * Send email via Resend API
  */
-async function sendViaResend(params: EmailParams, senderName: string = "ويبيان"): Promise<void> {
+async function sendViaResend(params: EmailParams, senderName: string = "Webyan"): Promise<void> {
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   if (!resendApiKey) {
     throw new Error("RESEND_API_KEY غير مُعدّ");
   }
 
   const toEmails = Array.isArray(params.to) ? params.to : [params.to];
+  
+  // Use ASCII-safe sender name to avoid encoding issues with some mail servers
+  const fromAddress = params.from || `${senderName} <support@webyan.sa>`;
   
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -378,17 +381,21 @@ async function sendViaResend(params: EmailParams, senderName: string = "ويبي
       Authorization: `Bearer ${resendApiKey}`,
     },
     body: JSON.stringify({
-      from: params.from || `${senderName} <support@webyan.sa>`,
+      from: fromAddress,
       to: toEmails,
       subject: params.subject,
       html: params.html,
+      reply_to: "support@webyan.sa",
     }),
   });
 
+  const responseData = await response.json();
+  
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Resend API error: ${errorText}`);
+    throw new Error(`Resend API error: ${JSON.stringify(responseData)}`);
   }
+  
+  console.log("Resend response:", responseData);
 }
 
 /**
