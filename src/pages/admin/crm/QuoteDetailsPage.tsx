@@ -78,6 +78,8 @@ import { PDFDownloadLink, BlobProvider, pdf } from '@react-pdf/renderer';
 import QuotePDFDocument from '@/components/crm/quotes/QuotePDFDocument';
 import { ContractDocumentationModal } from '@/components/operations/ContractDocumentationModal';
 import { useAuth } from '@/hooks/useAuth';
+import { InvoiceRequestModal } from '@/components/crm/modals/InvoiceRequestModal';
+import { InvoiceRequestStatus } from '@/components/crm/InvoiceRequestStatus';
 
 interface QuoteItem {
   id?: string;
@@ -142,6 +144,7 @@ export default function QuoteDetailsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
+  const [showInvoiceRequestModal, setShowInvoiceRequestModal] = useState(false);
   const [editForm, setEditForm] = useState<{
     title: string;
     quote_type: string;
@@ -670,6 +673,17 @@ export default function QuoteDetailsPage() {
                       توثيق العقد وبدء المشروع
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              {/* Invoice Request - for accepted or sent quotes */}
+              {(quote?.status === 'accepted' || quote?.status === 'sent') && (
+                <>
+                  <DropdownMenuItem onClick={() => setShowInvoiceRequestModal(true)}>
+                    <Receipt className="h-4 w-4 ml-2 text-emerald-600" />
+                    طلب إصدار فاتورة
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
               )}
@@ -1465,6 +1479,23 @@ export default function QuoteDetailsPage() {
           accountName={quote.account?.name || ''}
           staffId={currentStaff?.id}
         />
+      )}
+
+      {/* Invoice Request Modal */}
+      {quote && (
+        <InvoiceRequestModal
+          open={showInvoiceRequestModal}
+          onClose={() => setShowInvoiceRequestModal(false)}
+          quoteId={quoteId!}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['invoice-request-status', quoteId] })}
+        />
+      )}
+
+      {/* Invoice Request Status - after quote meta info */}
+      {quote && (quote.status === 'accepted' || quote.status === 'sent') && (
+        <div className="px-6 pb-6 print:hidden">
+          <InvoiceRequestStatus quoteId={quoteId!} />
+        </div>
       )}
     </div>
   );
