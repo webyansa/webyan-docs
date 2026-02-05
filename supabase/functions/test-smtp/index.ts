@@ -43,8 +43,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "ويبيان <support@webyan.sa>",
+        from: "Webyan Support <support@webyan.sa>",
         to: [toEmail],
+        reply_to: "support@webyan.sa",
         subject: "✅ رسالة اختبار من نظام ويبيان",
         html: `
 <!DOCTYPE html>
