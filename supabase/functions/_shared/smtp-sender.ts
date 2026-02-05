@@ -96,7 +96,7 @@ export async function getSmtpSettings(): Promise<SmtpSettings> {
     smtp_sender_email: settingsMap['smtp_sender_email'] || 'support@webyan.sa',
     smtp_sender_name: settingsMap['smtp_sender_name'] || 'ويبيان',
     smtp_encryption: settingsMap['smtp_encryption'] || 'tls',
-    public_base_url: settingsMap['public_base_url'] || 'https://docs.webyan.sa',
+    public_base_url: settingsMap['public_base_url'] || 'https://webyan.sa',
   };
 
   return cachedSettings;
