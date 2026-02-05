@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface SystemSettings {
   admin_email: string;
+  accounts_email: string;
   company_name: string;
   support_response_time: string;
   max_upload_size_mb: string;
@@ -24,6 +25,7 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<SystemSettings>({
     admin_email: '',
+    accounts_email: '',
     company_name: '',
     support_response_time: '48',
     max_upload_size_mb: '1',
@@ -56,6 +58,7 @@ export default function SettingsPage() {
 
       const settingsMap: SystemSettings = {
         admin_email: '',
+        accounts_email: '',
         company_name: '',
         support_response_time: '48',
         max_upload_size_mb: '1',
@@ -158,6 +161,23 @@ export default function SettingsPage() {
           <Separator />
           
           <div className="space-y-2">
+            <Label htmlFor="accounts-email">بريد مسؤول الحسابات</Label>
+            <Input
+              id="accounts-email"
+              type="email"
+              value={settings.accounts_email}
+              onChange={(e) => setSettings({ ...settings, accounts_email: e.target.value })}
+              placeholder="accounts@example.com"
+              dir="ltr"
+            />
+            <p className="text-sm text-muted-foreground">
+              سيتم إرسال طلبات إصدار الفواتير إلى هذا البريد
+            </p>
+          </div>
+          
+          <Separator />
+          
+          <div className="space-y-2">
             <Label htmlFor="company-name">اسم الشركة</Label>
             <Input
               id="company-name"
@@ -203,7 +223,7 @@ export default function SettingsPage() {
             </ul>
           </div>
 
-          <Button onClick={() => handleSaveSettings(['admin_email', 'company_name', 'support_response_time'])} disabled={isSaving} className="gap-2">
+          <Button onClick={() => handleSaveSettings(['admin_email', 'accounts_email', 'company_name', 'support_response_time'])} disabled={isSaving} className="gap-2">
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             حفظ إعدادات البريد
           </Button>

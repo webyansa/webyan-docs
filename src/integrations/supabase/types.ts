@@ -2201,6 +2201,79 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_requests: {
+        Row: {
+          created_at: string
+          expected_payment_method: string | null
+          external_invoice_no: string | null
+          id: string
+          issued_at: string | null
+          notes_for_accounts: string | null
+          organization_id: string
+          quote_id: string
+          request_number: string
+          resend_reason: string | null
+          sent_at: string
+          sent_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expected_payment_method?: string | null
+          external_invoice_no?: string | null
+          id?: string
+          issued_at?: string | null
+          notes_for_accounts?: string | null
+          organization_id: string
+          quote_id: string
+          request_number: string
+          resend_reason?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expected_payment_method?: string | null
+          external_invoice_no?: string | null
+          id?: string
+          issued_at?: string | null
+          notes_for_accounts?: string | null
+          organization_id?: string
+          quote_id?: string
+          request_number?: string
+          resend_reason?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_requests_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "crm_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_requests_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_activity_log: {
         Row: {
           action_type: string
