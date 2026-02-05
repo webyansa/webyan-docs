@@ -207,7 +207,7 @@ const handler = async (req: Request): Promise<Response> => {
           "Authorization": `Bearer ${resendApiKey}`,
         },
         body: JSON.stringify({
-          from: "ويبيان <support@webyan.net>",
+          from: "ويبيان <support@webyan.sa>",
           to: [to_email],
           subject: "✅ رسالة اختبار من نظام ويبيان",
           html: `

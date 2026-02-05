@@ -93,10 +93,10 @@ export async function getSmtpSettings(): Promise<SmtpSettings> {
     smtp_port: settingsMap['smtp_port'] || '587',
     smtp_username: settingsMap['smtp_username'] || '',
     smtp_password: settingsMap['smtp_password'] || '',
-    smtp_sender_email: settingsMap['smtp_sender_email'] || 'support@webyan.net',
+    smtp_sender_email: settingsMap['smtp_sender_email'] || 'support@webyan.sa',
     smtp_sender_name: settingsMap['smtp_sender_name'] || 'ويبيان',
     smtp_encryption: settingsMap['smtp_encryption'] || 'tls',
-    public_base_url: settingsMap['public_base_url'] || 'https://docs.webyan.net',
+    public_base_url: settingsMap['public_base_url'] || 'https://docs.webyan.sa',
   };
 
   return cachedSettings;
@@ -378,7 +378,7 @@ async function sendViaResend(params: EmailParams, senderName: string = "ويبي
       Authorization: `Bearer ${resendApiKey}`,
     },
     body: JSON.stringify({
-      from: params.from || `${senderName} <support@webyan.net>`,
+      from: params.from || `${senderName} <support@webyan.sa>`,
       to: toEmails,
       subject: params.subject,
       html: params.html,

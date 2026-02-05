@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendEmail } from "../_shared/smtp-sender.ts";
 import { quoteEmailTemplate } from "../_shared/email-templates.ts";
 
@@ -74,7 +73,7 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("key", "public_base_url")
       .single();
     
-    const baseUrl = settings?.value || "https://docs.webyan.net";
+    const baseUrl = settings?.value || "https://docs.webyan.sa";
 
     // Format currency
     const formatCurrency = (amount: number) => {
@@ -171,4 +170,4 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-serve(handler);
+Deno.serve(handler);

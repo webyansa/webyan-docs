@@ -102,7 +102,7 @@ const createFooter = (): string => `
       </tr>
       <tr>
         <td align="center" style="padding-top:4px;">
-          <p style="margin:0;padding:0;font-size:12px;color:rgba(255,255,255,0.7);font-family:Arial,sans-serif;">support@webyan.net</p>
+          <p style="margin:0;padding:0;font-size:12px;color:rgba(255,255,255,0.7);font-family:Arial,sans-serif;">support@webyan.sa</p>
         </td>
       </tr>
       <tr>
