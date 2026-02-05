@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, Loader2, AlertTriangle, Info } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, Loader2, AlertTriangle, Info, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -74,11 +76,13 @@ const subscriptionStatusMap: Record<string, string> = {
 };
 
 const DEFAULT_REGISTRATION_NUMBER = '123456789';
+const DEFAULT_PORTAL_PASSWORD = 'Portal@123';
 
 export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsImportDialogProps) {
   const [parsedData, setParsedData] = useState<ParsedClient[]>([]);
   const [importing, setImporting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [createPortalAccounts, setCreatePortalAccounts] = useState(true);
 
   const downloadTemplate = () => {
     const templateData = [
@@ -231,6 +235,8 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
     }
 
     setImporting(true);
+    let accountsCreated = 0;
+    
     try {
       const clientsToInsert = validClients.map(client => ({
         name: client.name,
@@ -248,18 +254,52 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
         use_org_contact_info: !client.autoFilled.length ? false : true,
       }));
 
-      const { error } = await supabase
+      const { data: insertedOrgs, error } = await supabase
         .from('client_organizations')
-        .insert(clientsToInsert);
+        .insert(clientsToInsert)
+        .select('id, contact_email, name');
 
       if (error) throw error;
 
+      // Create portal accounts if enabled
+      if (createPortalAccounts && insertedOrgs && insertedOrgs.length > 0) {
+        for (const org of insertedOrgs) {
+          if (org.contact_email) {
+            try {
+              const { error: accountError } = await supabase.functions.invoke('create-client-account', {
+                body: {
+                  organization_id: org.id,
+                  full_name: org.name,
+                  email: org.contact_email,
+                  password: DEFAULT_PORTAL_PASSWORD,
+                  is_primary_contact: true
+                }
+              });
+              
+              if (!accountError) {
+                accountsCreated++;
+              } else {
+                console.warn(`Failed to create account for ${org.contact_email}:`, accountError);
+              }
+            } catch (err) {
+              console.warn(`Error creating account for ${org.contact_email}:`, err);
+            }
+          }
+        }
+      }
+
+      let successMessage = `تم استيراد ${validClients.length} عميل بنجاح`;
+      
+      if (createPortalAccounts && accountsCreated > 0) {
+        successMessage += ` وإنشاء ${accountsCreated} حساب بوابة`;
+      }
+      
       const autoFilledCount = validClients.filter(c => c.autoFilled.length > 0).length;
       if (autoFilledCount > 0) {
-        toast.success(`تم استيراد ${validClients.length} عميل بنجاح (${autoFilledCount} تم تعبئة بياناتهم تلقائياً)`);
-      } else {
-        toast.success(`تم استيراد ${validClients.length} عميل بنجاح`);
+        successMessage += ` (${autoFilledCount} تم تعبئة بياناتهم تلقائياً)`;
       }
+      
+      toast.success(successMessage);
       
       setParsedData([]);
       onSuccess();
@@ -313,6 +353,24 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
               كما سيتم إضافة رقم ترخيص افتراضي ({DEFAULT_REGISTRATION_NUMBER}) للسجلات الناقصة.
             </AlertDescription>
           </Alert>
+
+          {/* Portal Account Creation Option */}
+          <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+            <Checkbox
+              id="create-portal-accounts"
+              checked={createPortalAccounts}
+              onCheckedChange={(checked) => setCreatePortalAccounts(checked as boolean)}
+            />
+            <div className="flex-1">
+              <Label htmlFor="create-portal-accounts" className="flex items-center gap-2 cursor-pointer">
+                <UserPlus className="w-4 h-4 text-primary" />
+                <span className="font-medium">إنشاء حسابات بوابة العملاء تلقائياً</span>
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                سيتم إنشاء حساب لكل عميل باستخدام بريده الرسمي وكلمة المرور الافتراضية: <code className="bg-muted px-1 rounded">{DEFAULT_PORTAL_PASSWORD}</code>
+              </p>
+            </div>
+          </div>
 
           {/* Upload Area */}
           {parsedData.length === 0 && (
