@@ -417,14 +417,35 @@ export function PortalAccountsTab({ organizationId, organizationName }: PortalAc
                       <Edit className="w-4 h-4" />
                     </Button>
                     {account.user_id && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handlePasswordChange(account)}
-                        title="تغيير كلمة المرور"
-                      >
-                        <Key className="w-4 h-4" />
-                      </Button>
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handlePasswordChange(account)}
+                          title="تغيير كلمة المرور"
+                        >
+                          <Key className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            toast.info(
+                              <div className="flex flex-col gap-2" dir="rtl">
+                                <span className="font-semibold">كلمة المرور الافتراضية:</span>
+                                <code className="bg-muted px-2 py-1 rounded text-sm font-mono" dir="ltr">Portal@123</code>
+                                <span className="text-xs text-muted-foreground">
+                                  * هذه هي كلمة المرور الافتراضية للحسابات المستوردة
+                                </span>
+                              </div>,
+                              { duration: 5000 }
+                            );
+                          }}
+                          title="عرض كلمة المرور الافتراضية"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"
