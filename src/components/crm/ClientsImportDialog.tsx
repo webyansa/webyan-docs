@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, Loader2, AlertTriangle, Info, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -83,6 +83,26 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
   const [importing, setImporting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [createPortalAccounts, setCreatePortalAccounts] = useState(true);
+  const [defaultPlanId, setDefaultPlanId] = useState<string | null>(null);
+  const [defaultPlanName, setDefaultPlanName] = useState<string>('الخطة الأساسية');
+
+  // Fetch default plan on mount
+  useEffect(() => {
+    const fetchDefaultPlan = async () => {
+      const { data } = await supabase
+        .from('pricing_plans')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        setDefaultPlanId(data[0].id);
+        setDefaultPlanName(data[0].name);
+      }
+    };
+    fetchDefaultPlan();
+  }, []);
 
   const downloadTemplate = () => {
     const templateData = [
@@ -250,7 +270,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
         primary_contact_email: client.primary_contact_email || null,
         primary_contact_phone: client.primary_contact_phone || null,
         subscription_status: client.subscription_status as any,
-        subscription_plan: client.subscription_plan || null,
+        subscription_plan: defaultPlanId, // Always use default plan
         use_org_contact_info: !client.autoFilled.length ? false : true,
       }));
 
@@ -346,11 +366,15 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
           </div>
 
           {/* Smart Import Info */}
-          <Alert className="border-blue-200 bg-blue-50">
-            <Info className="w-4 h-4 text-blue-600" />
-            <AlertDescription className="text-blue-800 text-sm">
-              <strong>استيراد ذكي:</strong> في حال عدم وجود بيانات جهة الاتصال المخولة، سيتم استخدام بيانات المؤسسة تلقائياً. 
-              كما سيتم إضافة رقم ترخيص افتراضي ({DEFAULT_REGISTRATION_NUMBER}) للسجلات الناقصة.
+          <Alert className="border-primary/20 bg-primary/5">
+            <Info className="w-4 h-4 text-primary" />
+            <AlertDescription className="text-foreground/80 text-sm">
+              <strong>استيراد ذكي:</strong> سيتم تطبيق الإعدادات التالية تلقائياً:
+              <ul className="list-disc list-inside mt-1 space-y-0.5 text-muted-foreground">
+                <li>الخطة الافتراضية: <strong className="text-foreground">{defaultPlanName}</strong></li>
+                <li>رقم الترخيص الافتراضي: <code className="bg-muted px-1 rounded">{DEFAULT_REGISTRATION_NUMBER}</code></li>
+                <li>بيانات جهة الاتصال تُؤخذ من بيانات المؤسسة إذا لم تتوفر</li>
+              </ul>
             </AlertDescription>
           </Alert>
 
@@ -405,7 +429,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge variant="secondary" className="gap-1">
-                  <CheckCircle className="w-3 h-3 text-green-600" />
+                  <CheckCircle className="w-3 h-3 text-primary" />
                   صالح: {validCount}
                 </Badge>
                 {invalidCount > 0 && (
@@ -415,7 +439,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                   </Badge>
                 )}
                 {autoFilledCount > 0 && (
-                  <Badge variant="outline" className="gap-1 border-blue-300 text-blue-700 bg-blue-50">
+                  <Badge variant="outline" className="gap-1 border-primary/30 text-primary bg-primary/5">
                     <Info className="w-3 h-3" />
                     تعبئة تلقائية: {autoFilledCount}
                   </Badge>
@@ -439,7 +463,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                       <TableRow key={index}>
                         <TableCell>
                           {client.isValid ? (
-                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <CheckCircle className="w-5 h-5 text-primary" />
                           ) : (
                             <XCircle className="w-5 h-5 text-destructive" />
                           )}
@@ -447,19 +471,19 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                         <TableCell className="font-medium">{client.name || '-'}</TableCell>
                         <TableCell>{client.contact_email || '-'}</TableCell>
                         <TableCell>
-                          <span className={client.autoFilled.includes('رقم الترخيص') ? 'text-blue-600' : ''}>
+                          <span className={client.autoFilled.includes('رقم الترخيص') ? 'text-primary' : ''}>
                             {client.registration_number || '-'}
                           </span>
                           {client.autoFilled.includes('رقم الترخيص') && (
-                            <span className="text-xs text-blue-500 mr-1">(افتراضي)</span>
+                            <span className="text-xs text-primary/70 mr-1">(افتراضي)</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          <span className={client.autoFilled.includes('بريد جهة الاتصال') ? 'text-blue-600' : ''}>
+                          <span className={client.autoFilled.includes('بريد جهة الاتصال') ? 'text-primary' : ''}>
                             {client.primary_contact_email || '-'}
                           </span>
                           {client.autoFilled.includes('بريد جهة الاتصال') && (
-                            <span className="text-xs text-blue-500 mr-1">(من المؤسسة)</span>
+                            <span className="text-xs text-primary/70 mr-1">(من المؤسسة)</span>
                           )}
                         </TableCell>
                         <TableCell>
@@ -470,7 +494,7 @@ export function ClientsImportDialog({ open, onOpenChange, onSuccess }: ClientsIm
                             </div>
                           )}
                           {client.autoFilled.length > 0 && client.errors.length === 0 && (
-                            <div className="flex items-center gap-1 text-blue-600 text-xs">
+                            <div className="flex items-center gap-1 text-primary text-xs">
                               <Info className="w-3 h-3" />
                               تعبئة تلقائية: {client.autoFilled.join('، ')}
                             </div>
