@@ -73,7 +73,7 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("key", "public_base_url")
       .single();
     
-    const baseUrl = settings?.value || "https://docs.webyan.sa";
+    const baseUrl = settings?.value || "https://webyan.sa";
 
     // Format currency
     const formatCurrency = (amount: number) => {

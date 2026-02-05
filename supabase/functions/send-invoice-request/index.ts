@@ -131,7 +131,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Get base URL from settings
     const settings = await getSmtpSettings();
-    const baseUrl = settings.public_base_url || 'https://docs.webyan.sa';
+    const baseUrl = settings.public_base_url || 'https://webyan.sa';
     const quoteUrl = `${baseUrl}/admin/crm/quotes/${quote_id}`;
 
     // Build invoice description
