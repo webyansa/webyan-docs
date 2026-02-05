@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { 
   ticketReplyTemplate, 
   ticketResolvedTemplate, 
@@ -6,7 +5,7 @@ import {
   meetingCancelledTemplate,
   subscriptionTemplate,
   alertTemplate
-} from "../_shared/email-templates.ts";
+} from "../_shared/email-templates-client.ts";
 import { sendEmail, getBaseUrl } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
@@ -160,4 +159,4 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-serve(handler);
+Deno.serve(handler);
