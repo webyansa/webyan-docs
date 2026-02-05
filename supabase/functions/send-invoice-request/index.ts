@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,20 +15,7 @@ interface RequestBody {
   resend_reason?: string;
 }
 
-const COLORS = {
-  primary: '#1e40af',
-  primaryDark: '#1e3a8a',
-  success: '#059669',
-  textDark: '#1f2937',
-  textBody: '#374151',
-  textMuted: '#6b7280',
-  bgWhite: '#ffffff',
-  bgLight: '#f9fafb',
-  bgGray: '#f3f4f6',
-  infoBg: '#f0f9ff',
-};
-
-const handler = async (req: Request): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -65,7 +51,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from('crm_quotes')
       .select(`
         id, quote_number, title, created_at, subtotal, 
-        discount_value, discount_type, tax_rate, tax_amount, total_amount, items, document_url,
+        discount_value, discount_type, tax_rate, tax_amount, total_amount,
         plan:pricing_plans!crm_quotes_plan_id_fkey(name),
         account:client_organizations!crm_quotes_account_id_fkey(
           id, name, registration_number, tax_number,
@@ -100,11 +86,8 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // If resend, update existing or create new
-    let requestNumber: string;
-    
+    // If resend, delete old pending request
     if (is_resend) {
-      // Delete old pending request
       await supabase
         .from('invoice_requests')
         .delete()
@@ -132,7 +115,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("فشل في إنشاء طلب الفاتورة");
     }
 
-    requestNumber = newRequest.request_number;
+    const requestNumber = newRequest.request_number;
 
     // Calculate financial values
     const subtotal = quote.subtotal || 0;
@@ -170,213 +153,25 @@ const handler = async (req: Request): Promise<Response> => {
     };
 
     // Build email HTML
-    const emailHtml = `
-<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background-color:${COLORS.bgLight};">
-  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="${COLORS.bgLight}">
-    <tr>
-      <td align="center" style="padding:30px 10px;">
-        <table width="650" cellpadding="0" cellspacing="0" bgcolor="${COLORS.bgWhite}" style="max-width:650px;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-          
-          <!-- Header -->
-          <tr>
-            <td align="center" bgcolor="${COLORS.primary}" style="padding:30px;background-color:${COLORS.primary};">
-              <h1 style="margin:0;font-size:24px;color:#ffffff;font-family:Arial,sans-serif;">🧾 طلب إصدار فاتورة</h1>
-              <p style="margin:10px 0 0;font-size:14px;color:rgba(255,255,255,0.9);font-family:Arial,sans-serif;">
-                عرض سعر رقم: ${quote.quote_number}
-              </p>
-            </td>
-          </tr>
-
-          <!-- Client Info -->
-          <tr>
-            <td style="padding:25px 30px 15px;">
-              <h2 style="margin:0 0 15px;font-size:16px;color:${COLORS.primary};font-family:Arial,sans-serif;border-bottom:2px solid ${COLORS.primary};padding-bottom:8px;">
-                📋 بيانات العميل
-              </h2>
-              <table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
-                <tr>
-                  <td style="color:${COLORS.textMuted};width:35%;">اسم الجهة:</td>
-                  <td style="color:${COLORS.textDark};font-weight:bold;">${org.name}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">رقم السجل التجاري:</td>
-                  <td style="color:${COLORS.textDark};">${org.registration_number || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">الرقم الضريبي:</td>
-                  <td style="color:${COLORS.textDark};">${org.tax_number || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">جهة الاتصال:</td>
-                  <td style="color:${COLORS.textDark};">${org.primary_contact_name || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">البريد الإلكتروني:</td>
-                  <td style="color:${COLORS.textDark};">${org.primary_contact_email || org.contact_email}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">رقم الجوال:</td>
-                  <td style="color:${COLORS.textDark};">${org.primary_contact_phone || org.contact_phone || '-'}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- National Address -->
-          <tr>
-            <td style="padding:15px 30px;">
-              <h2 style="margin:0 0 15px;font-size:16px;color:${COLORS.primary};font-family:Arial,sans-serif;border-bottom:2px solid ${COLORS.primary};padding-bottom:8px;">
-                📍 العنوان الوطني
-              </h2>
-              <table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
-                <tr>
-                  <td style="color:${COLORS.textMuted};width:35%;">المدينة:</td>
-                  <td style="color:${COLORS.textDark};">${org.city || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">الحي:</td>
-                  <td style="color:${COLORS.textDark};">${org.district || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">الشارع:</td>
-                  <td style="color:${COLORS.textDark};">${org.street_name || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">رقم المبنى:</td>
-                  <td style="color:${COLORS.textDark};">${org.building_number || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">الرمز البريدي:</td>
-                  <td style="color:${COLORS.textDark};">${org.postal_code || '-'}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">الرقم الإضافي:</td>
-                  <td style="color:${COLORS.textDark};">${org.secondary_number || '-'}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Invoice Details -->
-          <tr>
-            <td style="padding:15px 30px;">
-              <h2 style="margin:0 0 15px;font-size:16px;color:${COLORS.primary};font-family:Arial,sans-serif;border-bottom:2px solid ${COLORS.primary};padding-bottom:8px;">
-                💰 تفاصيل الفاتورة
-              </h2>
-              <table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
-                <tr>
-                  <td style="color:${COLORS.textMuted};width:35%;">رقم عرض السعر:</td>
-                  <td style="color:${COLORS.textDark};font-weight:bold;">${quote.quote_number}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">تاريخ العرض:</td>
-                  <td style="color:${COLORS.textDark};">${new Date(quote.created_at).toLocaleDateString('ar-SA')}</td>
-                </tr>
-                <tr>
-                  <td style="color:${COLORS.textMuted};">الوصف:</td>
-                  <td style="color:${COLORS.textDark};">${description}</td>
-                </tr>
-              </table>
-              
-              <!-- Financial Summary -->
-              <table width="100%" cellpadding="12" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;margin-top:15px;background-color:${COLORS.bgGray};border-radius:8px;">
-                <tr>
-                  <td style="color:${COLORS.textMuted};">المبلغ قبل الضريبة:</td>
-                  <td style="color:${COLORS.textDark};text-align:left;">${subtotal.toLocaleString()} ر.س</td>
-                </tr>
-                ${discountAmount > 0 ? `
-                <tr>
-                  <td style="color:#dc2626;">الخصم ${discountType === 'percentage' ? `(${discountValue}%)` : ''}:</td>
-                  <td style="color:#dc2626;text-align:left;">- ${discountAmount.toLocaleString()} ر.س</td>
-                </tr>
-                ` : ''}
-                <tr>
-                  <td style="color:${COLORS.textMuted};">ضريبة القيمة المضافة (${taxRate}%):</td>
-                  <td style="color:${COLORS.textDark};text-align:left;">${taxAmount.toLocaleString()} ر.س</td>
-                </tr>
-                <tr style="border-top:2px solid #d1d5db;">
-                  <td style="color:${COLORS.textDark};font-weight:bold;font-size:16px;">الإجمالي المطلوب:</td>
-                  <td style="color:${COLORS.primary};font-weight:bold;font-size:18px;text-align:left;">${totalAmount.toLocaleString()} ر.س</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Additional Notes -->
-          ${(expected_payment_method || notes_for_accounts) ? `
-          <tr>
-            <td style="padding:15px 30px;">
-              <h2 style="margin:0 0 15px;font-size:16px;color:${COLORS.primary};font-family:Arial,sans-serif;border-bottom:2px solid ${COLORS.primary};padding-bottom:8px;">
-                📝 ملاحظات إضافية
-              </h2>
-              <table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
-                ${expected_payment_method ? `
-                <tr>
-                  <td style="color:${COLORS.textMuted};width:35%;">طريقة السداد المتوقعة:</td>
-                  <td style="color:${COLORS.textDark};">${paymentMethodLabels[expected_payment_method] || expected_payment_method}</td>
-                </tr>
-                ` : ''}
-                ${notes_for_accounts ? `
-                <tr>
-                  <td style="color:${COLORS.textMuted};vertical-align:top;">ملاحظات:</td>
-                  <td style="color:${COLORS.textDark};">${notes_for_accounts}</td>
-                </tr>
-                ` : ''}
-              </table>
-            </td>
-          </tr>
-          ` : ''}
-
-          <!-- Resend Reason -->
-          ${is_resend && resend_reason ? `
-          <tr>
-            <td style="padding:15px 30px;">
-              <table width="100%" cellpadding="15" cellspacing="0" style="background-color:#fef3c7;border-radius:8px;border-right:4px solid #f59e0b;">
-                <tr>
-                  <td>
-                    <p style="margin:0 0 5px;font-size:13px;color:#92400e;font-weight:bold;font-family:Arial,sans-serif;">⚠️ سبب إعادة الإرسال:</p>
-                    <p style="margin:0;font-size:14px;color:#78350f;font-family:Arial,sans-serif;">${resend_reason}</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          ` : ''}
-
-          <!-- Actions -->
-          <tr>
-            <td align="center" style="padding:25px 30px;">
-              <a href="${quoteUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:${COLORS.primary};text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">
-                🔗 فتح عرض السعر في النظام
-              </a>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td align="center" bgcolor="${COLORS.primaryDark}" style="padding:25px;background-color:${COLORS.primaryDark};">
-              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.8);font-family:Arial,sans-serif;">
-                رقم طلب الفاتورة: <strong>${requestNumber}</strong>
-              </p>
-              <p style="margin:10px 0 0;font-size:12px;color:rgba(255,255,255,0.6);font-family:Arial,sans-serif;">
-                هذا بريد آلي من نظام ويبيان
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-    `;
+    const emailHtml = buildEmailHtml({
+      org,
+      quote,
+      requestNumber,
+      subtotal,
+      discountAmount,
+      discountType,
+      discountValue,
+      taxRate,
+      taxAmount,
+      totalAmount,
+      description,
+      quoteUrl,
+      expected_payment_method,
+      notes_for_accounts,
+      is_resend,
+      resend_reason,
+      paymentMethodLabels,
+    });
 
     // Send email via Resend
     if (resendApiKey) {
@@ -397,7 +192,6 @@ const handler = async (req: Request): Promise<Response> => {
       if (!emailResponse.ok) {
         const errorText = await emailResponse.text();
         console.error("Resend error:", errorText);
-        // Don't throw - the request was created, just email failed
       }
     }
 
@@ -417,6 +211,75 @@ const handler = async (req: Request): Promise<Response> => {
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-};
+});
 
-serve(handler);
+function buildEmailHtml(params: any): string {
+  const {
+    org, quote, requestNumber, subtotal, discountAmount, discountType, discountValue,
+    taxRate, taxAmount, totalAmount, description, quoteUrl,
+    expected_payment_method, notes_for_accounts, is_resend, resend_reason, paymentMethodLabels
+  } = params;
+
+  const primary = '#1e40af';
+  const primaryDark = '#1e3a8a';
+  const textDark = '#1f2937';
+  const textMuted = '#6b7280';
+  const bgLight = '#f9fafb';
+  const bgGray = '#f3f4f6';
+  const bgWhite = '#ffffff';
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:${bgLight};">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="${bgLight}">
+<tr><td align="center" style="padding:30px 10px;">
+<table width="650" cellpadding="0" cellspacing="0" bgcolor="${bgWhite}" style="max-width:650px;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+<tr><td align="center" bgcolor="${primary}" style="padding:30px;">
+<h1 style="margin:0;font-size:24px;color:#ffffff;font-family:Arial,sans-serif;">🧾 طلب إصدار فاتورة</h1>
+<p style="margin:10px 0 0;font-size:14px;color:rgba(255,255,255,0.9);font-family:Arial,sans-serif;">عرض سعر رقم: ${quote.quote_number}</p>
+</td></tr>
+<tr><td style="padding:25px 30px 15px;">
+<h2 style="margin:0 0 15px;font-size:16px;color:${primary};font-family:Arial,sans-serif;border-bottom:2px solid ${primary};padding-bottom:8px;">📋 بيانات العميل</h2>
+<table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
+<tr><td style="color:${textMuted};width:35%;">اسم الجهة:</td><td style="color:${textDark};font-weight:bold;">${org.name}</td></tr>
+<tr><td style="color:${textMuted};">رقم السجل التجاري:</td><td style="color:${textDark};">${org.registration_number || '-'}</td></tr>
+<tr><td style="color:${textMuted};">الرقم الضريبي:</td><td style="color:${textDark};">${org.tax_number || '-'}</td></tr>
+<tr><td style="color:${textMuted};">جهة الاتصال:</td><td style="color:${textDark};">${org.primary_contact_name || '-'}</td></tr>
+<tr><td style="color:${textMuted};">البريد الإلكتروني:</td><td style="color:${textDark};">${org.primary_contact_email || org.contact_email}</td></tr>
+<tr><td style="color:${textMuted};">رقم الجوال:</td><td style="color:${textDark};">${org.primary_contact_phone || org.contact_phone || '-'}</td></tr>
+</table></td></tr>
+<tr><td style="padding:15px 30px;">
+<h2 style="margin:0 0 15px;font-size:16px;color:${primary};font-family:Arial,sans-serif;border-bottom:2px solid ${primary};padding-bottom:8px;">📍 العنوان الوطني</h2>
+<table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
+<tr><td style="color:${textMuted};width:35%;">المدينة:</td><td style="color:${textDark};">${org.city || '-'}</td></tr>
+<tr><td style="color:${textMuted};">الحي:</td><td style="color:${textDark};">${org.district || '-'}</td></tr>
+<tr><td style="color:${textMuted};">الشارع:</td><td style="color:${textDark};">${org.street_name || '-'}</td></tr>
+<tr><td style="color:${textMuted};">رقم المبنى:</td><td style="color:${textDark};">${org.building_number || '-'}</td></tr>
+<tr><td style="color:${textMuted};">الرمز البريدي:</td><td style="color:${textDark};">${org.postal_code || '-'}</td></tr>
+<tr><td style="color:${textMuted};">الرقم الإضافي:</td><td style="color:${textDark};">${org.secondary_number || '-'}</td></tr>
+</table></td></tr>
+<tr><td style="padding:15px 30px;">
+<h2 style="margin:0 0 15px;font-size:16px;color:${primary};font-family:Arial,sans-serif;border-bottom:2px solid ${primary};padding-bottom:8px;">💰 تفاصيل الفاتورة</h2>
+<table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
+<tr><td style="color:${textMuted};width:35%;">رقم عرض السعر:</td><td style="color:${textDark};font-weight:bold;">${quote.quote_number}</td></tr>
+<tr><td style="color:${textMuted};">تاريخ العرض:</td><td style="color:${textDark};">${new Date(quote.created_at).toLocaleDateString('ar-SA')}</td></tr>
+<tr><td style="color:${textMuted};">الوصف:</td><td style="color:${textDark};">${description}</td></tr>
+</table>
+<table width="100%" cellpadding="12" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;margin-top:15px;background-color:${bgGray};border-radius:8px;">
+<tr><td style="color:${textMuted};">المبلغ قبل الضريبة:</td><td style="color:${textDark};text-align:left;">${subtotal.toLocaleString()} ر.س</td></tr>
+${discountAmount > 0 ? `<tr><td style="color:#dc2626;">الخصم ${discountType === 'percentage' ? `(${discountValue}%)` : ''}:</td><td style="color:#dc2626;text-align:left;">- ${discountAmount.toLocaleString()} ر.س</td></tr>` : ''}
+<tr><td style="color:${textMuted};">ضريبة القيمة المضافة (${taxRate}%):</td><td style="color:${textDark};text-align:left;">${taxAmount.toLocaleString()} ر.س</td></tr>
+<tr style="border-top:2px solid #d1d5db;"><td style="color:${textDark};font-weight:bold;font-size:16px;">الإجمالي المطلوب:</td><td style="color:${primary};font-weight:bold;font-size:18px;text-align:left;">${totalAmount.toLocaleString()} ر.س</td></tr>
+</table></td></tr>
+${(expected_payment_method || notes_for_accounts) ? `<tr><td style="padding:15px 30px;">
+<h2 style="margin:0 0 15px;font-size:16px;color:${primary};font-family:Arial,sans-serif;border-bottom:2px solid ${primary};padding-bottom:8px;">📝 ملاحظات إضافية</h2>
+<table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
+${expected_payment_method ? `<tr><td style="color:${textMuted};width:35%;">طريقة السداد المتوقعة:</td><td style="color:${textDark};">${paymentMethodLabels[expected_payment_method] || expected_payment_method}</td></tr>` : ''}
+${notes_for_accounts ? `<tr><td style="color:${textMuted};vertical-align:top;">ملاحظات:</td><td style="color:${textDark};">${notes_for_accounts}</td></tr>` : ''}
+</table></td></tr>` : ''}
+${is_resend && resend_reason ? `<tr><td style="padding:15px 30px;"><table width="100%" cellpadding="15" cellspacing="0" style="background-color:#fef3c7;border-radius:8px;border-right:4px solid #f59e0b;"><tr><td><p style="margin:0 0 5px;font-size:13px;color:#92400e;font-weight:bold;font-family:Arial,sans-serif;">⚠️ سبب إعادة الإرسال:</p><p style="margin:0;font-size:14px;color:#78350f;font-family:Arial,sans-serif;">${resend_reason}</p></td></tr></table></td></tr>` : ''}
+<tr><td align="center" style="padding:25px 30px;"><a href="${quoteUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:${primary};text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">🔗 فتح عرض السعر في النظام</a></td></tr>
+<tr><td align="center" bgcolor="${primaryDark}" style="padding:25px;"><p style="margin:0;font-size:13px;color:rgba(255,255,255,0.8);font-family:Arial,sans-serif;">رقم طلب الفاتورة: <strong>${requestNumber}</strong></p><p style="margin:10px 0 0;font-size:12px;color:rgba(255,255,255,0.6);font-family:Arial,sans-serif;">هذا بريد آلي من نظام ويبيان</p></td></tr>
+</table></td></tr></table></body></html>`;
+}
