@@ -47,11 +47,12 @@ type QuoteType = 'subscription' | 'custom_platform' | 'services_only';
 interface AdvancedQuoteModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  dealId: string;
-  dealName: string;
-  accountId: string | null;
-  currentStage: string;
-  currentValue: number;
+  accountId: string;
+  accountName: string;
+  dealId?: string;
+  dealName?: string;
+  currentStage?: string;
+  currentValue?: number;
   onSuccess: () => void;
 }
 
@@ -66,11 +67,12 @@ const TAX_RATE = 15;
 export default function AdvancedQuoteModal({
   open,
   onOpenChange,
+  accountId,
+  accountName,
   dealId,
   dealName,
-  accountId,
   currentStage,
-  currentValue,
+  currentValue = 0,
   onSuccess,
 }: AdvancedQuoteModalProps) {
   const queryClient = useQueryClient();
@@ -125,7 +127,7 @@ export default function AdvancedQuoteModal({
       setSelectedPlanId(null);
       setBillingCycle('yearly');
       setSelectedServiceIds([]);
-      setCustomValue(currentValue > 0 ? currentValue.toString() : '');
+      setCustomValue(currentValue && currentValue > 0 ? currentValue.toString() : '');
       setCustomDescription('');
       setValidity('30');
       setNotes('');
@@ -204,7 +206,7 @@ export default function AdvancedQuoteModal({
 
   const handleSave = async () => {
     if (!accountId) {
-      toast.error('يرجى التأكد من ربط الفرصة بعميل');
+      toast.error('يرجى التأكد من اختيار العميل');
       return;
     }
 
@@ -231,13 +233,17 @@ export default function AdvancedQuoteModal({
       const validUntil = new Date();
       validUntil.setDate(validUntil.getDate() + parseInt(validity));
 
+      const quoteTitle = dealName 
+        ? `عرض سعر - ${dealName}` 
+        : `عرض سعر - ${accountName}`;
+
       // Create quote record
       const { data: quote, error: quoteError } = await supabase
         .from('crm_quotes')
         .insert({
           account_id: accountId,
-          opportunity_id: dealId,
-          title: `عرض سعر - ${dealName}`,
+          opportunity_id: dealId || null,
+          title: quoteTitle,
           quote_type: quoteType,
           billing_cycle: billingCycle,
           plan_id: selectedPlanId,
@@ -266,56 +272,59 @@ export default function AdvancedQuoteModal({
 
       if (quoteError) throw quoteError;
 
-      // Insert activity
-      const { error: activityError } = await supabase
-        .from('crm_opportunity_activities')
-        .insert({
-          opportunity_id: dealId,
-          activity_type: 'quote_sent',
-          title: 'إرسال عرض سعر',
-          description: `عرض سعر بقيمة ${formatCurrency(total)} (شامل الضريبة)`,
-          metadata: {
-            quote_id: quote.id,
-            quote_number: quote.quote_number,
-            quote_type: quoteType,
-            subtotal,
-            tax_amount: taxAmount,
-            total,
-            items_count: items.length,
-          },
+      // Only perform opportunity-related actions if dealId exists
+      if (dealId) {
+        // Insert activity
+        const { error: activityError } = await supabase
+          .from('crm_opportunity_activities')
+          .insert({
+            opportunity_id: dealId,
+            activity_type: 'quote_sent',
+            title: 'إرسال عرض سعر',
+            description: `عرض سعر بقيمة ${formatCurrency(total)} (شامل الضريبة)`,
+            metadata: {
+              quote_id: quote.id,
+              quote_number: quote.quote_number,
+              quote_type: quoteType,
+              subtotal,
+              tax_amount: taxAmount,
+              total,
+              items_count: items.length,
+            },
+            performed_by: staffId,
+            performed_by_name: staffName,
+          });
+
+        if (activityError) throw activityError;
+
+        // Update deal stage and value
+        const { error: dealError } = await supabase
+          .from('crm_opportunities')
+          .update({
+            stage: 'proposal_sent',
+            probability: dealStages.proposal_sent.probability,
+            expected_value: total,
+            opportunity_type: quoteType === 'subscription' ? 'subscription' : 'custom_platform',
+            stage_changed_at: new Date().toISOString(),
+            stage_change_reason: `تم إرسال عرض سعر بقيمة ${formatCurrency(total)}`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', dealId);
+
+        if (dealError) throw dealError;
+
+        // Log stage transition
+        await supabase.from('crm_stage_transitions').insert({
+          entity_type: 'opportunity',
+          entity_id: dealId,
+          pipeline_type: 'deals',
+          from_stage: currentStage || 'new',
+          to_stage: 'proposal_sent',
+          reason: `تم إرسال عرض سعر بقيمة ${formatCurrency(total)}`,
           performed_by: staffId,
           performed_by_name: staffName,
         });
-
-      if (activityError) throw activityError;
-
-      // Update deal stage and value
-      const { error: dealError } = await supabase
-        .from('crm_opportunities')
-        .update({
-          stage: 'proposal_sent',
-          probability: dealStages.proposal_sent.probability,
-          expected_value: total,
-          opportunity_type: quoteType === 'subscription' ? 'subscription' : 'custom_platform',
-          stage_changed_at: new Date().toISOString(),
-          stage_change_reason: `تم إرسال عرض سعر بقيمة ${formatCurrency(total)}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', dealId);
-
-      if (dealError) throw dealError;
-
-      // Log stage transition
-      await supabase.from('crm_stage_transitions').insert({
-        entity_type: 'opportunity',
-        entity_id: dealId,
-        pipeline_type: 'deals',
-        from_stage: currentStage,
-        to_stage: 'proposal_sent',
-        reason: `تم إرسال عرض سعر بقيمة ${formatCurrency(total)}`,
-        performed_by: staffId,
-        performed_by_name: staffName,
-      });
+      }
 
       // Invalidate quotes cache so QuotesPage refreshes automatically
       queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
@@ -446,7 +455,10 @@ export default function AdvancedQuoteModal({
           <div className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-4">
               <p className="text-sm text-muted-foreground">العميل</p>
-              <p className="font-medium">{dealName}</p>
+              <p className="font-medium">{accountName}</p>
+              {dealName && (
+                <p className="text-sm text-muted-foreground mt-1">الفرصة: {dealName}</p>
+              )}
             </div>
 
             <QuoteItemsTable
@@ -508,7 +520,10 @@ export default function AdvancedQuoteModal({
             <FileText className="h-5 w-5 text-primary" />
             إنشاء عرض سعر - الخطوة {step} من 3
           </DialogTitle>
-          <DialogDescription>{dealName}</DialogDescription>
+          <DialogDescription>
+            {accountName}
+            {dealName && ` • ${dealName}`}
+          </DialogDescription>
         </DialogHeader>
 
         {/* Progress Steps */}

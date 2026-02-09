@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   FileText,
   Search,
@@ -47,6 +48,7 @@ import {
   Calendar,
   Plus,
   Target,
+  Users,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
@@ -90,6 +92,12 @@ interface Deal {
   } | null;
 }
 
+interface Client {
+  id: string;
+  name: string;
+  contact_email: string;
+}
+
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'مسودة', variant: 'outline' },
   sent: { label: 'مرسل', variant: 'default' },
@@ -110,8 +118,11 @@ export default function QuotesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [showDealSelector, setShowDealSelector] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createTab, setCreateTab] = useState<'deal' | 'standalone'>('deal');
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
 
   const { data: quotes = [], isLoading, refetch } = useQuery({
@@ -169,7 +180,23 @@ export default function QuotesPage() {
       if (error) throw error;
       return data as Deal[];
     },
-    enabled: showDealSelector,
+    enabled: showCreateDialog && createTab === 'deal',
+  });
+
+  // Fetch clients for standalone quotes
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients-for-quotes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('client_organizations')
+        .select('id, name, contact_email')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      return data as Client[];
+    },
+    enabled: showCreateDialog && createTab === 'standalone',
   });
 
   const filteredQuotes = quotes.filter((quote) => {
@@ -182,21 +209,54 @@ export default function QuotesPage() {
     );
   });
 
+  const filteredDeals = deals.filter((deal) => {
+    if (!clientSearchQuery) return true;
+    const search = clientSearchQuery.toLowerCase();
+    return (
+      deal.name.toLowerCase().includes(search) ||
+      deal.account?.name.toLowerCase().includes(search)
+    );
+  });
+
+  const filteredClients = clients.filter((client) => {
+    if (!clientSearchQuery) return true;
+    const search = clientSearchQuery.toLowerCase();
+    return (
+      client.name.toLowerCase().includes(search) ||
+      client.contact_email.toLowerCase().includes(search)
+    );
+  });
+
   const getStatusBadge = (status: string) => {
     const config = statusConfig[status] || { label: status, variant: 'outline' };
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const handleCreateQuote = (deal: Deal) => {
+  const handleCreateQuoteFromDeal = (deal: Deal) => {
     setSelectedDeal(deal);
-    setShowDealSelector(false);
+    setSelectedClient(null);
+    setShowCreateDialog(false);
+    setShowQuoteModal(true);
+  };
+
+  const handleCreateQuoteFromClient = (client: Client) => {
+    setSelectedClient(client);
+    setSelectedDeal(null);
+    setShowCreateDialog(false);
     setShowQuoteModal(true);
   };
 
   const handleQuoteSuccess = () => {
     setShowQuoteModal(false);
     setSelectedDeal(null);
+    setSelectedClient(null);
     refetch();
+  };
+
+  const handleOpenCreateDialog = () => {
+    setClientSearchQuery('');
+    setCreateTab('deal');
+    setShowCreateDialog(true);
   };
 
   return (
@@ -209,7 +269,7 @@ export default function QuotesPage() {
           </h1>
           <p className="text-muted-foreground">إدارة ومتابعة عروض الأسعار</p>
         </div>
-        <Button onClick={() => setShowDealSelector(true)}>
+        <Button onClick={handleOpenCreateDialog}>
           <Plus className="h-4 w-4 ml-2" />
           عرض سعر جديد
         </Button>
@@ -268,7 +328,7 @@ export default function QuotesPage() {
               <Button 
                 variant="outline" 
                 className="mt-4"
-                onClick={() => setShowDealSelector(true)}
+                onClick={handleOpenCreateDialog}
               >
                 <Plus className="h-4 w-4 ml-2" />
                 إنشاء عرض سعر جديد
@@ -366,84 +426,170 @@ export default function QuotesPage() {
         </CardContent>
       </Card>
 
-      {/* Deal Selector Dialog */}
-      <Dialog open={showDealSelector} onOpenChange={setShowDealSelector}>
+      {/* Create Quote Dialog with Tabs */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="max-w-2xl" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
-              اختر الفرصة
+              <FileText className="h-5 w-5 text-primary" />
+              إنشاء عرض سعر جديد
             </DialogTitle>
             <DialogDescription>
-              اختر الفرصة التي تريد إنشاء عرض سعر لها
+              اختر طريقة إنشاء عرض السعر
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[400px] overflow-y-auto">
-            {deals.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Target className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p>لا توجد فرص متاحة</p>
-                <p className="text-sm">يمكنك إنشاء فرصة جديدة من صفحة الفرص</p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4"
-                  onClick={() => {
-                    setShowDealSelector(false);
-                    navigate('/admin/crm/deals');
-                  }}
-                >
-                  الانتقال لصفحة الفرص
-                </Button>
+
+          <Tabs value={createTab} onValueChange={(v) => {
+            setCreateTab(v as 'deal' | 'standalone');
+            setClientSearchQuery('');
+          }}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="deal" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                عبر فرصة بيعية
+              </TabsTrigger>
+              <TabsTrigger value="standalone" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                عرض مستقل (عميل)
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="my-4">
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={createTab === 'deal' ? "بحث في الفرص..." : "بحث في العملاء..."}
+                  value={clientSearchQuery}
+                  onChange={(e) => setClientSearchQuery(e.target.value)}
+                  className="pr-9"
+                />
               </div>
-            ) : (
-              <div className="space-y-2">
-                {deals.map((deal) => (
-                  <Card
-                    key={deal.id}
-                    className="cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => handleCreateQuote(deal)}
+            </div>
+
+            <TabsContent value="deal" className="max-h-[350px] overflow-y-auto">
+              {filteredDeals.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Target className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>لا توجد فرص متاحة</p>
+                  <p className="text-sm">يمكنك إنشاء فرصة جديدة من صفحة الفرص</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => {
+                      setShowCreateDialog(false);
+                      navigate('/admin/crm/deals');
+                    }}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{deal.name}</p>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                            {deal.account && (
-                              <>
-                                <Building2 className="h-3 w-3" />
-                                <span>{deal.account.name}</span>
-                              </>
-                            )}
+                    الانتقال لصفحة الفرص
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredDeals.map((deal) => (
+                    <Card
+                      key={deal.id}
+                      className="cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => handleCreateQuoteFromDeal(deal)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{deal.name}</p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                              {deal.account && (
+                                <>
+                                  <Building2 className="h-3 w-3" />
+                                  <span>{deal.account.name}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-primary">
+                              {formatCurrency(deal.expected_value)}
+                            </p>
+                            <Badge variant="outline" className="mt-1">
+                              {deal.stage}
+                            </Badge>
                           </div>
                         </div>
-                        <div className="text-left">
-                          <p className="font-medium text-primary">
-                            {formatCurrency(deal.expected_value)}
-                          </p>
-                          <Badge variant="outline" className="mt-1">
-                            {deal.stage}
-                          </Badge>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="standalone" className="max-h-[350px] overflow-y-auto">
+              {filteredClients.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>لا يوجد عملاء</p>
+                  <p className="text-sm">يمكنك إضافة عميل جديد من صفحة العملاء</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => {
+                      setShowCreateDialog(false);
+                      navigate('/admin/clients');
+                    }}
+                  >
+                    الانتقال لصفحة العملاء
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredClients.map((client) => (
+                    <Card
+                      key={client.id}
+                      className="cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => handleCreateQuoteFromClient(client)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <Building2 className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{client.name}</p>
+                              <p className="text-sm text-muted-foreground">{client.contact_email}</p>
+                            </div>
+                          </div>
+                          <Badge variant="secondary">عميل نشط</Badge>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
-      {/* Advanced Quote Modal */}
+      {/* Advanced Quote Modal - From Deal */}
       {selectedDeal && (
         <AdvancedQuoteModal
           open={showQuoteModal}
           onOpenChange={setShowQuoteModal}
+          accountId={selectedDeal.account_id}
+          accountName={selectedDeal.account?.name || selectedDeal.name}
           dealId={selectedDeal.id}
           dealName={selectedDeal.name}
-          accountId={selectedDeal.account_id}
           currentStage={selectedDeal.stage}
           currentValue={selectedDeal.expected_value}
+          onSuccess={handleQuoteSuccess}
+        />
+      )}
+
+      {/* Advanced Quote Modal - From Client (Standalone) */}
+      {selectedClient && (
+        <AdvancedQuoteModal
+          open={showQuoteModal}
+          onOpenChange={setShowQuoteModal}
+          accountId={selectedClient.id}
+          accountName={selectedClient.name}
           onSuccess={handleQuoteSuccess}
         />
       )}
