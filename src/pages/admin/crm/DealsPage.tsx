@@ -576,9 +576,10 @@ export default function DealsPage() {
           <AdvancedQuoteModal
             open={activeModal === 'create_quote'}
             onOpenChange={(open) => !open && closeModal()}
+            accountId={selectedDeal.account_id || ''}
+            accountName={selectedDeal.account?.name || selectedDeal.name}
             dealId={selectedDeal.id}
             dealName={selectedDeal.name}
-            accountId={selectedDeal.account_id}
             currentStage={selectedDeal.stage}
             currentValue={selectedDeal.expected_value}
             onSuccess={fetchDeals}
