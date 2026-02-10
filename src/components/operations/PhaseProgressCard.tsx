@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { CheckCircle2, PlayCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, PlayCircle, Loader2, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   phaseStatuses,
@@ -113,6 +113,21 @@ export function PhaseProgressCard({
     },
   });
 
+  const deletePhaseMutation = useMutation({
+    mutationFn: async (phaseId: string) => {
+      const { error } = await supabase
+        .from('project_phases')
+        .delete()
+        .eq('id', phaseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-phases', projectId] });
+      toast.success('تم حذف المرحلة');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const handleCompleteClick = (phase: Phase) => {
     setSelectedPhase(phase);
     setCompleteModalOpen(true);
@@ -207,6 +222,21 @@ export function PhaseProgressCard({
                   {/* Actions */}
                   {canEdit && (
                     <div className="flex gap-2">
+                      {phase.status === 'pending' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            if (confirm('هل تريد حذف هذه المرحلة؟')) {
+                              deletePhaseMutation.mutate(phase.id);
+                            }
+                          }}
+                          disabled={deletePhaseMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                       {canStart && (
                         <Button
                           size="sm"
