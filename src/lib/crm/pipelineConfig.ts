@@ -593,9 +593,18 @@ export function formatCurrency(value: number, currency: string = 'SAR'): string 
   return new Intl.NumberFormat('ar-SA', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
+}
+
+// Tax calculation helpers
+export function calcPriceBeforeTax(priceInclTax: number, vatRate: number): number {
+  return +(priceInclTax / (1 + vatRate / 100)).toFixed(2);
+}
+
+export function calcTaxAmount(priceInclTax: number, vatRate: number): number {
+  return +(priceInclTax - calcPriceBeforeTax(priceInclTax, vatRate)).toFixed(2);
 }
 
 export function getLeadStatusLabel(status: string): string {

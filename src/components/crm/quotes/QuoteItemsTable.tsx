@@ -37,6 +37,7 @@ interface QuoteItemsTableProps {
   taxRate: number;
   taxAmount: number;
   total: number;
+  taxInclusive?: boolean;
   showActions?: boolean;
   onRemoveItem?: (id: string) => void;
   recurringItems?: RecurringItemSummary[];
@@ -48,6 +49,7 @@ export default function QuoteItemsTable({
   taxRate,
   taxAmount,
   total,
+  taxInclusive = false,
   showActions = false,
   onRemoveItem,
   recurringItems = [],
@@ -136,25 +138,37 @@ export default function QuoteItemsTable({
             ))}
           </TableBody>
           <TableFooter>
+            {/* Subtotal row */}
             <TableRow>
               <TableCell colSpan={showActions ? 6 : 5} className="text-left">
-                المجموع الفرعي
+                {taxInclusive ? 'الإجمالي شامل الضريبة' : 'المجموع الفرعي'}
               </TableCell>
               <TableCell colSpan={showActions ? 2 : 1} className="text-left font-medium">
                 {formatCurrency(subtotal)}
               </TableCell>
             </TableRow>
+
+            {/* Tax row */}
             <TableRow>
               <TableCell colSpan={showActions ? 6 : 5} className="text-left">
-                ضريبة القيمة المضافة ({taxRate}%)
+                {taxInclusive ? (
+                  <span className="flex items-center gap-1">
+                    ضريبة القيمة المضافة ({taxRate}%)
+                    <Badge variant="outline" className="text-xs mr-1">شامل</Badge>
+                  </span>
+                ) : (
+                  `ضريبة القيمة المضافة (${taxRate}%)`
+                )}
               </TableCell>
               <TableCell colSpan={showActions ? 2 : 1} className="text-left font-medium">
                 {formatCurrency(taxAmount)}
               </TableCell>
             </TableRow>
+
+            {/* Total row */}
             <TableRow className="bg-primary/5">
               <TableCell colSpan={showActions ? 6 : 5} className="text-left font-bold text-lg">
-                الإجمالي
+                {taxInclusive ? 'الإجمالي النهائي' : 'الإجمالي شامل الضريبة'}
               </TableCell>
               <TableCell colSpan={showActions ? 2 : 1} className="text-left font-bold text-lg text-primary">
                 {formatCurrency(total)}

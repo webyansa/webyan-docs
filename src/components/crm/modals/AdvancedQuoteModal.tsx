@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/popover';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   FileText,
   Loader2,
@@ -42,10 +42,11 @@ import {
   RotateCw,
   X,
   Gift,
+  Info,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { quoteValidityOptions, formatCurrency, dealStages } from '@/lib/crm/pipelineConfig';
+import { quoteValidityOptions, formatCurrency, dealStages, calcPriceBeforeTax, calcTaxAmount } from '@/lib/crm/pipelineConfig';
 import PlanSelector from '../quotes/PlanSelector';
 import ServicesSelector from '../quotes/ServicesSelector';
 import QuoteItemsTable, { QuoteItem } from '../quotes/QuoteItemsTable';
@@ -70,8 +71,6 @@ const STEPS = [
   { id: 2, title: 'التفاصيل', icon: Wrench },
   { id: 3, title: 'المراجعة', icon: Check },
 ];
-
-const TAX_RATE = 15;
 
 export default function AdvancedQuoteModal({
   open,
@@ -102,6 +101,22 @@ export default function AdvancedQuoteModal({
   const [notes, setNotes] = useState('');
   const [sendEmail, setSendEmail] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [taxInclusive, setTaxInclusive] = useState(false); // false = exclusive (default)
+
+  // Fetch VAT rate from system settings
+  const { data: vatRate = 15 } = useQuery({
+    queryKey: ['system-vat-rate'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'vat_rate')
+        .single();
+      return parseFloat(data?.value || '15');
+    },
+    enabled: open,
+  });
+
   // Fetch plans
   const { data: plans = [] } = useQuery({
     queryKey: ['pricing-plans-active'],
@@ -166,17 +181,20 @@ export default function AdvancedQuoteModal({
       setValidity('30');
       setNotes('');
       setSendEmail(false);
+      setTaxInclusive(false);
     }
   }, [open, currentValue]);
 
   // Calculate quote items and totals
+  // Prices in catalog are TAX-INCLUSIVE. We compute accordingly based on taxInclusive mode.
   const { items, subtotal, taxAmount, total, recurringItemsSummary } = useMemo(() => {
     const quoteItems: QuoteItem[] = [];
 
     if (quoteType === 'subscription' && selectedPlanId) {
       const plan = plans.find(p => p.id === selectedPlanId);
       if (plan) {
-        const price = billingCycle === 'monthly' ? plan.monthly_price : plan.yearly_price;
+        const priceIncl = billingCycle === 'monthly' ? plan.monthly_price : plan.yearly_price;
+        const displayPrice = taxInclusive ? priceIncl : calcPriceBeforeTax(priceIncl, vatRate);
         quoteItems.push({
           id: plan.id,
           name: plan.name,
@@ -184,14 +202,15 @@ export default function AdvancedQuoteModal({
           type: 'plan',
           billing: billingCycle === 'monthly' ? 'شهري' : 'سنوي',
           quantity: 1,
-          unit_price: price,
-          total: price,
+          unit_price: displayPrice,
+          total: displayPrice,
         });
       }
     }
 
     if (quoteType === 'custom_platform' && customValue) {
-      // Execution item
+      const valIncl = parseFloat(customValue) || 0;
+      const displayVal = taxInclusive ? valIncl : calcPriceBeforeTax(valIncl, vatRate);
       quoteItems.push({
         id: 'custom',
         name: projectName ? `تنفيذ ${projectName}` : 'منصة مخصصة',
@@ -199,14 +218,14 @@ export default function AdvancedQuoteModal({
         type: 'custom',
         item_category: 'execution',
         quantity: 1,
-        unit_price: parseFloat(customValue) || 0,
-        total: parseFloat(customValue) || 0,
+        unit_price: displayVal,
+        total: displayVal,
       });
 
-      // Recurring annual items
       recurringItems.forEach(ri => {
-        const amount = parseFloat(ri.amount) || 0;
-        if (amount > 0) {
+        const amountIncl = parseFloat(ri.amount) || 0;
+        if (amountIncl > 0) {
+          const displayAmt = taxInclusive ? amountIncl : calcPriceBeforeTax(amountIncl, vatRate);
           quoteItems.push({
             id: `recurring-${ri.id}`,
             name: ri.name,
@@ -214,19 +233,19 @@ export default function AdvancedQuoteModal({
             item_category: 'recurring_annual',
             billing: 'سنوي',
             first_year_free: ri.firstYearFree,
-            recurring_amount: amount,
+            recurring_amount: amountIncl,
             quantity: 1,
-            unit_price: amount,
-            total: ri.firstYearFree ? 0 : amount,
+            unit_price: displayAmt,
+            total: ri.firstYearFree ? 0 : displayAmt,
           });
         }
       });
     }
 
-    // Add selected services
     selectedServiceIds.forEach(serviceId => {
       const service = services.find(s => s.id === serviceId);
       if (service) {
+        const displayPrice = taxInclusive ? service.price : calcPriceBeforeTax(service.price, vatRate);
         quoteItems.push({
           id: service.id,
           name: service.name,
@@ -235,18 +254,26 @@ export default function AdvancedQuoteModal({
           item_category: 'service',
           billing: service.unit,
           quantity: 1,
-          unit_price: service.price,
-          total: service.price,
+          unit_price: displayPrice,
+          total: displayPrice,
         });
       }
     });
 
-    // Subtotal excludes first_year_free items
-    const sub = quoteItems.reduce((sum, item) => sum + item.total, 0);
-    const tax = sub * (TAX_RATE / 100);
-    const tot = sub + tax;
+    const sub = +quoteItems.reduce((sum, item) => sum + item.total, 0).toFixed(2);
+    let tax: number;
+    let tot: number;
 
-    // Recurring items summary for display
+    if (taxInclusive) {
+      // prices already include tax, extract tax for info
+      tax = +quoteItems.reduce((sum, item) => sum + calcTaxAmount(item.total, vatRate), 0).toFixed(2);
+      tot = sub; // total IS the subtotal (tax included)
+    } else {
+      // prices are before tax, add tax
+      tax = +(sub * vatRate / 100).toFixed(2);
+      tot = +(sub + tax).toFixed(2);
+    }
+
     const riSummary = recurringItems
       .filter(ri => parseFloat(ri.amount) > 0)
       .map(ri => ({
@@ -256,7 +283,7 @@ export default function AdvancedQuoteModal({
       }));
 
     return { items: quoteItems, subtotal: sub, taxAmount: tax, total: tot, recurringItemsSummary: riSummary };
-  }, [quoteType, selectedPlanId, billingCycle, selectedServiceIds, customValue, customDescription, projectName, recurringItems, plans, services]);
+  }, [quoteType, selectedPlanId, billingCycle, selectedServiceIds, customValue, customDescription, projectName, recurringItems, plans, services, taxInclusive, vatRate]);
 
   const canProceedToStep2 = () => {
     if (quoteType === 'services_only') return true;
@@ -278,7 +305,6 @@ export default function AdvancedQuoteModal({
 
     setSaving(true);
     try {
-      // Get current staff info
       const { data: { user } } = await supabase.auth.getUser();
       let staffName = 'مستخدم';
       let staffId = null;
@@ -303,7 +329,6 @@ export default function AdvancedQuoteModal({
         ? `عرض سعر - ${dealName}` 
         : `عرض سعر - ${accountName}`;
 
-      // Create quote record
       const recurringItemsData = recurringItems
         .filter(ri => parseFloat(ri.amount) > 0)
         .map(ri => ({
@@ -336,9 +361,10 @@ export default function AdvancedQuoteModal({
             recurring_amount: item.recurring_amount,
           })),
           subtotal,
-          tax_rate: TAX_RATE,
+          tax_rate: vatRate,
           tax_amount: taxAmount,
           total_amount: total,
+          tax_inclusive: taxInclusive,
           validity_days: parseInt(validity),
           valid_until: validUntil.toISOString().split('T')[0],
           status: 'sent',
@@ -351,16 +377,14 @@ export default function AdvancedQuoteModal({
 
       if (quoteError) throw quoteError;
 
-      // Only perform opportunity-related actions if dealId exists
       if (dealId) {
-        // Insert activity
         const { error: activityError } = await supabase
           .from('crm_opportunity_activities')
           .insert({
             opportunity_id: dealId,
             activity_type: 'quote_sent',
             title: 'إرسال عرض سعر',
-            description: `عرض سعر بقيمة ${formatCurrency(total)} (شامل الضريبة)`,
+            description: `عرض سعر بقيمة ${formatCurrency(total)} (${taxInclusive ? 'شامل الضريبة' : 'غير شامل الضريبة'})`,
             metadata: {
               quote_id: quote.id,
               quote_number: quote.quote_number,
@@ -368,6 +392,7 @@ export default function AdvancedQuoteModal({
               subtotal,
               tax_amount: taxAmount,
               total,
+              tax_inclusive: taxInclusive,
               items_count: items.length,
             },
             performed_by: staffId,
@@ -376,7 +401,6 @@ export default function AdvancedQuoteModal({
 
         if (activityError) throw activityError;
 
-        // Update deal stage and value
         const { error: dealError } = await supabase
           .from('crm_opportunities')
           .update({
@@ -392,7 +416,6 @@ export default function AdvancedQuoteModal({
 
         if (dealError) throw dealError;
 
-        // Log stage transition
         await supabase.from('crm_stage_transitions').insert({
           entity_type: 'opportunity',
           entity_id: dealId,
@@ -405,7 +428,6 @@ export default function AdvancedQuoteModal({
         });
       }
 
-      // Invalidate quotes cache so QuotesPage refreshes automatically
       queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
       
       toast.success(
@@ -524,7 +546,7 @@ export default function AdvancedQuoteModal({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>قيمة التنفيذ *</Label>
+                    <Label>قيمة التنفيذ (شامل الضريبة) *</Label>
                     <Input
                       type="number"
                       value={customValue}
@@ -711,12 +733,41 @@ export default function AdvancedQuoteModal({
               )}
             </div>
 
+            {/* Tax Mode Selection */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="flex items-center gap-2 font-medium">
+                <Info className="h-4 w-4 text-primary" />
+                طريقة عرض الأسعار في العرض
+              </Label>
+              <RadioGroup
+                value={taxInclusive ? 'inclusive' : 'exclusive'}
+                onValueChange={(v) => setTaxInclusive(v === 'inclusive')}
+                className="flex gap-6"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="exclusive" id="tax-exclusive" />
+                  <Label htmlFor="tax-exclusive" className="cursor-pointer text-sm">
+                    الأسعار غير شاملة الضريبة
+                    <span className="text-xs text-muted-foreground block">يُضاف سطر الضريبة للمجموع</span>
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="inclusive" id="tax-inclusive" />
+                  <Label htmlFor="tax-inclusive" className="cursor-pointer text-sm">
+                    الأسعار شاملة الضريبة
+                    <span className="text-xs text-muted-foreground block">الضريبة مضمنة في الأسعار</span>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
             <QuoteItemsTable
               items={items}
               subtotal={subtotal}
-              taxRate={TAX_RATE}
+              taxRate={vatRate}
               taxAmount={taxAmount}
               total={total}
+              taxInclusive={taxInclusive}
               recurringItems={recurringItemsSummary}
             />
 
