@@ -21,6 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -33,6 +38,10 @@ import {
   ArrowRight,
   ArrowLeft,
   Check,
+  Plus,
+  RotateCw,
+  X,
+  Gift,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -85,9 +94,10 @@ export default function AdvancedQuoteModal({
   const [customValue, setCustomValue] = useState('');
   const [customDescription, setCustomDescription] = useState('');
   const [projectName, setProjectName] = useState('');
-  const [recurringItems, setRecurringItems] = useState<Array<{ id: string; name: string; amount: string; firstYearFree: boolean }>>([]);
+  const [recurringItems, setRecurringItems] = useState<Array<{ id: string; serviceId: string | null; name: string; amount: string; firstYearFree: boolean; isCustom: boolean }>>([]);
   const [newRecurringName, setNewRecurringName] = useState('');
   const [newRecurringAmount, setNewRecurringAmount] = useState('');
+  const [annualDropdownOpen, setAnnualDropdownOpen] = useState(false);
   const [validity, setValidity] = useState('30');
   const [notes, setNotes] = useState('');
   const [sendEmail, setSendEmail] = useState(false);
@@ -107,13 +117,30 @@ export default function AdvancedQuoteModal({
     enabled: open,
   });
 
-  // Fetch services
+  // Fetch services (exclude recurring_annual)
   const { data: services = [] } = useQuery({
     queryKey: ['pricing-services-active'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('pricing_services')
         .select('*')
+        .eq('is_active', true)
+        .neq('service_type', 'recurring_annual')
+        .order('sort_order');
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
+  // Fetch annual services catalog
+  const { data: annualServices = [] } = useQuery({
+    queryKey: ['pricing-annual-services'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pricing_services')
+        .select('*')
+        .eq('service_type', 'recurring_annual')
         .eq('is_active', true)
         .order('sort_order');
       if (error) throw error;
@@ -507,60 +534,125 @@ export default function AdvancedQuoteModal({
                   </div>
                 </div>
 
-                {/* Recurring Annual Section */}
+                {/* Recurring Annual Section - Catalog-based */}
                 <div className="border rounded-lg p-4 space-y-4">
                   <h4 className="font-medium flex items-center gap-2">
-                    <Badge variant="outline">بنود تشغيلية سنوية</Badge>
+                    <Badge variant="outline" className="gap-1">
+                      <RotateCw className="w-3 h-3" />
+                      بنود تشغيلية سنوية
+                    </Badge>
                     <span className="text-xs text-muted-foreground">(Recurring)</span>
                   </h4>
                   <p className="text-xs text-muted-foreground">
-                    مثل: الاستضافة، الدعم الفني، تجديد الدومين
+                    اختر من كتالوج الرسوم السنوية أو أضف بند مخصص
                   </p>
 
-                  {/* Existing recurring items */}
+                  {/* Catalog dropdown */}
+                  <Popover open={annualDropdownOpen} onOpenChange={setAnnualDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2 w-full justify-start">
+                        <Plus className="h-4 w-4" />
+                        إضافة رسم سنوي من الكتالوج
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-2" align="start" dir="rtl">
+                      <div className="space-y-1">
+                        {annualServices.filter(s => !recurringItems.some(ri => ri.serviceId === s.id)).map((service) => (
+                          <button
+                            key={service.id}
+                            type="button"
+                            className="w-full flex items-center justify-between p-2 rounded-md hover:bg-muted text-sm text-right"
+                            onClick={() => {
+                              setRecurringItems(prev => [...prev, {
+                                id: `ri-${Date.now()}`,
+                                serviceId: service.id,
+                                name: service.name,
+                                amount: service.price.toString(),
+                                firstYearFree: quoteType === 'custom_platform',
+                                isCustom: false,
+                              }]);
+                              setAnnualDropdownOpen(false);
+                            }}
+                          >
+                            <div>
+                              <p className="font-medium">{service.name}</p>
+                              {service.description && (
+                                <p className="text-xs text-muted-foreground">{service.description}</p>
+                              )}
+                            </div>
+                            <span className="text-muted-foreground text-xs whitespace-nowrap mr-2">
+                              {formatCurrency(service.price)}
+                            </span>
+                          </button>
+                        ))}
+                        {annualServices.filter(s => !recurringItems.some(ri => ri.serviceId === s.id)).length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-3">تمت إضافة جميع البنود المتاحة</p>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Selected recurring items */}
                   {recurringItems.map((item) => (
                     <div key={item.id} className="flex items-center gap-3 bg-muted/30 rounded-lg p-3">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatCurrency(parseFloat(item.amount) || 0)} / سنوياً</p>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm">{item.name}</p>
+                          {item.isCustom && (
+                            <Badge variant="outline" className="text-[10px] h-4">مخصص</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-28">
+                        <Input
+                          type="number"
+                          value={item.amount}
+                          onChange={(e) => {
+                            setRecurringItems(prev => prev.map(ri =>
+                              ri.id === item.id ? { ...ri, amount: e.target.value } : ri
+                            ));
+                          }}
+                          className="h-8 text-sm"
+                        />
                       </div>
                       <div className="flex items-center gap-2">
                         <Checkbox
                           id={`free-${item.id}`}
                           checked={item.firstYearFree}
                           onCheckedChange={(checked) => {
-                            setRecurringItems(prev => prev.map(ri => 
+                            setRecurringItems(prev => prev.map(ri =>
                               ri.id === item.id ? { ...ri, firstYearFree: checked === true } : ri
                             ));
                           }}
                         />
-                        <Label htmlFor={`free-${item.id}`} className="text-xs cursor-pointer">
-                          السنة الأولى مجانية
+                        <Label htmlFor={`free-${item.id}`} className="text-xs cursor-pointer whitespace-nowrap">
+                          <Gift className="w-3 h-3 inline ml-1" />
+                          مجاني أول سنة
                         </Label>
                       </div>
                       <button
                         type="button"
                         onClick={() => setRecurringItems(prev => prev.filter(ri => ri.id !== item.id))}
-                        className="text-destructive hover:text-destructive/80 text-xs"
+                        className="text-destructive hover:text-destructive/80"
                       >
-                        حذف
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                   ))}
 
-                  {/* Add new recurring item */}
-                  <div className="flex items-end gap-2">
+                  {/* Add custom recurring item */}
+                  <div className="flex items-end gap-2 border-t pt-3">
                     <div className="flex-1 space-y-1">
-                      <Label className="text-xs">اسم البند</Label>
+                      <Label className="text-xs">بند مخصص</Label>
                       <Input
                         value={newRecurringName}
                         onChange={(e) => setNewRecurringName(e.target.value)}
-                        placeholder="مثال: استضافة سنوية"
+                        placeholder="اسم البند..."
                         className="h-9"
                       />
                     </div>
-                    <div className="w-32 space-y-1">
-                      <Label className="text-xs">المبلغ السنوي</Label>
+                    <div className="w-28 space-y-1">
+                      <Label className="text-xs">المبلغ</Label>
                       <Input
                         type="number"
                         value={newRecurringAmount}
@@ -578,15 +670,17 @@ export default function AdvancedQuoteModal({
                       onClick={() => {
                         setRecurringItems(prev => [...prev, {
                           id: `ri-${Date.now()}`,
+                          serviceId: null,
                           name: newRecurringName.trim(),
                           amount: newRecurringAmount,
-                          firstYearFree: false,
+                          firstYearFree: quoteType === 'custom_platform',
+                          isCustom: true,
                         }]);
                         setNewRecurringName('');
                         setNewRecurringAmount('');
                       }}
                     >
-                      إضافة
+                      <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
