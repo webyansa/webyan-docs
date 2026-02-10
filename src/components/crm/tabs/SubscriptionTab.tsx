@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
 import {
   CreditCard,
   Calendar,
@@ -11,6 +12,7 @@ import {
   Edit,
   Globe,
   Banknote,
+  RotateCw,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { SubscriptionEditDialog } from './subscription/SubscriptionEditDialog';
 import { CustomerNotesSection } from '../CustomerNotesSection';
+import { formatCurrency } from '@/lib/crm/pipelineConfig';
 
 interface SubscriptionTabProps {
   organization: {
@@ -54,6 +57,28 @@ export function SubscriptionTab({ organization, onUpdate }: SubscriptionTabProps
 
   const status = statusConfig[orgData.subscription_status] || statusConfig.active;
   const StatusIcon = status.Icon;
+
+  // Fetch recurring charges
+  const { data: recurringCharges = [] } = useQuery({
+    queryKey: ['recurring-charges', organization.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('client_recurring_charges')
+        .select('*')
+        .eq('account_id', organization.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as Array<{
+        id: string;
+        item_name: string;
+        annual_amount: number;
+        first_year_free: boolean;
+        first_due_date: string | null;
+        status: string;
+        project_id: string | null;
+      }>;
+    },
+  });
 
   useEffect(() => {
     fetchPlanName();
@@ -121,6 +146,8 @@ export function SubscriptionTab({ organization, onUpdate }: SubscriptionTabProps
   const isDomainExpiringSoon = domainDaysRemaining !== null && domainDaysRemaining <= 30 && domainDaysRemaining > 0;
   const isDomainExpired = domainExpDate && new Date() > domainExpDate;
 
+  const activeCharges = recurringCharges.filter(c => c.status === 'active');
+
   return (
     <div className="space-y-6">
       {/* Subscription Overview Cards */}
@@ -187,6 +214,60 @@ export function SubscriptionTab({ organization, onUpdate }: SubscriptionTabProps
           </CardContent>
         </Card>
       </div>
+
+      {/* Recurring Annual Charges */}
+      {activeCharges.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <RotateCw className="w-5 h-5 text-primary" />
+              الرسوم السنوية القادمة
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {activeCharges.map((charge) => {
+                const dueDate = charge.first_due_date ? new Date(charge.first_due_date) : null;
+                const dueDaysRemaining = dueDate ? differenceInDays(dueDate, new Date()) : null;
+                const isDueSoon = dueDaysRemaining !== null && dueDaysRemaining <= 30 && dueDaysRemaining > 0;
+                const isOverdue = dueDate && new Date() > dueDate;
+
+                return (
+                  <div key={charge.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
+                    <div className="space-y-1">
+                      <p className="font-medium text-sm">{charge.item_name}</p>
+                      <div className="flex items-center gap-2">
+                        {charge.first_year_free && (
+                          <Badge variant="outline" className="text-xs border-green-300 text-green-700">
+                            السنة الأولى مجانية
+                          </Badge>
+                        )}
+                        {dueDate && (
+                          <span className={`text-xs ${isOverdue ? 'text-destructive' : isDueSoon ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                            الاستحقاق: {format(dueDate, 'dd MMM yyyy', { locale: ar })}
+                            {isDueSoon && ` (متبقي ${dueDaysRemaining} يوم)`}
+                            {isOverdue && ' (متأخر)'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold">{formatCurrency(charge.annual_amount)}</p>
+                      <p className="text-xs text-muted-foreground">سنوياً</p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <span className="font-medium text-sm">إجمالي الرسوم السنوية</span>
+                <span className="font-bold text-primary">
+                  {formatCurrency(activeCharges.reduce((sum, c) => sum + c.annual_amount, 0))}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subscription Details */}
       <Card>
