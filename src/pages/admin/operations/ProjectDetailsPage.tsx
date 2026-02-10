@@ -39,6 +39,7 @@ import { PhaseProgressCard } from '@/components/operations/PhaseProgressCard';
 import { TeamAssignmentModal } from '@/components/operations/TeamAssignmentModal';
 import { PhaseAssignmentModal } from '@/components/operations/PhaseAssignmentModal';
 import { ServiceExecutionCard } from '@/components/operations/ServiceExecutionCard';
+import { ProjectPhasesManager } from '@/components/operations/ProjectPhasesManager';
 import { useAuth } from '@/hooks/useAuth';
 import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
 import { getPhaseConfig } from '@/lib/operations/phaseUtils';
@@ -250,7 +251,12 @@ export default function ProjectDetailsPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">{project.project_name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold">{project.project_name}</h1>
+              {project.project_type && (
+                <Badge variant="secondary">{getProjectTypeLabel(project.project_type)}</Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-1 text-muted-foreground">
               <Building2 className="h-4 w-4" />
               <Link 
@@ -388,56 +394,88 @@ export default function ProjectDetailsPage() {
 
         <Card>
           <CardContent className="p-4">
-            {project.quote && (
-              <div className="space-y-2">
+            <div className="space-y-2">
+              {project.budget && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">عرض السعر</span>
-                  <Link 
-                    to={`/admin/crm/quotes/${project.quote.id}`}
-                    className="text-sm text-primary hover:underline flex items-center gap-1"
-                  >
-                    {project.quote.quote_number}
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">القيمة</span>
-                  <span className="text-sm font-medium">
-                    {project.quote.total_amount?.toLocaleString('ar-SA')} ر.س
+                  <span className="text-sm text-muted-foreground">الميزانية</span>
+                  <span className="text-sm font-bold text-primary">
+                    {Number(project.budget).toLocaleString('ar-SA')} ر.س
                   </span>
                 </div>
-              </div>
-            )}
-            {!project.quote && (
-              <p className="text-sm text-muted-foreground text-center py-2">
-                لا يوجد عرض سعر مرتبط
-              </p>
-            )}
+              )}
+              {project.quote && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">عرض السعر</span>
+                    <Link 
+                      to={`/admin/crm/quotes/${project.quote.id}`}
+                      className="text-sm text-primary hover:underline flex items-center gap-1"
+                    >
+                      {project.quote.quote_number}
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">قيمة العرض</span>
+                    <span className="text-sm font-medium">
+                      {project.quote.total_amount?.toLocaleString('ar-SA')} ر.س
+                    </span>
+                  </div>
+                </>
+              )}
+              {!project.quote && !project.budget && (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  لا يوجد عرض سعر أو ميزانية
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Phases Progress - hide for service_execution */}
+      {/* Phases Progress - hide for service_execution */}
         {project.project_type !== 'service_execution' ? (
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="font-semibold">مراحل المشروع</h3>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setPhaseAssignmentOpen(true)}
-              >
-                <Users className="h-4 w-4 ml-2" />
-                توزيع المراحل
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                {phases.length > 0 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setPhaseAssignmentOpen(true)}
+                  >
+                    <Users className="h-4 w-4 ml-2" />
+                    توزيع المراحل
+                  </Button>
+                )}
+                <ProjectPhasesManager
+                  projectId={id!}
+                  projectType={project.project_type || 'custom_platform'}
+                  templateId={project.template_id}
+                  hasPhases={phases.length > 0}
+                  canEdit={project.status === 'active'}
+                />
+              </div>
             </div>
-            <PhaseProgressCard
-              phases={phases as any}
-              projectId={id!}
-              staffId={currentStaff?.id}
-              canEdit={project.status === 'active'}
-            />
+            {phases.length > 0 ? (
+              <PhaseProgressCard
+                phases={phases as any}
+                projectId={id!}
+                staffId={currentStaff?.id}
+                canEdit={project.status === 'active'}
+              />
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground mb-3">لم يتم إضافة مراحل لهذا المشروع بعد</p>
+                  <p className="text-sm text-muted-foreground">
+                    استخدم "تطبيق قالب" لتحميل مراحل من قالب جاهز، أو "إضافة مراحل" لاختيار مراحل من المكتبة.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         ) : (
           <div className="lg:col-span-2">

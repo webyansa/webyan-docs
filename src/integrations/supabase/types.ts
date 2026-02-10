@@ -838,6 +838,7 @@ export type Database = {
           admin_password_encrypted: string | null
           admin_url: string | null
           admin_username: string | null
+          budget: number | null
           client_contact_id: string | null
           contract_doc_id: string | null
           contract_id: string | null
@@ -895,6 +896,7 @@ export type Database = {
           admin_password_encrypted?: string | null
           admin_url?: string | null
           admin_username?: string | null
+          budget?: number | null
           client_contact_id?: string | null
           contract_doc_id?: string | null
           contract_id?: string | null
@@ -952,6 +954,7 @@ export type Database = {
           admin_password_encrypted?: string | null
           admin_url?: string | null
           admin_username?: string | null
+          budget?: number | null
           client_contact_id?: string | null
           contract_doc_id?: string | null
           contract_id?: string | null
