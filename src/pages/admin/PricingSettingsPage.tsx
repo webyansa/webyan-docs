@@ -43,6 +43,7 @@ import {
   Puzzle,
   Loader2,
   DollarSign,
+  RotateCw,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 
@@ -134,13 +135,28 @@ export default function PricingSettingsPage() {
     },
   });
 
-  // Fetch services
+  // Fetch services (exclude recurring_annual)
   const { data: services = [], isLoading: loadingServices } = useQuery({
     queryKey: ['pricing-services'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('pricing_services')
         .select('*')
+        .neq('service_type', 'recurring_annual')
+        .order('sort_order');
+      if (error) throw error;
+      return data as PricingService[];
+    },
+  });
+
+  // Fetch annual fees
+  const { data: annualFees = [], isLoading: loadingAnnualFees } = useQuery({
+    queryKey: ['pricing-annual-fees'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pricing_services')
+        .select('*')
+        .eq('service_type', 'recurring_annual')
         .order('sort_order');
       if (error) throw error;
       return data as PricingService[];
@@ -209,6 +225,7 @@ export default function PricingSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pricing-services'] });
+      queryClient.invalidateQueries({ queryKey: ['pricing-annual-fees'] });
       toast.success(serviceModal.service ? 'تم تحديث الخدمة' : 'تم إضافة الخدمة');
       setServiceModal({ open: false, service: null });
     },
@@ -222,6 +239,7 @@ export default function PricingSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pricing-services'] });
+      queryClient.invalidateQueries({ queryKey: ['pricing-annual-fees'] });
       toast.success('تم حذف الخدمة');
     },
   });
@@ -388,7 +406,7 @@ export default function PricingSettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="plans" className="gap-2">
             <Package className="h-4 w-4" />
             الخطط ({plans.length})
@@ -396,6 +414,10 @@ export default function PricingSettingsPage() {
           <TabsTrigger value="services" className="gap-2">
             <Wrench className="h-4 w-4" />
             الخدمات الإضافية ({services.length})
+          </TabsTrigger>
+          <TabsTrigger value="annual_fees" className="gap-2">
+            <RotateCw className="h-4 w-4" />
+            الرسوم السنوية ({annualFees.length})
           </TabsTrigger>
           <TabsTrigger value="solutions" className="gap-2">
             <Puzzle className="h-4 w-4" />
@@ -542,6 +564,91 @@ export default function PricingSettingsPage() {
                               size="sm"
                               className="text-destructive"
                               onClick={() => deleteServiceMutation.mutate(service.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Annual Fees Tab */}
+        <TabsContent value="annual_fees">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>الرسوم السنوية</CardTitle>
+                <CardDescription>بنود تشغيلية سنوية مثل الاستضافة والدعم الفني وتجديد الدومين</CardDescription>
+              </div>
+              <Button onClick={() => {
+                setServiceForm({
+                  name: '',
+                  description: '',
+                  service_type: 'recurring_annual',
+                  price: '',
+                  unit: 'سنوي',
+                  category: '',
+                  is_active: true,
+                });
+                setServiceModal({ open: true, service: null });
+              }} className="gap-2">
+                <Plus className="h-4 w-4" />
+                إضافة رسم سنوي
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingAnnualFees ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>البند</TableHead>
+                      <TableHead>السعر السنوي</TableHead>
+                      <TableHead>التصنيف</TableHead>
+                      <TableHead>الحالة</TableHead>
+                      <TableHead>إجراءات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {annualFees.map((fee) => (
+                      <TableRow key={fee.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{fee.name}</p>
+                            {fee.description && (
+                              <p className="text-sm text-muted-foreground">{fee.description}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(fee.price)}
+                          <span className="text-sm text-muted-foreground mr-1">/ سنوي</span>
+                        </TableCell>
+                        <TableCell>{fee.category || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={fee.is_active ? 'default' : 'secondary'}>
+                            {fee.is_active ? 'نشط' : 'غير نشط'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => openServiceModal(fee)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive"
+                              onClick={() => deleteServiceMutation.mutate(fee.id)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -761,6 +868,7 @@ export default function PricingSettingsPage() {
                   <SelectContent>
                     <SelectItem value="one_time">مرة واحدة</SelectItem>
                     <SelectItem value="recurring">متكررة</SelectItem>
+                    <SelectItem value="recurring_annual">رسوم سنوية</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
