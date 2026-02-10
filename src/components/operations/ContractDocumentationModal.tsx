@@ -32,8 +32,9 @@ import {
   Building2, FileText, Hash
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { contractStatuses, contractTypes, teamRoles } from '@/lib/operations/projectConfig';
+import { contractStatuses, contractTypes, teamRoles, quoteTypeToProjectType, getProjectTypeLabel } from '@/lib/operations/projectConfig';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
+import { Badge } from '@/components/ui/badge';
 
 interface ContractDocumentationModalProps {
   open: boolean;
@@ -41,6 +42,7 @@ interface ContractDocumentationModalProps {
   quoteId: string;
   quoteNumber?: string;
   quoteTotal?: number;
+  quoteType?: string;
   opportunityId?: string;
   accountId: string;
   accountName: string;
@@ -58,6 +60,7 @@ export function ContractDocumentationModal({
   quoteId,
   quoteNumber,
   quoteTotal,
+  quoteType,
   opportunityId,
   accountId,
   accountName,
@@ -79,6 +82,10 @@ export function ContractDocumentationModal({
   // Team assignment state
   const [implementerId, setImplementerId] = useState<string>('');
   const [csmId, setCsmId] = useState<string>('');
+  
+  // Template selection
+  const derivedProjectType = quoteType ? (quoteTypeToProjectType[quoteType] || 'custom_platform') : 'custom_platform';
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   
   // Success state
   const [showSuccess, setShowSuccess] = useState(false);
@@ -122,6 +129,30 @@ export function ContractDocumentationModal({
       return data as StaffMember[];
     },
     enabled: open,
+  });
+
+  // Fetch project templates based on derived project type
+  const { data: templates = [] } = useQuery({
+    queryKey: ['project-templates', derivedProjectType],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_templates')
+        .select('*')
+        .eq('is_active', true)
+        .eq('project_type', derivedProjectType === 'service_execution' ? 'service_execution' : derivedProjectType)
+        .order('is_default', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Auto-select default template
+      if (data && data.length > 0 && !selectedTemplateId) {
+        const defaultTemplate = data.find((t: any) => t.is_default) || data[0];
+        setSelectedTemplateId(defaultTemplate.id);
+      }
+      
+      return data;
+    },
+    enabled: open && derivedProjectType !== 'service_execution',
   });
 
   // Validation helpers
@@ -242,6 +273,12 @@ export function ContractDocumentationModal({
 
       // 2. If signed, create project
       if (status === 'signed') {
+        // Determine initial stage based on project type
+        const isService = derivedProjectType === 'service_execution';
+        const selectedTemplate = templates.find((t: any) => t.id === selectedTemplateId);
+        const templatePhases = selectedTemplate?.phases as any[] || [];
+        const initialStage = isService ? null : (templatePhases[0]?.phase_type || 'kickoff');
+
         const { data: projectData, error: projectError } = await supabase
           .from('crm_implementations')
           .insert({
@@ -249,9 +286,11 @@ export function ContractDocumentationModal({
             opportunity_id: opportunityId || null,
             quote_id: quoteId,
             contract_doc_id: contractDoc.id,
+            template_id: isService ? null : (selectedTemplateId || null),
             project_name: projectName,
+            project_type: derivedProjectType,
             status: 'active',
-            stage: 'kickoff',
+            stage: initialStage,
             received_date: format(receivedDate, 'yyyy-MM-dd'),
             expected_delivery_date: expectedDeliveryDate ? format(expectedDeliveryDate, 'yyyy-MM-dd') : null,
             priority: 'medium',
@@ -263,6 +302,28 @@ export function ContractDocumentationModal({
 
         if (projectError) throw projectError;
         project = projectData;
+
+        // 3. Create project phases from template (skip for service_execution)
+        if (!isService && templatePhases.length > 0) {
+          const phasesToInsert = templatePhases.map((phase: any) => ({
+            project_id: project.id,
+            phase_type: phase.phase_type,
+            phase_order: phase.order,
+            status: 'pending',
+            instructions: phase.instructions || null,
+          }));
+
+          const { error: phasesError } = await supabase
+            .from('project_phases')
+            .insert(phasesToInsert);
+
+          if (phasesError) {
+            console.error('Error creating phases:', phasesError);
+            // Non-blocking - project was created successfully
+          }
+        }
+
+        // 4. Update quote with project_id
 
         // 3. Update quote with project_id
         await supabase
@@ -469,6 +530,7 @@ export function ContractDocumentationModal({
     setNotes('');
     setImplementerId('');
     setCsmId('');
+    setSelectedTemplateId('');
     setShowSuccess(false);
     setCreatedProjectId(null);
     setCreatedProjectName('');
@@ -599,6 +661,45 @@ export function ContractDocumentationModal({
                   )}
                 </AlertDescription>
               </Alert>
+            )}
+
+            {/* Project Type & Template Info */}
+            {!hasExistingProject && (
+              <div className="bg-muted/30 border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">نوع المشروع:</span>
+                  <Badge variant="outline">{getProjectTypeLabel(derivedProjectType)}</Badge>
+                </div>
+                {derivedProjectType !== 'service_execution' && templates.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>قالب المشروع</Label>
+                    <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر قالب المشروع" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template: any) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name} {template.is_default && '(افتراضي)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedTemplateId && (
+                      <p className="text-xs text-muted-foreground">
+                        {templates.find((t: any) => t.id === selectedTemplateId)?.description}
+                        {' • '}
+                        {(templates.find((t: any) => t.id === selectedTemplateId)?.phases as any[])?.length || 0} مراحل
+                      </p>
+                    )}
+                  </div>
+                )}
+                {derivedProjectType === 'service_execution' && (
+                  <p className="text-xs text-muted-foreground">
+                    مشروع تنفيذ خدمة - بدون مراحل تنفيذية، تنفيذ مباشر
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Show form if no existing project (contract can be updated) */}

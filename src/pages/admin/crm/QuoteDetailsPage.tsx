@@ -1474,6 +1474,7 @@ export default function QuoteDetailsPage() {
           quoteId={quoteId!}
           quoteNumber={quote.quote_number}
           quoteTotal={quote.total_amount}
+          quoteType={quote.quote_type || undefined}
           opportunityId={quote.opportunity_id || undefined}
           accountId={quote.account_id}
           accountName={quote.account?.name || ''}

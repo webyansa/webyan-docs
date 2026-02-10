@@ -33,6 +33,7 @@ import {
   projectStatuses, 
   priorities, 
   teamRoles,
+  getProjectTypeLabel,
 } from '@/lib/operations/projectConfig';
 import { PhaseProgressCard } from '@/components/operations/PhaseProgressCard';
 import { TeamAssignmentModal } from '@/components/operations/TeamAssignmentModal';
@@ -416,26 +417,39 @@ export default function ProjectDetailsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Phases Progress */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">مراحل المشروع</h3>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setPhaseAssignmentOpen(true)}
-            >
-              <Users className="h-4 w-4 ml-2" />
-              توزيع المراحل
-            </Button>
+        {/* Phases Progress - hide for service_execution */}
+        {project.project_type !== 'service_execution' ? (
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">مراحل المشروع</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setPhaseAssignmentOpen(true)}
+              >
+                <Users className="h-4 w-4 ml-2" />
+                توزيع المراحل
+              </Button>
+            </div>
+            <PhaseProgressCard
+              phases={phases as any}
+              projectId={id!}
+              staffId={currentStaff?.id}
+              canEdit={project.status === 'active'}
+            />
           </div>
-          <PhaseProgressCard
-            phases={phases as any}
-            projectId={id!}
-            staffId={currentStaff?.id}
-            canEdit={project.status === 'active'}
-          />
-        </div>
+        ) : (
+          <div className="lg:col-span-2">
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Badge variant="outline" className="mb-3">تنفيذ خدمة</Badge>
+                <p className="text-muted-foreground">
+                  مشروع تنفيذ خدمة مباشر بدون مراحل تنفيذية
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Team */}
         <Card>
