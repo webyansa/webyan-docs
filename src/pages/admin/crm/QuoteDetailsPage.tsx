@@ -588,6 +588,7 @@ export default function QuoteDetailsPage() {
     taxRate,
     taxAmount,
     totalAmount,
+    tax_inclusive: isTaxInclusive,
   };
 
   // Manual PDF download function as fallback
