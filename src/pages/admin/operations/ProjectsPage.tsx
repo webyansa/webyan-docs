@@ -7,6 +7,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
@@ -24,7 +29,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   FolderKanban, Search, Filter, Eye, Building2, AlertTriangle,
-  Plus, Loader2, CalendarIcon
+  Plus, Loader2, CalendarIcon, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { projectStatuses, priorities, projectTypes, getProjectTypeLabel } from '@/lib/operations/projectConfig';
@@ -40,7 +45,9 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [newProjectOpen, setNewProjectOpen] = useState(false);
-
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null);
   // New project form state
   const [projectForm, setProjectForm] = useState({
     project_name: '',
@@ -192,6 +199,56 @@ export default function ProjectsPage() {
     });
   };
 
+  // Delete projects mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      // Delete phases first
+      const { error: phasesError } = await supabase
+        .from('project_phases')
+        .delete()
+        .in('project_id', ids);
+      if (phasesError) throw phasesError;
+
+      const { error } = await supabase
+        .from('crm_implementations')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects-list'] });
+      toast.success('تم حذف المشاريع بنجاح');
+      setSelectedIds(new Set());
+      setDeleteTarget(null);
+    },
+    onError: (error: any) => {
+      toast.error('حدث خطأ أثناء الحذف: ' + error.message);
+    },
+  });
+
+  const handleDeleteConfirm = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget);
+    }
+    setDeleteConfirmOpen(false);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredProjects.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredProjects.map((p: any) => p.id)));
+    }
+  };
+
   // Auto-select default template when type changes
   const handleTypeChange = (type: string) => {
     setProjectForm(f => ({ ...f, project_type: type, template_id: '' }));
@@ -298,12 +355,40 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="p-3 flex items-center justify-between">
+            <span className="text-sm font-medium">تم تحديد {selectedIds.size} مشروع</span>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { setDeleteTarget(Array.from(selectedIds)); setDeleteConfirmOpen(true); }}
+              >
+                <Trash2 className="h-4 w-4 ml-2" />
+                حذف المحددة
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                إلغاء التحديد
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Projects Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={filteredProjects.length > 0 && selectedIds.size === filteredProjects.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>المشروع</TableHead>
                 <TableHead>النوع</TableHead>
                 <TableHead>تاريخ الاستلام</TableHead>
@@ -312,7 +397,7 @@ export default function ProjectsPage() {
                 <TableHead>الفريق</TableHead>
                 <TableHead>الأولوية</TableHead>
                 <TableHead>الحالة</TableHead>
-                <TableHead className="w-[80px]">عرض</TableHead>
+                <TableHead className="w-[100px]">إجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -324,7 +409,13 @@ export default function ProjectsPage() {
                 const daysInfo = getDaysInfo(project);
 
                 return (
-                  <TableRow key={project.id} className={overdue ? 'bg-red-50/50' : ''}>
+                  <TableRow key={project.id} className={overdue ? 'bg-destructive/5' : ''}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(project.id)}
+                        onCheckedChange={() => toggleSelect(project.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div>
                         <div className="flex items-center gap-2">
@@ -408,9 +499,19 @@ export default function ProjectsPage() {
                       <Badge variant="outline" className={cn(statusConfig?.color)}>{statusConfig?.label}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Link to={`/admin/projects/${project.id}`}>
-                        <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        <Link to={`/admin/projects/${project.id}`}>
+                          <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => { setDeleteTarget([project.id]); setDeleteConfirmOpen(true); }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -418,7 +519,7 @@ export default function ProjectsPage() {
 
               {filteredProjects.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
+                  <TableCell colSpan={10} className="text-center py-8">
                     <p className="text-muted-foreground">لا توجد مشاريع</p>
                   </TableCell>
                 </TableRow>
@@ -602,6 +703,28 @@ export default function ProjectsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف {deleteTarget?.length === 1 ? 'هذا المشروع' : `${deleteTarget?.length} مشاريع`}؟ سيتم حذف جميع المراحل المرتبطة. هذا الإجراء لا يمكن التراجع عنه.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : null}
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
