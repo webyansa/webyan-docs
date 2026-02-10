@@ -880,135 +880,150 @@ export default function PricingSettingsPage() {
 
       {/* Plan Modal */}
       <Dialog open={planModal.open} onOpenChange={(open) => !open && setPlanModal({ open: false, plan: null })}>
-        <DialogContent className="max-w-lg" dir="rtl">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" dir="rtl">
+          <DialogHeader className="pb-2">
             <DialogTitle>{planModal.plan ? 'تعديل الخطة' : 'إضافة خطة جديدة'}</DialogTitle>
-            <DialogDescription>أدخل تفاصيل خطة الاشتراك (جميع الأسعار شاملة الضريبة)</DialogDescription>
+            <DialogDescription className="text-xs">جميع الأسعار شاملة الضريبة</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>اسم الخطة *</Label>
+          <div className="flex-1 overflow-y-auto space-y-4 px-1 pb-2">
+            {/* Basic Info Row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">اسم الخطة *</Label>
                 <Input
                   value={planForm.name}
                   onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
                   placeholder="الخطة الأساسية"
+                  className="h-9"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>الاسم بالإنجليزية</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">الاسم بالإنجليزية</Label>
                 <Input
                   value={planForm.name_en}
                   onChange={(e) => setPlanForm({ ...planForm, name_en: e.target.value })}
                   placeholder="Basic Plan"
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">الوصف</Label>
+                <Input
+                  value={planForm.description}
+                  onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
+                  placeholder="وصف مختصر للخطة..."
+                  className="h-9"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>الوصف</Label>
-              <Textarea
-                value={planForm.description}
-                onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
-                placeholder="وصف مختصر للخطة..."
-                rows={2}
-              />
-            </div>
 
-            {/* Monthly Price */}
-            <div className="space-y-2">
-              <Label>السعر الشهري (شامل الضريبة) *</Label>
-              <Input
-                type="number"
-                value={planForm.monthly_price}
-                onChange={(e) => setPlanForm({ ...planForm, monthly_price: e.target.value })}
-                placeholder="500"
-              />
-              <TaxBreakdown price={monthlyPrice} vatRate={currentVatRate} />
-            </div>
-
-            {/* Annual Discount */}
-            <div className="border rounded-lg p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">
-                  <Percent className="h-4 w-4 text-primary" />
-                  خصم سنوي
-                </Label>
-                <Switch
-                  checked={planForm.annual_discount_enabled}
-                  onCheckedChange={(checked) => {
-                    setPlanForm({ ...planForm, annual_discount_enabled: checked });
-                    if (!checked) {
-                      setPlanForm(prev => ({ ...prev, annual_discount_enabled: false, yearly_price: yearlyBase.toString() }));
-                    }
-                  }}
+            {/* Pricing Section */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Monthly Column */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">السعر الشهري</p>
+                <Input
+                  type="number"
+                  value={planForm.monthly_price}
+                  onChange={(e) => setPlanForm({ ...planForm, monthly_price: e.target.value })}
+                  placeholder="500"
+                  className="h-9"
                 />
+                {monthlyPrice > 0 && (
+                  <div className="text-[11px] text-muted-foreground space-y-0.5 bg-muted/40 rounded p-2">
+                    <div className="flex justify-between"><span>قبل الضريبة</span><span>{formatCurrency(calcPriceBeforeTax(monthlyPrice, currentVatRate))}</span></div>
+                    <div className="flex justify-between"><span>الضريبة ({currentVatRate}%)</span><span>{formatCurrency(calcTaxAmount(monthlyPrice, currentVatRate))}</span></div>
+                    <div className="flex justify-between font-medium border-t pt-0.5"><span>شامل</span><span>{formatCurrency(monthlyPrice)}</span></div>
+                  </div>
+                )}
               </div>
 
-              {planForm.annual_discount_enabled && (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs">نسبة الخصم (%)</Label>
-                    <Input
-                      type="number"
-                      value={planForm.yearly_discount}
-                      onChange={(e) => setPlanForm({ ...planForm, yearly_discount: e.target.value })}
-                      placeholder="17"
-                      className="h-8"
+              {/* Yearly Column */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground">السعر السنوي</p>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[11px] text-muted-foreground">خصم سنوي</Label>
+                    <Switch
+                      checked={planForm.annual_discount_enabled}
+                      onCheckedChange={(checked) => {
+                        setPlanForm({ ...planForm, annual_discount_enabled: checked });
+                        if (!checked) {
+                          setPlanForm(prev => ({ ...prev, annual_discount_enabled: false, yearly_price: yearlyBase.toString() }));
+                        }
+                      }}
+                      className="scale-75"
                     />
                   </div>
-                  {monthlyPrice > 0 && (
-                    <div className="bg-muted/50 rounded-md p-2.5 space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">السنوي قبل الخصم ({monthlyPrice} × 12)</span>
-                        <span>{formatCurrency(yearlyBase)}</span>
-                      </div>
-                      <div className="flex justify-between text-green-600">
-                        <span>قيمة الخصم ({discountPercent}%)</span>
-                        <span>- {formatCurrency(discountAmount)}</span>
-                      </div>
-                      <div className="flex justify-between font-medium border-t border-border pt-1">
-                        <span>السنوي بعد الخصم</span>
-                        <span>{formatCurrency(yearlyAfterDiscount)}</span>
+                </div>
+
+                {planForm.annual_discount_enabled ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[11px] whitespace-nowrap">نسبة الخصم</Label>
+                      <div className="relative flex-1">
+                        <Input
+                          type="number"
+                          value={planForm.yearly_discount}
+                          onChange={(e) => setPlanForm({ ...planForm, yearly_discount: e.target.value })}
+                          placeholder="17"
+                          className="h-8 text-sm pe-7"
+                        />
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {!planForm.annual_discount_enabled && (
-                <div className="space-y-2">
-                  <Label className="text-xs">السعر السنوي (شامل الضريبة)</Label>
+                    {monthlyPrice > 0 && (
+                      <div className="text-[11px] text-muted-foreground space-y-0.5 bg-muted/40 rounded p-2">
+                        <div className="flex justify-between"><span>قبل الخصم ({monthlyPrice}×12)</span><span>{formatCurrency(yearlyBase)}</span></div>
+                        <div className="flex justify-between text-green-600"><span>الخصم ({discountPercent}%)</span><span>- {formatCurrency(discountAmount)}</span></div>
+                        <div className="flex justify-between font-medium border-t pt-0.5"><span>بعد الخصم</span><span>{formatCurrency(yearlyAfterDiscount)}</span></div>
+                      </div>
+                    )}
+                  </>
+                ) : (
                   <Input
                     type="number"
                     value={planForm.yearly_price}
                     onChange={(e) => setPlanForm({ ...planForm, yearly_price: e.target.value })}
                     placeholder="5000"
-                    className="h-8"
+                    className="h-9"
                   />
+                )}
+
+                {(parseFloat(planForm.yearly_price) || 0) > 0 && (
+                  <div className="text-[11px] text-muted-foreground space-y-0.5 bg-muted/40 rounded p-2">
+                    <div className="flex justify-between"><span>قبل الضريبة</span><span>{formatCurrency(calcPriceBeforeTax(parseFloat(planForm.yearly_price) || 0, currentVatRate))}</span></div>
+                    <div className="flex justify-between"><span>الضريبة ({currentVatRate}%)</span><span>{formatCurrency(calcTaxAmount(parseFloat(planForm.yearly_price) || 0, currentVatRate))}</span></div>
+                    <div className="flex justify-between font-medium border-t pt-0.5"><span>شامل</span><span>{formatCurrency(parseFloat(planForm.yearly_price) || 0)}</span></div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Features + Status Row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-xs">المميزات (سطر لكل ميزة)</Label>
+                <Textarea
+                  value={planForm.features}
+                  onChange={(e) => setPlanForm({ ...planForm, features: e.target.value })}
+                  placeholder="5 مستخدمين&#10;دعم فني أساسي&#10;تقارير شهرية"
+                  rows={3}
+                  className="text-sm"
+                />
+              </div>
+              <div className="flex flex-col justify-end gap-2">
+                <div className="flex items-center gap-2 border rounded-lg p-3">
+                  <Switch
+                    checked={planForm.is_active}
+                    onCheckedChange={(checked) => setPlanForm({ ...planForm, is_active: checked })}
+                  />
+                  <Label className="text-xs">خطة نشطة</Label>
                 </div>
-              )}
-
-              <TaxBreakdown price={parseFloat(planForm.yearly_price) || 0} vatRate={currentVatRate} label="تفاصيل السعر السنوي" />
-            </div>
-
-            <div className="space-y-2">
-              <Label>المميزات (سطر لكل ميزة)</Label>
-              <Textarea
-                value={planForm.features}
-                onChange={(e) => setPlanForm({ ...planForm, features: e.target.value })}
-                placeholder="5 مستخدمين&#10;دعم فني أساسي&#10;تقارير شهرية"
-                rows={4}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={planForm.is_active}
-                onCheckedChange={(checked) => setPlanForm({ ...planForm, is_active: checked })}
-              />
-              <Label>خطة نشطة</Label>
+              </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="border-t pt-3 mt-0">
             <Button variant="outline" onClick={() => setPlanModal({ open: false, plan: null })}>
               إلغاء
             </Button>
