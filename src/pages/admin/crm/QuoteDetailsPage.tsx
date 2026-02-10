@@ -562,6 +562,7 @@ export default function QuoteDetailsPage() {
 
   const items: QuoteItem[] = Array.isArray(quote.items) ? (quote.items as unknown as QuoteItem[]) : [];
   const statusInfo = statusConfig[quote.status || 'draft'] || statusConfig.draft;
+  const isTaxInclusive = (quote as any).tax_inclusive === true;
   
   // Calculate totals
   const subtotalBeforeDiscount = items.reduce((sum, item) => sum + item.total, 0);
@@ -1006,11 +1007,16 @@ export default function QuoteDetailsPage() {
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-primary" />
               ملخص الأسعار
+              {isTaxInclusive && (
+                <Badge variant="outline" className="text-xs font-normal">الأسعار شاملة الضريبة</Badge>
+              )}
             </h3>
             
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">المجموع الفرعي</span>
+                <span className="text-muted-foreground">
+                  {isTaxInclusive ? 'الإجمالي شامل الضريبة' : 'المجموع الفرعي'}
+                </span>
                 <span className="font-medium">{formatCurrency(subtotalBeforeDiscount)}</span>
               </div>
               
@@ -1033,14 +1039,21 @@ export default function QuoteDetailsPage() {
               )}
               
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">ضريبة القيمة المضافة ({taxRate}%)</span>
+                <span className="text-muted-foreground flex items-center gap-1">
+                  ضريبة القيمة المضافة ({taxRate}%)
+                  {isTaxInclusive && (
+                    <Badge variant="outline" className="text-[10px] h-4">شامل</Badge>
+                  )}
+                </span>
                 <span className="font-medium">{formatCurrency(taxAmount)}</span>
               </div>
               
               <Separator />
               
               <div className="flex justify-between items-center pt-2">
-                <span className="font-bold text-lg">الإجمالي المستحق</span>
+                <span className="font-bold text-lg">
+                  {isTaxInclusive ? 'الإجمالي النهائي' : 'الإجمالي المستحق'}
+                </span>
                 <span className="font-bold text-2xl text-primary">{formatCurrency(totalAmount)}</span>
               </div>
             </div>

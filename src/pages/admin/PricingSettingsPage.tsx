@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -44,8 +45,11 @@ import {
   Loader2,
   DollarSign,
   RotateCw,
+  Percent,
+  Save,
+  Info,
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/crm/pipelineConfig';
+import { formatCurrency, calcPriceBeforeTax, calcTaxAmount } from '@/lib/crm/pipelineConfig';
 
 interface PricingPlan {
   id: string;
@@ -83,10 +87,38 @@ interface CustomSolution {
   sort_order: number;
 }
 
+// Tax breakdown component
+function TaxBreakdown({ price, vatRate, label }: { price: number; vatRate: number; label?: string }) {
+  if (!price || price <= 0) return null;
+  const beforeTax = calcPriceBeforeTax(price, vatRate);
+  const tax = calcTaxAmount(price, vatRate);
+  return (
+    <div className="bg-muted/50 rounded-md p-2.5 space-y-1 text-xs">
+      {label && <p className="font-medium text-muted-foreground mb-1">{label}</p>}
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">قبل الضريبة</span>
+        <span>{formatCurrency(beforeTax)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">الضريبة ({vatRate}%)</span>
+        <span>{formatCurrency(tax)}</span>
+      </div>
+      <div className="flex justify-between font-medium border-t border-border pt-1">
+        <span>شامل الضريبة</span>
+        <span>{formatCurrency(price)}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function PricingSettingsPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('plans');
   
+  // VAT state
+  const [vatRate, setVatRate] = useState('15');
+  const [savingVat, setSavingVat] = useState(false);
+
   // Plan modal state
   const [planModal, setPlanModal] = useState<{ open: boolean; plan: PricingPlan | null }>({ open: false, plan: null });
   const [planForm, setPlanForm] = useState({
@@ -96,6 +128,7 @@ export default function PricingSettingsPage() {
     monthly_price: '',
     yearly_price: '',
     yearly_discount: '',
+    annual_discount_enabled: false,
     features: '',
     is_active: true,
   });
@@ -121,6 +154,42 @@ export default function PricingSettingsPage() {
     price_note: '',
     is_active: true,
   });
+
+  // Fetch VAT rate
+  const { data: vatSetting } = useQuery({
+    queryKey: ['system-vat-rate'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'vat_rate')
+        .single();
+      return data?.value || '15';
+    },
+  });
+
+  useEffect(() => {
+    if (vatSetting) setVatRate(vatSetting);
+  }, [vatSetting]);
+
+  const currentVatRate = parseFloat(vatRate) || 15;
+
+  const handleSaveVat = async () => {
+    setSavingVat(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ value: vatRate })
+        .eq('key', 'vat_rate');
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['system-vat-rate'] });
+      toast.success('تم تحديث نسبة الضريبة');
+    } catch {
+      toast.error('حدث خطأ');
+    } finally {
+      setSavingVat(false);
+    }
+  };
 
   // Fetch plans
   const { data: plans = [], isLoading: loadingPlans } = useQuery({
@@ -277,9 +346,24 @@ export default function PricingSettingsPage() {
     },
   });
 
+  // Plan form calculations
+  const monthlyPrice = parseFloat(planForm.monthly_price) || 0;
+  const yearlyBase = monthlyPrice * 12;
+  const discountPercent = parseFloat(planForm.yearly_discount) || 0;
+  const discountAmount = +(yearlyBase * discountPercent / 100).toFixed(2);
+  const yearlyAfterDiscount = +(yearlyBase - discountAmount).toFixed(2);
+
+  // Auto-update yearly price when monthly changes (if discount enabled)
+  useEffect(() => {
+    if (planForm.annual_discount_enabled && monthlyPrice > 0) {
+      setPlanForm(prev => ({ ...prev, yearly_price: yearlyAfterDiscount.toString() }));
+    }
+  }, [planForm.monthly_price, planForm.yearly_discount, planForm.annual_discount_enabled]);
+
   // Open plan modal
   const openPlanModal = (plan?: PricingPlan) => {
     if (plan) {
+      const isDiscountApplied = plan.yearly_discount > 0;
       setPlanForm({
         name: plan.name,
         name_en: plan.name_en || '',
@@ -287,6 +371,7 @@ export default function PricingSettingsPage() {
         monthly_price: plan.monthly_price.toString(),
         yearly_price: plan.yearly_price.toString(),
         yearly_discount: plan.yearly_discount.toString(),
+        annual_discount_enabled: isDiscountApplied,
         features: Array.isArray(plan.features) ? plan.features.join('\n') : '',
         is_active: plan.is_active,
       });
@@ -299,6 +384,7 @@ export default function PricingSettingsPage() {
         monthly_price: '',
         yearly_price: '',
         yearly_discount: '17',
+        annual_discount_enabled: true,
         features: '',
         is_active: true,
       });
@@ -405,6 +491,40 @@ export default function PricingSettingsPage() {
         </div>
       </div>
 
+      {/* VAT Settings Card */}
+      <Card className="border-primary/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Percent className="h-4 w-4 text-primary" />
+            إعدادات ضريبة القيمة المضافة (VAT)
+          </CardTitle>
+          <CardDescription>يتم تطبيق هذه النسبة تلقائياً في التسعير وعروض الأسعار والفواتير</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-4">
+            <div className="space-y-2 w-48">
+              <Label>نسبة الضريبة (%)</Label>
+              <Input
+                type="number"
+                value={vatRate}
+                onChange={(e) => setVatRate(e.target.value)}
+                min="0"
+                max="100"
+                step="0.5"
+              />
+            </div>
+            <Button onClick={handleSaveVat} disabled={savingVat} size="sm" className="gap-2">
+              {savingVat ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              حفظ
+            </Button>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5" />
+              <span>جميع الأسعار المدخلة في النظام شاملة الضريبة</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="plans" className="gap-2">
@@ -431,7 +551,7 @@ export default function PricingSettingsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>خطط الاشتراك</CardTitle>
-                <CardDescription>إدارة خطط اشتراكات ويبيان</CardDescription>
+                <CardDescription>إدارة خطط اشتراكات ويبيان (الأسعار شاملة الضريبة)</CardDescription>
               </div>
               <Button onClick={() => openPlanModal()} className="gap-2">
                 <Plus className="h-4 w-4" />
@@ -448,8 +568,8 @@ export default function PricingSettingsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>الخطة</TableHead>
-                      <TableHead>السعر الشهري</TableHead>
-                      <TableHead>السعر السنوي</TableHead>
+                      <TableHead>الشهري (شامل)</TableHead>
+                      <TableHead>السنوي (شامل)</TableHead>
                       <TableHead>الخصم</TableHead>
                       <TableHead>الحالة</TableHead>
                       <TableHead>إجراءات</TableHead>
@@ -466,8 +586,18 @@ export default function PricingSettingsPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>{formatCurrency(plan.monthly_price)}</TableCell>
-                        <TableCell>{formatCurrency(plan.yearly_price)}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{formatCurrency(plan.monthly_price)}</p>
+                            <p className="text-xs text-muted-foreground">قبل الضريبة: {formatCurrency(calcPriceBeforeTax(plan.monthly_price, currentVatRate))}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{formatCurrency(plan.yearly_price)}</p>
+                            <p className="text-xs text-muted-foreground">قبل الضريبة: {formatCurrency(calcPriceBeforeTax(plan.yearly_price, currentVatRate))}</p>
+                          </div>
+                        </TableCell>
                         <TableCell>{plan.yearly_discount}%</TableCell>
                         <TableCell>
                           <Badge variant={plan.is_active ? 'default' : 'secondary'}>
@@ -504,7 +634,7 @@ export default function PricingSettingsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>الخدمات الإضافية</CardTitle>
-                <CardDescription>خدمات يمكن إضافتها لعروض الأسعار</CardDescription>
+                <CardDescription>خدمات يمكن إضافتها لعروض الأسعار (الأسعار شاملة الضريبة)</CardDescription>
               </div>
               <Button onClick={() => openServiceModal()} className="gap-2">
                 <Plus className="h-4 w-4" />
@@ -522,7 +652,7 @@ export default function PricingSettingsPage() {
                     <TableRow>
                       <TableHead>الخدمة</TableHead>
                       <TableHead>النوع</TableHead>
-                      <TableHead>السعر</TableHead>
+                      <TableHead>السعر (شامل)</TableHead>
                       <TableHead>التصنيف</TableHead>
                       <TableHead>الحالة</TableHead>
                       <TableHead>إجراءات</TableHead>
@@ -545,7 +675,10 @@ export default function PricingSettingsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(service.price)}
+                          <div>
+                            <p className="font-medium">{formatCurrency(service.price)}</p>
+                            <p className="text-xs text-muted-foreground">قبل الضريبة: {formatCurrency(calcPriceBeforeTax(service.price, currentVatRate))}</p>
+                          </div>
                           <span className="text-sm text-muted-foreground mr-1">/ {service.unit}</span>
                         </TableCell>
                         <TableCell>{service.category || '-'}</TableCell>
@@ -584,7 +717,7 @@ export default function PricingSettingsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>الرسوم السنوية</CardTitle>
-                <CardDescription>بنود تشغيلية سنوية مثل الاستضافة والدعم الفني وتجديد الدومين</CardDescription>
+                <CardDescription>بنود تشغيلية سنوية مثل الاستضافة والدعم الفني وتجديد الدومين (الأسعار شاملة الضريبة)</CardDescription>
               </div>
               <Button onClick={() => {
                 setServiceForm({
@@ -612,7 +745,7 @@ export default function PricingSettingsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>البند</TableHead>
-                      <TableHead>السعر السنوي</TableHead>
+                      <TableHead>السعر السنوي (شامل)</TableHead>
                       <TableHead>التصنيف</TableHead>
                       <TableHead>الحالة</TableHead>
                       <TableHead>إجراءات</TableHead>
@@ -630,7 +763,10 @@ export default function PricingSettingsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(fee.price)}
+                          <div>
+                            <p className="font-medium">{formatCurrency(fee.price)}</p>
+                            <p className="text-xs text-muted-foreground">قبل الضريبة: {formatCurrency(calcPriceBeforeTax(fee.price, currentVatRate))}</p>
+                          </div>
                           <span className="text-sm text-muted-foreground mr-1">/ سنوي</span>
                         </TableCell>
                         <TableCell>{fee.category || '-'}</TableCell>
@@ -669,7 +805,7 @@ export default function PricingSettingsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>الحلول المخصصة</CardTitle>
-                <CardDescription>منصات وحلول مخصصة حسب الطلب</CardDescription>
+                <CardDescription>منصات وحلول مخصصة حسب الطلب (الأسعار شاملة الضريبة)</CardDescription>
               </div>
               <Button onClick={() => openSolutionModal()} className="gap-2">
                 <Plus className="h-4 w-4" />
@@ -686,7 +822,7 @@ export default function PricingSettingsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>الحل</TableHead>
-                      <TableHead>السعر التقديري</TableHead>
+                      <TableHead>السعر التقديري (شامل)</TableHead>
                       <TableHead>ملاحظة السعر</TableHead>
                       <TableHead>الحالة</TableHead>
                       <TableHead>إجراءات</TableHead>
@@ -703,7 +839,12 @@ export default function PricingSettingsPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>{formatCurrency(solution.base_price)}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{formatCurrency(solution.base_price)}</p>
+                            <p className="text-xs text-muted-foreground">قبل الضريبة: {formatCurrency(calcPriceBeforeTax(solution.base_price, currentVatRate))}</p>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {solution.price_note || '-'}
                         </TableCell>
@@ -742,7 +883,7 @@ export default function PricingSettingsPage() {
         <DialogContent className="max-w-lg" dir="rtl">
           <DialogHeader>
             <DialogTitle>{planModal.plan ? 'تعديل الخطة' : 'إضافة خطة جديدة'}</DialogTitle>
-            <DialogDescription>أدخل تفاصيل خطة الاشتراك</DialogDescription>
+            <DialogDescription>أدخل تفاصيل خطة الاشتراك (جميع الأسعار شاملة الضريبة)</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -772,35 +913,84 @@ export default function PricingSettingsPage() {
                 rows={2}
               />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>السعر الشهري *</Label>
-                <Input
-                  type="number"
-                  value={planForm.monthly_price}
-                  onChange={(e) => setPlanForm({ ...planForm, monthly_price: e.target.value })}
-                  placeholder="500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>السعر السنوي *</Label>
-                <Input
-                  type="number"
-                  value={planForm.yearly_price}
-                  onChange={(e) => setPlanForm({ ...planForm, yearly_price: e.target.value })}
-                  placeholder="5000"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>خصم السنوي %</Label>
-                <Input
-                  type="number"
-                  value={planForm.yearly_discount}
-                  onChange={(e) => setPlanForm({ ...planForm, yearly_discount: e.target.value })}
-                  placeholder="17"
-                />
-              </div>
+
+            {/* Monthly Price */}
+            <div className="space-y-2">
+              <Label>السعر الشهري (شامل الضريبة) *</Label>
+              <Input
+                type="number"
+                value={planForm.monthly_price}
+                onChange={(e) => setPlanForm({ ...planForm, monthly_price: e.target.value })}
+                placeholder="500"
+              />
+              <TaxBreakdown price={monthlyPrice} vatRate={currentVatRate} />
             </div>
+
+            {/* Annual Discount */}
+            <div className="border rounded-lg p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Percent className="h-4 w-4 text-primary" />
+                  خصم سنوي
+                </Label>
+                <Switch
+                  checked={planForm.annual_discount_enabled}
+                  onCheckedChange={(checked) => {
+                    setPlanForm({ ...planForm, annual_discount_enabled: checked });
+                    if (!checked) {
+                      setPlanForm(prev => ({ ...prev, annual_discount_enabled: false, yearly_price: yearlyBase.toString() }));
+                    }
+                  }}
+                />
+              </div>
+
+              {planForm.annual_discount_enabled && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">نسبة الخصم (%)</Label>
+                    <Input
+                      type="number"
+                      value={planForm.yearly_discount}
+                      onChange={(e) => setPlanForm({ ...planForm, yearly_discount: e.target.value })}
+                      placeholder="17"
+                      className="h-8"
+                    />
+                  </div>
+                  {monthlyPrice > 0 && (
+                    <div className="bg-muted/50 rounded-md p-2.5 space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">السنوي قبل الخصم ({monthlyPrice} × 12)</span>
+                        <span>{formatCurrency(yearlyBase)}</span>
+                      </div>
+                      <div className="flex justify-between text-green-600">
+                        <span>قيمة الخصم ({discountPercent}%)</span>
+                        <span>- {formatCurrency(discountAmount)}</span>
+                      </div>
+                      <div className="flex justify-between font-medium border-t border-border pt-1">
+                        <span>السنوي بعد الخصم</span>
+                        <span>{formatCurrency(yearlyAfterDiscount)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!planForm.annual_discount_enabled && (
+                <div className="space-y-2">
+                  <Label className="text-xs">السعر السنوي (شامل الضريبة)</Label>
+                  <Input
+                    type="number"
+                    value={planForm.yearly_price}
+                    onChange={(e) => setPlanForm({ ...planForm, yearly_price: e.target.value })}
+                    placeholder="5000"
+                    className="h-8"
+                  />
+                </div>
+              )}
+
+              <TaxBreakdown price={parseFloat(planForm.yearly_price) || 0} vatRate={currentVatRate} label="تفاصيل السعر السنوي" />
+            </div>
+
             <div className="space-y-2">
               <Label>المميزات (سطر لكل ميزة)</Label>
               <Textarea
@@ -835,7 +1025,7 @@ export default function PricingSettingsPage() {
         <DialogContent className="max-w-lg" dir="rtl">
           <DialogHeader>
             <DialogTitle>{serviceModal.service ? 'تعديل الخدمة' : 'إضافة خدمة جديدة'}</DialogTitle>
-            <DialogDescription>أدخل تفاصيل الخدمة الإضافية</DialogDescription>
+            <DialogDescription>أدخل تفاصيل الخدمة (السعر شامل الضريبة)</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -883,7 +1073,7 @@ export default function PricingSettingsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>السعر *</Label>
+                <Label>السعر (شامل الضريبة) *</Label>
                 <Input
                   type="number"
                   value={serviceForm.price}
@@ -908,6 +1098,7 @@ export default function PricingSettingsPage() {
                 </Select>
               </div>
             </div>
+            <TaxBreakdown price={parseFloat(serviceForm.price) || 0} vatRate={currentVatRate} />
             <div className="flex items-center gap-2">
               <Switch
                 checked={serviceForm.is_active}
@@ -933,7 +1124,7 @@ export default function PricingSettingsPage() {
         <DialogContent className="max-w-lg" dir="rtl">
           <DialogHeader>
             <DialogTitle>{solutionModal.solution ? 'تعديل الحل' : 'إضافة حل جديد'}</DialogTitle>
-            <DialogDescription>أدخل تفاصيل الحل المخصص</DialogDescription>
+            <DialogDescription>أدخل تفاصيل الحل المخصص (السعر شامل الضريبة)</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -954,13 +1145,14 @@ export default function PricingSettingsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>السعر التقديري</Label>
+              <Label>السعر التقديري (شامل الضريبة)</Label>
               <Input
                 type="number"
                 value={solutionForm.base_price}
                 onChange={(e) => setSolutionForm({ ...solutionForm, base_price: e.target.value })}
                 placeholder="50000"
               />
+              <TaxBreakdown price={parseFloat(solutionForm.base_price) || 0} vatRate={currentVatRate} />
             </div>
             <div className="space-y-2">
               <Label>ملاحظة على السعر</Label>
