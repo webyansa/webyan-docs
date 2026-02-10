@@ -495,6 +495,7 @@ interface QuotePDFProps {
     totalAmount?: number;
     subtotal?: number;
     total_amount?: number;
+    tax_inclusive?: boolean;
     account?: {
       name: string;
       contact_email?: string;
@@ -544,6 +545,7 @@ const WebyanLogoSVG = () => (
 
 const QuotePDFDocument = ({ data }: QuotePDFProps) => {
   const items = data.items || [];
+  const isTaxInclusive = data.tax_inclusive === true;
   const subtotalBeforeDiscount = data.subtotalBeforeDiscount || items.reduce((sum, item) => sum + item.total, 0);
   const calculatedDiscount = data.calculatedDiscount || 0;
   const subtotalAfterDiscount = data.subtotalAfterDiscount || (subtotalBeforeDiscount - calculatedDiscount);
@@ -748,8 +750,12 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
                   </View>
                 )}
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>ضريبة القيمة المضافة ({taxRate}%)</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(taxAmount)}</Text>
+                  <Text style={styles.summaryLabel}>
+                    ضريبة القيمة المضافة ({taxRate}%)
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    {isTaxInclusive ? 'شامل' : formatCurrency(taxAmount)}
+                  </Text>
                 </View>
                 <View style={styles.summaryTotalRow}>
                   <Text style={styles.summaryTotalLabel}>الإجمالي</Text>

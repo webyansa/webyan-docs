@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -25,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -34,6 +36,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   FileText,
@@ -49,10 +61,12 @@ import {
   Plus,
   Target,
   Users,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { toast } from '@/hooks/use-toast';
 import AdvancedQuoteModal from '@/components/crm/modals/AdvancedQuoteModal';
 
 interface Quote {
@@ -124,6 +138,12 @@ export default function QuotesPage() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<'selected' | 'single' | null>(null);
+  const [singleDeleteId, setSingleDeleteId] = useState<string | null>(null);
+
+  const queryClient = useQueryClient();
 
   const { data: quotes = [], isLoading, refetch } = useQuery({
     queryKey: ['crm-quotes', statusFilter, typeFilter],
@@ -259,6 +279,64 @@ export default function QuotesPage() {
     setShowCreateDialog(true);
   };
 
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('crm_quotes')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'تم الحذف بنجاح' });
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
+    },
+    onError: () => {
+      toast({ title: 'حدث خطأ أثناء الحذف', variant: 'destructive' });
+    },
+  });
+
+  const handleConfirmDelete = () => {
+    if (deleteTarget === 'single' && singleDeleteId) {
+      deleteMutation.mutate([singleDeleteId]);
+    } else if (deleteTarget === 'selected') {
+      deleteMutation.mutate(Array.from(selectedIds));
+    }
+    setShowDeleteDialog(false);
+    setDeleteTarget(null);
+    setSingleDeleteId(null);
+  };
+
+  const handleDeleteSingle = (id: string) => {
+    setSingleDeleteId(id);
+    setDeleteTarget('single');
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteSelected = () => {
+    setDeleteTarget('selected');
+    setShowDeleteDialog(true);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredQuotes.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredQuotes.map(q => q.id)));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -335,96 +413,169 @@ export default function QuotesPage() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>رقم العرض</TableHead>
-                  <TableHead>العميل</TableHead>
-                  <TableHead>النوع</TableHead>
-                  <TableHead>القيمة</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead>التاريخ</TableHead>
-                  <TableHead>إجراءات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredQuotes.map((quote) => (
-                  <TableRow 
-                    key={quote.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`/admin/crm/quotes/${quote.id}`)}
+            <>
+              {/* Bulk action bar */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-3 mb-4 p-3 bg-muted/50 rounded-lg border">
+                  <span className="text-sm font-medium">
+                    تم تحديد {selectedIds.size} عرض
+                  </span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteSelected}
                   >
-                    <TableCell className="font-mono text-sm">
-                      {quote.quote_number}
-                    </TableCell>
-                    <TableCell>
-                      {quote.account ? (
-                        <div 
-                          className="flex items-center gap-2 hover:text-primary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/admin/clients/${quote.account!.id}`);
-                          }}
-                        >
-                          <Building2 className="h-4 w-4" />
-                          {quote.account.name}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {quoteTypeLabels[quote.quote_type] || quote.quote_type}
-                        {quote.billing_cycle && quote.quote_type === 'subscription' && (
-                          <span className="mr-1 text-xs">
-                            ({quote.billing_cycle === 'monthly' ? 'شهري' : 'سنوي'})
-                          </span>
-                        )}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(quote.total_amount)}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      {getStatusBadge(quote.status)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}
-                      </div>
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/admin/crm/quotes/${quote.id}`)}>
-                            <Eye className="h-4 w-4 ml-2" />
-                            عرض التفاصيل
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Download className="h-4 w-4 ml-2" />
-                            تحميل PDF
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Mail className="h-4 w-4 ml-2" />
-                            إعادة الإرسال
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    <Trash2 className="h-4 w-4 ml-1" />
+                    حذف المحددة
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedIds(new Set())}
+                  >
+                    إلغاء التحديد
+                  </Button>
+                </div>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selectedIds.size === filteredQuotes.length && filteredQuotes.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead>رقم العرض</TableHead>
+                    <TableHead>العميل</TableHead>
+                    <TableHead>النوع</TableHead>
+                    <TableHead>القيمة</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead>التاريخ</TableHead>
+                    <TableHead>إجراءات</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredQuotes.map((quote) => (
+                    <TableRow 
+                      key={quote.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/admin/crm/quotes/${quote.id}`)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(quote.id)}
+                          onCheckedChange={() => toggleSelect(quote.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {quote.quote_number}
+                      </TableCell>
+                      <TableCell>
+                        {quote.account ? (
+                          <div 
+                            className="flex items-center gap-2 hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/clients/${quote.account!.id}`);
+                            }}
+                          >
+                            <Building2 className="h-4 w-4" />
+                            {quote.account.name}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {quoteTypeLabels[quote.quote_type] || quote.quote_type}
+                          {quote.billing_cycle && quote.quote_type === 'subscription' && (
+                            <span className="mr-1 text-xs">
+                              ({quote.billing_cycle === 'monthly' ? 'شهري' : 'سنوي'})
+                            </span>
+                          )}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(quote.total_amount)}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {getStatusBadge(quote.status)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(quote.created_at), 'dd MMM yyyy', { locale: ar })}
+                        </div>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => navigate(`/admin/crm/quotes/${quote.id}`)}>
+                              <Eye className="h-4 w-4 ml-2" />
+                              عرض التفاصيل
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Download className="h-4 w-4 ml-2" />
+                              تحميل PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Mail className="h-4 w-4 ml-2" />
+                              إعادة الإرسال
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteSingle(quote.id)}
+                            >
+                              <Trash2 className="h-4 w-4 ml-2" />
+                              حذف
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget === 'selected'
+                ? `هل أنت متأكد من حذف ${selectedIds.size} عرض سعر؟ لا يمكن التراجع عن هذا الإجراء.`
+                : 'هل أنت متأكد من حذف عرض السعر هذا؟ لا يمكن التراجع عن هذا الإجراء.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin ml-1" />
+              ) : (
+                <Trash2 className="h-4 w-4 ml-1" />
+              )}
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Create Quote Dialog with Tabs */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
