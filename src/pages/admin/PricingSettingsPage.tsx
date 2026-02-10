@@ -398,19 +398,39 @@ export default function PricingSettingsPage() {
     }
   };
 
+  // Pricing calculation helpers
+  const calcOriginalPrice = (yearlyPrice: number, discount: number) => {
+    if (discount > 0 && discount < 100) {
+      return +(yearlyPrice / (1 - discount / 100)).toFixed(2);
+    }
+    return yearlyPrice;
+  };
+
+  const calcMonthlyPrice = (originalPrice: number) => {
+    return +(originalPrice / 12).toFixed(2);
+  };
+
   // Save handlers
   const handleSavePlan = () => {
     const features = planForm.features.split('\n').filter(f => f.trim());
     const yearlyPrice = parseFloat(planForm.yearly_price) || 0;
-    
-    // Auto-calculate monthly price: (yearly / 12) * 1.15 surcharge
-    const monthlyPrice = planForm.monthly_enabled
-      ? +((yearlyPrice / 12) * 1.15).toFixed(2)
-      : 0;
+
+    if (yearlyPrice <= 0) {
+      toast.error('السعر السنوي مطلوب ويجب أن يكون أكبر من صفر');
+      return;
+    }
 
     const yearlyDiscount = planForm.annual_discount_enabled
       ? (parseInt(planForm.yearly_discount) || 0)
       : 0;
+
+    if (planForm.annual_discount_enabled && (yearlyDiscount < 0 || yearlyDiscount >= 100)) {
+      toast.error('نسبة الخصم يجب أن تكون بين 0% و 99%');
+      return;
+    }
+
+    const originalPrice = calcOriginalPrice(yearlyPrice, yearlyDiscount);
+    const monthlyPrice = planForm.monthly_enabled ? calcMonthlyPrice(originalPrice) : 0;
 
     savePlanMutation.mutate({
       name: planForm.name,
@@ -535,7 +555,8 @@ export default function PricingSettingsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>الخطة</TableHead>
-                      <TableHead>السنوي</TableHead>
+                      <TableHead>السعر الأصلي</TableHead>
+                      <TableHead>السنوي (بعد الخصم)</TableHead>
                       <TableHead>الشهري</TableHead>
                       <TableHead>الخصم</TableHead>
                       <TableHead>الحالة</TableHead>
@@ -543,55 +564,65 @@ export default function PricingSettingsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {plans.map((plan) => (
-                      <TableRow key={plan.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{plan.name}</p>
-                            {plan.description && (
-                              <p className="text-sm text-muted-foreground">{plan.description}</p>
+                    {plans.map((plan) => {
+                      const origPrice = calcOriginalPrice(plan.yearly_price, plan.yearly_discount);
+                      return (
+                        <TableRow key={plan.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{plan.name}</p>
+                              {plan.description && (
+                                <p className="text-sm text-muted-foreground">{plan.description}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {plan.yearly_discount > 0 ? (
+                              <p className="font-medium text-muted-foreground">{formatCurrency(origPrice)}</p>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="font-medium">{formatCurrency(plan.yearly_price)}</p>
-                        </TableCell>
-                        <TableCell>
-                          {plan.monthly_price > 0 ? (
-                            <p className="font-medium">{formatCurrency(plan.monthly_price)}</p>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {plan.yearly_discount > 0 ? (
-                            <Badge variant="outline" className="text-green-600">{plan.yearly_discount}%</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={plan.is_active ? 'default' : 'secondary'}>
-                            {plan.is_active ? 'نشط' : 'غير نشط'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => openPlanModal(plan)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive"
-                              onClick={() => deletePlanMutation.mutate(plan.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium">{formatCurrency(plan.yearly_price)}</p>
+                          </TableCell>
+                          <TableCell>
+                            {plan.monthly_price > 0 ? (
+                              <p className="font-medium">{formatCurrency(plan.monthly_price)}</p>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">سنوي فقط</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {plan.yearly_discount > 0 ? (
+                              <Badge variant="outline" className="text-green-600">{plan.yearly_discount}%</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={plan.is_active ? 'default' : 'secondary'}>
+                              {plan.is_active ? 'نشط' : 'غير نشط'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openPlanModal(plan)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive"
+                                onClick={() => deletePlanMutation.mutate(plan.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -878,35 +909,18 @@ export default function PricingSettingsPage() {
 
             {/* Single Price Input */}
             <div className="space-y-1.5">
-              <Label className="text-xs">السعر السنوي *</Label>
+              <Label className="text-xs">السعر السنوي النهائي (بعد الخصم) *</Label>
               <Input
                 type="number"
                 value={planForm.yearly_price}
                 onChange={(e) => setPlanForm({ ...planForm, yearly_price: e.target.value })}
-                placeholder="5000"
+                placeholder="600"
                 className="h-9"
               />
             </div>
 
             {/* Switches Row */}
             <div className="grid grid-cols-2 gap-3">
-              {/* Monthly Subscription Toggle */}
-              <div className="border rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">تفعيل الاشتراك الشهري</Label>
-                  <Switch
-                    checked={planForm.monthly_enabled}
-                    onCheckedChange={(checked) => setPlanForm({ ...planForm, monthly_enabled: checked })}
-                    className="scale-90"
-                  />
-                </div>
-                {planForm.monthly_enabled && (parseFloat(planForm.yearly_price) || 0) > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    السعر الشهري المحسوب: {formatCurrency(+((parseFloat(planForm.yearly_price) / 12) * 1.15).toFixed(2))}
-                  </p>
-                )}
-              </div>
-
               {/* Annual Discount Toggle */}
               <div className="border rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between">
@@ -923,11 +937,53 @@ export default function PricingSettingsPage() {
                       type="number"
                       value={planForm.yearly_discount}
                       onChange={(e) => setPlanForm({ ...planForm, yearly_discount: e.target.value })}
-                      placeholder="17"
+                      placeholder="10"
+                      min="0"
+                      max="99"
                       className="h-8 text-sm pe-7"
                     />
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
                   </div>
+                )}
+                {planForm.annual_discount_enabled && (parseFloat(planForm.yearly_price) || 0) > 0 && (parseInt(planForm.yearly_discount) || 0) > 0 && (() => {
+                  const yp = parseFloat(planForm.yearly_price) || 0;
+                  const disc = parseInt(planForm.yearly_discount) || 0;
+                  const orig = calcOriginalPrice(yp, disc);
+                  const saved = +(orig - yp).toFixed(2);
+                  return (
+                    <div className="bg-muted/50 rounded p-2 space-y-0.5 text-[11px]">
+                      <p className="text-muted-foreground">السعر الأصلي: <span className="font-medium text-foreground">{formatCurrency(orig)}</span></p>
+                      <p className="text-green-600">الخصم: -{formatCurrency(saved)} ({disc}%)</p>
+                      <p className="text-muted-foreground">النهائي: <span className="font-bold text-foreground">{formatCurrency(yp)}</span></p>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Monthly Subscription Toggle */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">تفعيل الاشتراك الشهري</Label>
+                  <Switch
+                    checked={planForm.monthly_enabled}
+                    onCheckedChange={(checked) => setPlanForm({ ...planForm, monthly_enabled: checked })}
+                    className="scale-90"
+                  />
+                </div>
+                {planForm.monthly_enabled && (parseFloat(planForm.yearly_price) || 0) > 0 && (() => {
+                  const yp = parseFloat(planForm.yearly_price) || 0;
+                  const disc = planForm.annual_discount_enabled ? (parseInt(planForm.yearly_discount) || 0) : 0;
+                  const orig = calcOriginalPrice(yp, disc);
+                  const monthly = calcMonthlyPrice(orig);
+                  return (
+                    <div className="bg-muted/50 rounded p-2 space-y-0.5 text-[11px]">
+                      <p className="text-muted-foreground">محسوب من السعر الأصلي ({formatCurrency(orig)} ÷ 12)</p>
+                      <p className="font-bold text-foreground text-sm">{formatCurrency(monthly)} <span className="text-[11px] font-normal text-muted-foreground">/ شهر</span></p>
+                    </div>
+                  );
+                })()}
+                {!planForm.monthly_enabled && (
+                  <p className="text-[11px] text-muted-foreground">الخطة ستكون سنوية فقط</p>
                 )}
               </div>
             </div>
