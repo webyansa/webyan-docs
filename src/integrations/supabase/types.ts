@@ -880,6 +880,7 @@ export type Database = {
           stage_change_reason: string | null
           stage_changed_at: string | null
           status: string | null
+          template_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -931,6 +932,7 @@ export type Database = {
           stage_change_reason?: string | null
           stage_changed_at?: string | null
           status?: string | null
+          template_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -982,6 +984,7 @@ export type Database = {
           stage_change_reason?: string | null
           stage_changed_at?: string | null
           status?: string | null
+          template_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1053,6 +1056,13 @@ export type Database = {
             columns: ["quote_id"]
             isOneToOne: true
             referencedRelation: "crm_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_implementations_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "project_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -2838,6 +2848,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      project_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          name_en: string | null
+          phases: Json
+          project_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          name_en?: string | null
+          phases?: Json
+          project_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          name_en?: string | null
+          phases?: Json
+          project_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       quick_replies: {
         Row: {

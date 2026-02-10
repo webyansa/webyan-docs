@@ -6,11 +6,12 @@ import {
   Rocket, Settings, FileText, Eye, Package, CheckCircle2,
   Users, UserCog, Briefcase, ClipboardList, Globe, Monitor,
   Upload, UserCheck, Zap, Lock, TestTube, Send, Server, 
-  HardDrive, FileCheck, PartyPopper
+  HardDrive, FileCheck, PartyPopper, Palette, Code2, ShieldCheck,
+  BookOpen, Radio, Wrench
 } from 'lucide-react';
 
 // =====================================================
-// Project Phase Types (supports both 8-phase and 10-phase workflows)
+// Project Phase Types (supports subscription, custom platform, and legacy workflows)
 // =====================================================
 export type ProjectPhaseType = 
   // Legacy 8-phase workflow
@@ -22,14 +23,23 @@ export type ProjectPhaseType =
   | 'client_review'
   | 'launch'
   | 'closure'
-  // New 10-phase Webyan subscription workflow
+  // Webyan subscription workflow
   | 'trial_setup'
   | 'initial_content'
   | 'trial_inspection'
   | 'client_approval'
   | 'production_setup'
   | 'production_upload'
-  | 'final_review';
+  | 'final_review'
+  // Custom platform workflow
+  | 'analysis_requirements'
+  | 'ux_ui_design'
+  | 'design_approval'
+  | 'dev_build'
+  | 'testing_qa'
+  | 'content_entry'
+  | 'production_launch'
+  | 'handover_closure';
 
 export const projectPhases: Record<ProjectPhaseType, {
   label: string;
@@ -39,6 +49,7 @@ export const projectPhases: Record<ProjectPhaseType, {
   icon: any;
   order: number;
   description: string;
+  supportsSprints?: boolean;
 }> = {
   // === Common / Legacy phases ===
   requirements: {
@@ -114,7 +125,7 @@ export const projectPhases: Record<ProjectPhaseType, {
     description: 'إرسال رسالة رسمية للعميل ببيانات الموقع، تسجيل بداية وانتهاء الاشتراك',
   },
   
-  // === New 10-phase Webyan subscription phases ===
+  // === Webyan subscription phases ===
   trial_setup: {
     label: 'تجهيز البيئة التجريبية',
     labelEn: 'Trial Setup',
@@ -178,6 +189,81 @@ export const projectPhases: Record<ProjectPhaseType, {
     order: 8,
     description: 'فحص الموقع بشكل نهائي والتأكد من عدم وجود أخطاء وإدخال المحتوى النهائي',
   },
+
+  // === Custom platform phases ===
+  analysis_requirements: {
+    label: 'التحليل وجمع المتطلبات',
+    labelEn: 'Analysis & Requirements',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100',
+    icon: ClipboardList,
+    order: 1,
+    description: 'تحليل متطلبات العميل بشكل تفصيلي وإعداد وثيقة نطاق العمل',
+  },
+  ux_ui_design: {
+    label: 'تصميم تجربة المستخدم وواجهات الاستخدام',
+    labelEn: 'UX/UI Design',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-100',
+    icon: Palette,
+    order: 2,
+    description: 'تصميم واجهات المستخدم وتجربة الاستخدام بناءً على المتطلبات المعتمدة',
+  },
+  design_approval: {
+    label: 'اعتماد التصاميم من العميل',
+    labelEn: 'Design Approval',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-100',
+    icon: UserCheck,
+    order: 3,
+    description: 'عرض التصاميم على العميل للحصول على الموافقة النهائية قبل بدء التطوير',
+  },
+  dev_build: {
+    label: 'التطوير والبرمجة',
+    labelEn: 'Development & Build',
+    color: 'text-violet-600',
+    bgColor: 'bg-violet-100',
+    icon: Code2,
+    order: 4,
+    description: 'تنفيذ البرمجة والتطوير وفق التصاميم المعتمدة',
+    supportsSprints: true,
+  },
+  testing_qa: {
+    label: 'الاختبار والفحص',
+    labelEn: 'Testing & QA',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-100',
+    icon: ShieldCheck,
+    order: 5,
+    description: 'اختبار شامل للمنصة وضمان الجودة والأداء',
+  },
+  content_entry: {
+    label: 'إدخال المحتوى',
+    labelEn: 'Content Entry',
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-100',
+    icon: BookOpen,
+    order: 6,
+    description: 'إدخال المحتوى النهائي والبيانات الفعلية',
+  },
+  production_launch: {
+    label: 'الإطلاق على البيئة الرسمية',
+    labelEn: 'Production Launch',
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-100',
+    icon: Radio,
+    order: 7,
+    description: 'نشر المنصة على بيئة الإنتاج وتفعيل النطاق الرسمي',
+  },
+  handover_closure: {
+    label: 'التسليم وإغلاق المشروع',
+    labelEn: 'Handover & Closure',
+    color: 'text-green-600',
+    bgColor: 'bg-green-100',
+    icon: CheckCircle2,
+    order: 8,
+    description: 'تسليم المشروع للعميل مع التوثيق الكامل وبيانات الوصول',
+  },
 };
 
 // Legacy mapping for backward compatibility
@@ -196,6 +282,15 @@ export const legacyPhaseMapping: Record<string, ProjectPhaseType> = {
   'production_setup': 'production_setup',
   'production_upload': 'production_upload',
   'final_review': 'final_review',
+  // Custom platform phases
+  'analysis_requirements': 'analysis_requirements',
+  'ux_ui_design': 'ux_ui_design',
+  'design_approval': 'design_approval',
+  'dev_build': 'dev_build',
+  'testing_qa': 'testing_qa',
+  'content_entry': 'content_entry',
+  'production_launch': 'production_launch',
+  'handover_closure': 'handover_closure',
 };
 
 // =====================================================
@@ -423,11 +518,23 @@ export const contractTypes = [
 // =====================================================
 // Project Types
 // =====================================================
-export const projectTypes = [
-  { value: 'webyan_subscription', label: 'اشتراك ويبيان' },
-  { value: 'custom_platform', label: 'منصة مخصصة' },
-  { value: 'website', label: 'موقع إلكتروني' },
-  { value: 'ecommerce', label: 'متجر إلكتروني' },
-  { value: 'mobile_app', label: 'تطبيق جوال' },
-  { value: 'other', label: 'أخرى' },
+export type ProjectType = 'subscription' | 'custom_platform' | 'service_execution';
+
+export const projectTypes: { value: string; label: string; description: string }[] = [
+  { value: 'subscription', label: 'اشتراك منصة', description: 'مشروع اشتراك بمراحل تنفيذ قصيرة' },
+  { value: 'custom_platform', label: 'منصة مخصصة', description: 'مشروع تنفيذي كامل بمراحل احترافية' },
+  { value: 'service_execution', label: 'تنفيذ خدمة', description: 'تنفيذ مباشر بدون مراحل' },
 ];
+
+// Map quote types to project types
+export const quoteTypeToProjectType: Record<string, ProjectType> = {
+  subscription: 'subscription',
+  custom_platform: 'custom_platform',
+  services_only: 'service_execution',
+};
+
+// Get project type label
+export function getProjectTypeLabel(type: string): string {
+  const found = projectTypes.find(t => t.value === type);
+  return found?.label || type;
+}
