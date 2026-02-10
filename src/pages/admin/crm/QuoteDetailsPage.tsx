@@ -1475,6 +1475,8 @@ export default function QuoteDetailsPage() {
           quoteNumber={quote.quote_number}
           quoteTotal={quote.total_amount}
           quoteType={quote.quote_type || undefined}
+          quoteProjectName={(quote as any).project_name || undefined}
+          quoteRecurringItems={((quote as any).recurring_items || []) as Array<{ name: string; amount: number; firstYearFree: boolean }>}
           opportunityId={quote.opportunity_id || undefined}
           accountId={quote.account_id}
           accountName={quote.account?.name || ''}

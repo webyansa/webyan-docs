@@ -43,6 +43,8 @@ interface ContractDocumentationModalProps {
   quoteNumber?: string;
   quoteTotal?: number;
   quoteType?: string;
+  quoteProjectName?: string;
+  quoteRecurringItems?: Array<{ name: string; amount: number; firstYearFree: boolean }>;
   opportunityId?: string;
   accountId: string;
   accountName: string;
@@ -61,6 +63,8 @@ export function ContractDocumentationModal({
   quoteNumber,
   quoteTotal,
   quoteType,
+  quoteProjectName,
+  quoteRecurringItems = [],
   opportunityId,
   accountId,
   accountName,
@@ -226,8 +230,10 @@ export function ContractDocumentationModal({
         .eq('quote_id', quoteId)
         .maybeSingle();
 
-      // Simple project name: مشروع - اسم العميل
-      const projectName = `مشروع - ${accountName}`;
+      // Use project_name from quote if available
+      const projectName = quoteProjectName
+        ? `${accountName} - ${quoteProjectName}`
+        : `مشروع - ${accountName}`;
 
       let contractDoc;
 
@@ -279,6 +285,9 @@ export function ContractDocumentationModal({
         const templatePhases = selectedTemplate?.phases as any[] || [];
         const initialStage = isService ? null : (templatePhases[0]?.phase_type || 'kickoff');
 
+        // Calculate budget from execution items
+        const executionBudget = quoteTotal || 0;
+
         const { data: projectData, error: projectError } = await supabase
           .from('crm_implementations')
           .insert({
@@ -296,12 +305,37 @@ export function ContractDocumentationModal({
             priority: 'medium',
             implementer_id: implementerId,
             csm_id: csmId,
+            budget: executionBudget,
           })
           .select()
           .single();
 
         if (projectError) throw projectError;
         project = projectData;
+
+        // Create recurring charges from quote
+        if (quoteRecurringItems.length > 0 && project) {
+          const firstDueDate = expectedDeliveryDate
+            ? new Date(expectedDeliveryDate.getTime() + 365 * 24 * 60 * 60 * 1000)
+            : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+          const chargesToInsert = quoteRecurringItems.map(ri => ({
+            account_id: accountId,
+            quote_id: quoteId,
+            project_id: project!.id,
+            item_name: ri.name,
+            annual_amount: ri.amount,
+            first_year_free: ri.firstYearFree,
+            first_due_date: ri.firstYearFree
+              ? format(firstDueDate, 'yyyy-MM-dd')
+              : format(expectedDeliveryDate || new Date(), 'yyyy-MM-dd'),
+            status: 'active',
+          }));
+
+          await (supabase as any)
+            .from('client_recurring_charges')
+            .insert(chargesToInsert);
+        }
 
         // 3. Create project phases from template (skip for service_execution)
         if (!isService && templatePhases.length > 0) {

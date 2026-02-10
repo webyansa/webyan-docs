@@ -84,11 +84,14 @@ export default function AdvancedQuoteModal({
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [customValue, setCustomValue] = useState('');
   const [customDescription, setCustomDescription] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [recurringItems, setRecurringItems] = useState<Array<{ id: string; name: string; amount: string; firstYearFree: boolean }>>([]);
+  const [newRecurringName, setNewRecurringName] = useState('');
+  const [newRecurringAmount, setNewRecurringAmount] = useState('');
   const [validity, setValidity] = useState('30');
   const [notes, setNotes] = useState('');
   const [sendEmail, setSendEmail] = useState(false);
   const [saving, setSaving] = useState(false);
-
   // Fetch plans
   const { data: plans = [] } = useQuery({
     queryKey: ['pricing-plans-active'],
@@ -129,6 +132,10 @@ export default function AdvancedQuoteModal({
       setSelectedServiceIds([]);
       setCustomValue(currentValue && currentValue > 0 ? currentValue.toString() : '');
       setCustomDescription('');
+      setProjectName('');
+      setRecurringItems([]);
+      setNewRecurringName('');
+      setNewRecurringAmount('');
       setValidity('30');
       setNotes('');
       setSendEmail(false);
@@ -136,7 +143,7 @@ export default function AdvancedQuoteModal({
   }, [open, currentValue]);
 
   // Calculate quote items and totals
-  const { items, subtotal, taxAmount, total } = useMemo(() => {
+  const { items, subtotal, taxAmount, total, recurringItemsSummary } = useMemo(() => {
     const quoteItems: QuoteItem[] = [];
 
     if (quoteType === 'subscription' && selectedPlanId) {
@@ -157,14 +164,35 @@ export default function AdvancedQuoteModal({
     }
 
     if (quoteType === 'custom_platform' && customValue) {
+      // Execution item
       quoteItems.push({
         id: 'custom',
-        name: 'منصة مخصصة',
+        name: projectName ? `تنفيذ ${projectName}` : 'منصة مخصصة',
         description: customDescription || undefined,
         type: 'custom',
+        item_category: 'execution',
         quantity: 1,
         unit_price: parseFloat(customValue) || 0,
         total: parseFloat(customValue) || 0,
+      });
+
+      // Recurring annual items
+      recurringItems.forEach(ri => {
+        const amount = parseFloat(ri.amount) || 0;
+        if (amount > 0) {
+          quoteItems.push({
+            id: `recurring-${ri.id}`,
+            name: ri.name,
+            type: 'custom',
+            item_category: 'recurring_annual',
+            billing: 'سنوي',
+            first_year_free: ri.firstYearFree,
+            recurring_amount: amount,
+            quantity: 1,
+            unit_price: amount,
+            total: ri.firstYearFree ? 0 : amount,
+          });
+        }
       });
     }
 
@@ -177,6 +205,7 @@ export default function AdvancedQuoteModal({
           name: service.name,
           description: service.description || undefined,
           type: 'service',
+          item_category: 'service',
           billing: service.unit,
           quantity: 1,
           unit_price: service.price,
@@ -185,12 +214,22 @@ export default function AdvancedQuoteModal({
       }
     });
 
+    // Subtotal excludes first_year_free items
     const sub = quoteItems.reduce((sum, item) => sum + item.total, 0);
     const tax = sub * (TAX_RATE / 100);
     const tot = sub + tax;
 
-    return { items: quoteItems, subtotal: sub, taxAmount: tax, total: tot };
-  }, [quoteType, selectedPlanId, billingCycle, selectedServiceIds, customValue, customDescription, plans, services]);
+    // Recurring items summary for display
+    const riSummary = recurringItems
+      .filter(ri => parseFloat(ri.amount) > 0)
+      .map(ri => ({
+        name: ri.name,
+        amount: parseFloat(ri.amount),
+        firstYearFree: ri.firstYearFree,
+      }));
+
+    return { items: quoteItems, subtotal: sub, taxAmount: tax, total: tot, recurringItemsSummary: riSummary };
+  }, [quoteType, selectedPlanId, billingCycle, selectedServiceIds, customValue, customDescription, projectName, recurringItems, plans, services]);
 
   const canProceedToStep2 = () => {
     if (quoteType === 'services_only') return true;
@@ -199,7 +238,7 @@ export default function AdvancedQuoteModal({
 
   const canProceedToStep3 = () => {
     if (quoteType === 'subscription') return !!selectedPlanId;
-    if (quoteType === 'custom_platform') return !!customValue && parseFloat(customValue) > 0;
+    if (quoteType === 'custom_platform') return !!customValue && parseFloat(customValue) > 0 && !!projectName.trim();
     if (quoteType === 'services_only') return selectedServiceIds.length > 0;
     return false;
   };
@@ -238,6 +277,14 @@ export default function AdvancedQuoteModal({
         : `عرض سعر - ${accountName}`;
 
       // Create quote record
+      const recurringItemsData = recurringItems
+        .filter(ri => parseFloat(ri.amount) > 0)
+        .map(ri => ({
+          name: ri.name,
+          amount: parseFloat(ri.amount),
+          firstYearFree: ri.firstYearFree,
+        }));
+
       const { data: quote, error: quoteError } = await supabase
         .from('crm_quotes')
         .insert({
@@ -247,6 +294,8 @@ export default function AdvancedQuoteModal({
           quote_type: quoteType,
           billing_cycle: billingCycle,
           plan_id: selectedPlanId,
+          project_name: quoteType === 'custom_platform' ? projectName.trim() : null,
+          recurring_items: quoteType === 'custom_platform' ? recurringItemsData : [],
           items: items.map(item => ({
             name: item.name,
             description: item.description,
@@ -255,6 +304,9 @@ export default function AdvancedQuoteModal({
             quantity: item.quantity,
             unit_price: item.unit_price,
             total: item.total,
+            item_category: item.item_category,
+            first_year_free: item.first_year_free,
+            recurring_amount: item.recurring_amount,
           })),
           subtotal,
           tax_rate: TAX_RATE,
@@ -266,7 +318,7 @@ export default function AdvancedQuoteModal({
           sent_at: new Date().toISOString(),
           notes,
           created_by: staffId,
-        })
+        } as any)
         .select()
         .single();
 
@@ -418,24 +470,125 @@ export default function AdvancedQuoteModal({
             )}
 
             {quoteType === 'custom_platform' && (
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Project Name */}
                 <div className="space-y-2">
-                  <Label>وصف المشروع</Label>
-                  <Textarea
-                    value={customDescription}
-                    onChange={(e) => setCustomDescription(e.target.value)}
-                    placeholder="وصف مختصر للمنصة المخصصة..."
-                    rows={3}
+                  <Label>اسم المشروع *</Label>
+                  <Input
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="مثال: منصة إدارة المحتوى"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>القيمة الإجمالية *</Label>
-                  <Input
-                    type="number"
-                    value={customValue}
-                    onChange={(e) => setCustomValue(e.target.value)}
-                    placeholder="أدخل قيمة المشروع"
-                  />
+
+                {/* Execution Section */}
+                <div className="border rounded-lg p-4 space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Badge variant="secondary">بند التنفيذ</Badge>
+                    <span className="text-xs text-muted-foreground">(One-Time)</span>
+                  </h4>
+                  <div className="space-y-2">
+                    <Label>وصف المشروع</Label>
+                    <Textarea
+                      value={customDescription}
+                      onChange={(e) => setCustomDescription(e.target.value)}
+                      placeholder="وصف مختصر للمنصة المخصصة..."
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>قيمة التنفيذ *</Label>
+                    <Input
+                      type="number"
+                      value={customValue}
+                      onChange={(e) => setCustomValue(e.target.value)}
+                      placeholder="أدخل قيمة التنفيذ"
+                    />
+                  </div>
+                </div>
+
+                {/* Recurring Annual Section */}
+                <div className="border rounded-lg p-4 space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Badge variant="outline">بنود تشغيلية سنوية</Badge>
+                    <span className="text-xs text-muted-foreground">(Recurring)</span>
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    مثل: الاستضافة، الدعم الفني، تجديد الدومين
+                  </p>
+
+                  {/* Existing recurring items */}
+                  {recurringItems.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 bg-muted/30 rounded-lg p-3">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatCurrency(parseFloat(item.amount) || 0)} / سنوياً</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`free-${item.id}`}
+                          checked={item.firstYearFree}
+                          onCheckedChange={(checked) => {
+                            setRecurringItems(prev => prev.map(ri => 
+                              ri.id === item.id ? { ...ri, firstYearFree: checked === true } : ri
+                            ));
+                          }}
+                        />
+                        <Label htmlFor={`free-${item.id}`} className="text-xs cursor-pointer">
+                          السنة الأولى مجانية
+                        </Label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRecurringItems(prev => prev.filter(ri => ri.id !== item.id))}
+                        className="text-destructive hover:text-destructive/80 text-xs"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add new recurring item */}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">اسم البند</Label>
+                      <Input
+                        value={newRecurringName}
+                        onChange={(e) => setNewRecurringName(e.target.value)}
+                        placeholder="مثال: استضافة سنوية"
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="w-32 space-y-1">
+                      <Label className="text-xs">المبلغ السنوي</Label>
+                      <Input
+                        type="number"
+                        value={newRecurringAmount}
+                        onChange={(e) => setNewRecurringAmount(e.target.value)}
+                        placeholder="0"
+                        className="h-9"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      disabled={!newRecurringName.trim() || !newRecurringAmount || parseFloat(newRecurringAmount) <= 0}
+                      onClick={() => {
+                        setRecurringItems(prev => [...prev, {
+                          id: `ri-${Date.now()}`,
+                          name: newRecurringName.trim(),
+                          amount: newRecurringAmount,
+                          firstYearFree: false,
+                        }]);
+                        setNewRecurringName('');
+                        setNewRecurringAmount('');
+                      }}
+                    >
+                      إضافة
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -459,6 +612,9 @@ export default function AdvancedQuoteModal({
               {dealName && (
                 <p className="text-sm text-muted-foreground mt-1">الفرصة: {dealName}</p>
               )}
+              {quoteType === 'custom_platform' && projectName && (
+                <p className="text-sm text-muted-foreground mt-1">اسم المشروع: <span className="font-medium text-foreground">{projectName}</span></p>
+              )}
             </div>
 
             <QuoteItemsTable
@@ -467,6 +623,7 @@ export default function AdvancedQuoteModal({
               taxRate={TAX_RATE}
               taxAmount={taxAmount}
               total={total}
+              recurringItems={recurringItemsSummary}
             />
 
             <div className="grid grid-cols-2 gap-4">

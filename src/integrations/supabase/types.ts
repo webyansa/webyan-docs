@@ -416,6 +416,73 @@ export type Database = {
           },
         ]
       }
+      client_recurring_charges: {
+        Row: {
+          account_id: string
+          annual_amount: number
+          created_at: string | null
+          first_due_date: string | null
+          first_year_free: boolean | null
+          id: string
+          item_name: string
+          project_id: string | null
+          quote_id: string | null
+          reminder_sent_at: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          annual_amount?: number
+          created_at?: string | null
+          first_due_date?: string | null
+          first_year_free?: boolean | null
+          id?: string
+          item_name: string
+          project_id?: string | null
+          quote_id?: string | null
+          reminder_sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          annual_amount?: number
+          created_at?: string | null
+          first_due_date?: string | null
+          first_year_free?: boolean | null
+          id?: string
+          item_name?: string
+          project_id?: string | null
+          quote_id?: string | null
+          reminder_sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_recurring_charges_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_recurring_charges_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_recurring_charges_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "crm_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_timeline: {
         Row: {
           created_at: string
@@ -1360,8 +1427,10 @@ export type Database = {
           opportunity_id: string | null
           plan_id: string | null
           project_id: string | null
+          project_name: string | null
           quote_number: string
           quote_type: string | null
+          recurring_items: Json | null
           rejected_at: string | null
           rejection_reason: string | null
           sent_at: string | null
@@ -1394,8 +1463,10 @@ export type Database = {
           opportunity_id?: string | null
           plan_id?: string | null
           project_id?: string | null
+          project_name?: string | null
           quote_number?: string
           quote_type?: string | null
+          recurring_items?: Json | null
           rejected_at?: string | null
           rejection_reason?: string | null
           sent_at?: string | null
@@ -1428,8 +1499,10 @@ export type Database = {
           opportunity_id?: string | null
           plan_id?: string | null
           project_id?: string | null
+          project_name?: string | null
           quote_number?: string
           quote_type?: string | null
+          recurring_items?: Json | null
           rejected_at?: string | null
           rejection_reason?: string | null
           sent_at?: string | null
