@@ -34,7 +34,8 @@ import {
   FolderKanban,
   Rocket,
   UserPlus,
-  Globe
+  Globe,
+  Layers
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { Button } from '@/components/ui/button';
@@ -142,6 +143,7 @@ const operationsSection: NavSection = {
   items: [
     { title: 'لوحة العمليات', href: '/admin/operations', icon: FolderKanban, permission: 'canManageClients' },
     { title: 'المشاريع', href: '/admin/projects', icon: Rocket, permission: 'canManageClients' },
+    { title: 'مراحل المشاريع', href: '/admin/project-stages', icon: Layers, permission: 'canManageClients' },
     { title: 'خط التسليم', href: '/admin/crm/delivery', icon: FolderKanban, permission: 'canManageClients' },
   ]
 };

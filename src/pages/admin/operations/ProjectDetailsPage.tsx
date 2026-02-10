@@ -38,6 +38,7 @@ import {
 import { PhaseProgressCard } from '@/components/operations/PhaseProgressCard';
 import { TeamAssignmentModal } from '@/components/operations/TeamAssignmentModal';
 import { PhaseAssignmentModal } from '@/components/operations/PhaseAssignmentModal';
+import { ServiceExecutionCard } from '@/components/operations/ServiceExecutionCard';
 import { useAuth } from '@/hooks/useAuth';
 import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
 import { getPhaseConfig } from '@/lib/operations/phaseUtils';
@@ -440,14 +441,16 @@ export default function ProjectDetailsPage() {
           </div>
         ) : (
           <div className="lg:col-span-2">
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Badge variant="outline" className="mb-3">تنفيذ خدمة</Badge>
-                <p className="text-muted-foreground">
-                  مشروع تنفيذ خدمة مباشر بدون مراحل تنفيذية
-                </p>
-              </CardContent>
-            </Card>
+            <ServiceExecutionCard
+              projectId={id!}
+              projectName={project.project_name}
+              serviceStatus={project.service_status || 'pending'}
+              serviceStartedAt={project.service_started_at}
+              serviceCompletedAt={project.service_completed_at}
+              staffId={currentStaff?.id}
+              staffName={undefined}
+              canEdit={project.status === 'active' || project.service_status === 'pending'}
+            />
           </div>
         )}
 

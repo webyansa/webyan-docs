@@ -875,6 +875,11 @@ export type Database = {
           server_password_encrypted: string | null
           server_url: string | null
           server_username: string | null
+          service_completed_at: string | null
+          service_completed_by: string | null
+          service_started_at: string | null
+          service_started_by: string | null
+          service_status: string | null
           site_url: string | null
           stage: string | null
           stage_change_reason: string | null
@@ -927,6 +932,11 @@ export type Database = {
           server_password_encrypted?: string | null
           server_url?: string | null
           server_username?: string | null
+          service_completed_at?: string | null
+          service_completed_by?: string | null
+          service_started_at?: string | null
+          service_started_by?: string | null
+          service_status?: string | null
           site_url?: string | null
           stage?: string | null
           stage_change_reason?: string | null
@@ -979,6 +989,11 @@ export type Database = {
           server_password_encrypted?: string | null
           server_url?: string | null
           server_username?: string | null
+          service_completed_at?: string | null
+          service_completed_by?: string | null
+          service_started_at?: string | null
+          service_started_by?: string | null
+          service_status?: string | null
           site_url?: string | null
           stage?: string | null
           stage_change_reason?: string | null
@@ -1056,6 +1071,20 @@ export type Database = {
             columns: ["quote_id"]
             isOneToOne: true
             referencedRelation: "crm_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_implementations_service_completed_by_fkey"
+            columns: ["service_completed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_implementations_service_started_by_fkey"
+            columns: ["service_started_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
           {
@@ -2681,9 +2710,12 @@ export type Database = {
           id: string
           instructions: string | null
           notes: string | null
+          phase_description: string | null
+          phase_name: string | null
           phase_order: number
           phase_type: string
           project_id: string
+          stage_definition_id: string | null
           started_at: string | null
           status: string | null
         }
@@ -2697,9 +2729,12 @@ export type Database = {
           id?: string
           instructions?: string | null
           notes?: string | null
+          phase_description?: string | null
+          phase_name?: string | null
           phase_order: number
           phase_type: string
           project_id: string
+          stage_definition_id?: string | null
           started_at?: string | null
           status?: string | null
         }
@@ -2713,9 +2748,12 @@ export type Database = {
           id?: string
           instructions?: string | null
           notes?: string | null
+          phase_description?: string | null
+          phase_name?: string | null
           phase_order?: number
           phase_type?: string
           project_id?: string
+          stage_definition_id?: string | null
           started_at?: string | null
           status?: string | null
         }
@@ -2736,6 +2774,55 @@ export type Database = {
           },
           {
             foreignKeyName: "project_phases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "crm_implementations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_phases_stage_definition_id_fkey"
+            columns: ["stage_definition_id"]
+            isOneToOne: false
+            referencedRelation: "stage_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_service_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          id: string
+          note: string
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          note: string
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          note?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_service_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_service_notes_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "crm_implementations"
@@ -3088,6 +3175,51 @@ export type Database = {
           },
         ]
       }
+      stage_definitions: {
+        Row: {
+          color: string | null
+          created_at: string
+          default_order: number
+          description: string | null
+          estimated_days: number | null
+          icon_name: string | null
+          id: string
+          is_active: boolean
+          name: string
+          name_en: string | null
+          stage_category: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          default_order?: number
+          description?: string | null
+          estimated_days?: number | null
+          icon_name?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          name_en?: string | null
+          stage_category?: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          default_order?: number
+          description?: string | null
+          estimated_days?: number | null
+          icon_name?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          name_en?: string | null
+          stage_category?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       subscription_requests: {
         Row: {
           admin_response: string | null
@@ -3285,6 +3417,48 @@ export type Database = {
           value?: string
         }
         Relationships: []
+      }
+      template_stages: {
+        Row: {
+          created_at: string
+          estimated_days: number | null
+          id: string
+          stage_definition_id: string
+          stage_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          estimated_days?: number | null
+          id?: string
+          stage_definition_id: string
+          stage_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          estimated_days?: number | null
+          id?: string
+          stage_definition_id?: string
+          stage_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_stages_stage_definition_id_fkey"
+            columns: ["stage_definition_id"]
+            isOneToOne: false
+            referencedRelation: "stage_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "template_stages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "project_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ticket_activity_log: {
         Row: {

@@ -74,6 +74,7 @@ import WebsiteRequestsPage from "./pages/admin/WebsiteRequestsPage";
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
 import ProjectsPage from "./pages/admin/operations/ProjectsPage";
 import ProjectDetailsPage from "./pages/admin/operations/ProjectDetailsPage";
+import ProjectStagesPage from "./pages/admin/operations/ProjectStagesPage";
 
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
@@ -230,6 +231,7 @@ const App = () => (
                 <Route path="operations" element={<OperationsDashboardPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:id" element={<ProjectDetailsPage />} />
+                <Route path="project-stages" element={<ProjectStagesPage />} />
               </Route>
               
               {/* Unauthorized Page */}
