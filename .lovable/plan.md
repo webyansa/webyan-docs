@@ -1,128 +1,96 @@
 
 
-# خطة: إعادة تنظيم نظام عروض أسعار المنصات المخصصة
+# خطة: تطوير البنود التشغيلية السنوية في عروض الأسعار
 
 ## الملخص
-تحويل نظام عروض الأسعار للمنصات المخصصة إلى نموذج احترافي يدعم تصنيف البنود (تنفيذ / تشغيلي سنوي / خدمة مصاحبة)، مع حقل اسم المشروع، وسياسة السنة الأولى للبنود المتكررة، وحفظ الرسوم السنوية المستقبلية في ملف العميل.
+تحويل قسم "البنود التشغيلية السنوية" من إدخال يدوي إلى نظام مرن يعتمد على كتالوج الأسعار المركزي، مع إضافة فئة جديدة "رسوم سنوية" في إعدادات التسعير، وتطبيق سياسة ذكية للسنة الأولى حسب نوع المشروع.
 
 ---
 
 ## التغييرات المطلوبة
 
-### 1. تعديل قاعدة البيانات
+### 1. إضافة فئة "رسوم سنوية" في إعدادات التسعير
 
-**جدول `crm_quotes`** - إضافة أعمدة:
-- `project_name` (text, nullable) - اسم المشروع للمنصات المخصصة
-- `recurring_items` (jsonb, default '[]') - قائمة البنود التشغيلية السنوية المستقبلية
+في جدول `pricing_services` الموجود حاليا، سنضيف خدمات جديدة بنوع `recurring_annual` وفئة مناسبة. لا حاجة لتعديل هيكل الجدول لان حقل `service_type` يدعم قيم نصية مرنة.
 
-**جدول جديد: `client_recurring_charges`** - لتتبع الرسوم السنوية:
-- `id`, `account_id`, `quote_id`, `item_name`, `annual_amount`
-- `first_due_date` (تاريخ أول استحقاق)
-- `first_year_free` (boolean)
-- `status` (active / cancelled)
-- `reminder_sent_at`, `created_at`
+**الخدمات الجديدة المقترحة (بيانات افتراضية):**
+- استضافة سنوية (فئة: استضافة)
+- تجديد دومين (فئة: دومين)
+- دعم فني سنوي (فئة: دعم)
+- صيانة وتحديثات (فئة: صيانة)
 
-### 2. تعديل `AdvancedQuoteModal.tsx` - الخطوة 2 (التفاصيل)
+### 2. تعديل صفحة إعدادات التسعير (`PricingSettingsPage.tsx`)
 
-**عند اختيار "منصة مخصصة":**
-- إضافة حقل **"اسم المشروع"** (إلزامي)
-- تقسيم البنود إلى 3 أقسام واضحة:
+- إضافة تبويب رابع: **"الرسوم السنوية"** بجانب الخطط والخدمات والحلول المخصصة
+- يعرض الخدمات من نوع `recurring_annual` فقط
+- إمكانية إضافة/تعديل/حذف بنود سنوية (اسم، وصف، سعر سنوي، فئة)
 
-  **أ. بند التنفيذ (One-Time):**
-  - وصف المشروع + القيمة الإجمالية (الحقول الحالية)
+### 3. تعديل نموذج عرض السعر (`AdvancedQuoteModal.tsx`)
 
-  **ب. بنود تشغيلية سنوية (Recurring):**
-  - إضافة بنود يدوية (اسم البند، المبلغ السنوي)
-  - لكل بند: خيار "السنة الأولى مجانية"
-  - إذا كانت مجانية: لا تُضاف للإجمالي الحالي + تُسجل كبند مستقبلي
+**قسم البنود التشغيلية السنوية الجديد:**
+- استبدال الإدخال اليدوي بقائمة منسدلة متعددة الاختيار من كتالوج "الرسوم السنوية"
+- عرض البنود المحددة كبطاقات مع إمكانية تعديل المبلغ لكل بند
+- لكل بند: خيار "السنة الأولى مجانية" (checkbox)
+- إمكانية إضافة بند يدوي مخصص (غير موجود في الكتالوج) للمرونة
 
-  **ج. خدمات مصاحبة:**
-  - المحدد الحالي (ServicesSelector) يبقى كما هو
+**سياسة السنة الأولى الذكية حسب نوع المشروع:**
+- **اشتراك منصة**: الرسوم السنوية شاملة في سعر الاشتراك (لا تظهر كبنود منفصلة)
+- **منصة مخصصة**: السنة الأولى مجانية افتراضيا، وتبدا الفوترة بعد 12 شهر
+- يمكن تغيير هذا الاعداد يدويا لكل بند
 
-### 3. تعديل حساب الإجماليات (`useMemo`)
+### 4. استعلام البنود السنوية
 
-- البنود ذات السنة الأولى المجانية تُستثنى من `subtotal`
-- إضافة ملخص في خطوة المراجعة يعرض:
-  - إجمالي التنفيذ (المستحق الآن)
-  - الرسوم السنوية المستقبلية (للمعلومية)
-
-### 4. تعديل `QuoteItem` interface و `QuoteItemsTable`
-
-- إضافة خصائص جديدة لـ `QuoteItem`:
-  - `item_category`: `'execution' | 'recurring_annual' | 'service'`
-  - `first_year_free`: boolean
-  - `recurring_amount`: number (للبنود السنوية)
-- عرض البنود المجانية بشكل مميز (نص مشطوب أو شارة "السنة الأولى مجانية")
-
-### 5. تعديل `handleSave` في `AdvancedQuoteModal`
-
-- حفظ `project_name` في سجل `crm_quotes`
-- حفظ `recurring_items` (البنود السنوية) في سجل `crm_quotes`
-
-### 6. تعديل `ContractDocumentationModal.tsx`
-
-- استخدام `project_name` من العرض لتسمية المشروع: `{accountName} - {projectName}`
-- عند اعتماد العرض وإنشاء المشروع:
-  - إنشاء سجلات في `client_recurring_charges` لكل بند تشغيلي سنوي
-  - تاريخ أول استحقاق = بعد 12 شهر من تاريخ التسليم المتوقع
-  - حفظ الميزانية (`budget`) من قيمة بند التنفيذ
-
-### 7. عرض الرسوم السنوية في ملف العميل
-
-- إضافة قسم في تبويب الاشتراكات أو تبويب جديد يعرض:
-  - قائمة الرسوم السنوية القادمة مع تاريخ الاستحقاق
-  - حالة كل رسم (نشط / ملغي)
+- إضافة `useQuery` جديد لجلب الخدمات من نوع `recurring_annual` فقط
+- عرضها في قائمة منسدلة (Dropdown/Popover) مع إمكانية تحديد اكثر من خيار
 
 ---
 
 ## التفاصيل التقنية
 
-### Migration SQL
+### بيانات افتراضية (Migration)
 ```sql
--- Add project_name and recurring_items to crm_quotes
-ALTER TABLE crm_quotes ADD COLUMN IF NOT EXISTS project_name text;
-ALTER TABLE crm_quotes ADD COLUMN IF NOT EXISTS recurring_items jsonb DEFAULT '[]';
-
--- Create client_recurring_charges table
-CREATE TABLE client_recurring_charges (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_id uuid NOT NULL REFERENCES client_organizations(id),
-  quote_id uuid REFERENCES crm_quotes(id),
-  project_id uuid REFERENCES crm_implementations(id),
-  item_name text NOT NULL,
-  annual_amount numeric NOT NULL DEFAULT 0,
-  first_year_free boolean DEFAULT false,
-  first_due_date date,
-  status text DEFAULT 'active',
-  reminder_sent_at timestamptz,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
-ALTER TABLE client_recurring_charges ENABLE ROW LEVEL SECURITY;
--- RLS policy for authenticated staff
-CREATE POLICY "Staff can manage recurring charges"
-  ON client_recurring_charges FOR ALL
-  TO authenticated USING (true) WITH CHECK (true);
+INSERT INTO pricing_services (name, description, service_type, price, unit, category, is_active, sort_order)
+VALUES
+  ('استضافة سنوية', 'استضافة سحابية عالية الاداء', 'recurring_annual', 1500, 'سنوي', 'استضافة', true, 100),
+  ('تجديد دومين', 'تجديد اسم النطاق سنويا', 'recurring_annual', 150, 'سنوي', 'دومين', true, 101),
+  ('دعم فني سنوي', 'دعم فني وصيانة دورية', 'recurring_annual', 2000, 'سنوي', 'دعم', true, 102),
+  ('صيانة وتحديثات', 'تحديثات امنية وصيانة دورية', 'recurring_annual', 1200, 'سنوي', 'صيانة', true, 103);
 ```
 
-### AdvancedQuoteModal - State additions
-- `projectName` (string) - اسم المشروع
-- `recurringItems` (array) - بنود تشغيلية: `{ name, amount, firstYearFree }`
-- تعديل validation في `canProceedToStep3` ليتحقق من وجود `projectName` للمنصات المخصصة
+### PricingSettingsPage.tsx
+- إضافة تبويب "الرسوم السنوية" يفلتر `pricing_services` حيث `service_type = 'recurring_annual'`
+- نفس منطق إضافة/تعديل/حذف الخدمات الحالي
 
-### QuoteItemsTable enhancements
-- عرض البنود المجانية بشارة خضراء "السنة الأولى مجانية" مع عدم احتسابها في الإجمالي
-- إضافة قسم منفصل أسفل الجدول لـ "الرسوم السنوية المستقبلية" (للمعلومية)
+### AdvancedQuoteModal.tsx - التغييرات الرئيسية
 
-### ContractDocumentationModal changes
-- قراءة `project_name` من العرض واستخدامه كاسم المشروع
-- إنشاء `client_recurring_charges` عند توقيع العقد
+**State جديد:**
+- استبدال `recurringItems` اليدوي بقائمة مبنية على الكتالوج
+- كل عنصر يحتوي: `{ serviceId, name, amount, firstYearFree, isCustom }`
 
-### الملفات المتأثرة
-1. `supabase/migrations/` - migration جديد
-2. `src/components/crm/modals/AdvancedQuoteModal.tsx` - إضافة حقول وتعديل منطق الحساب
-3. `src/components/crm/quotes/QuoteItemsTable.tsx` - دعم أنواع البنود الجديدة
-4. `src/components/operations/ContractDocumentationModal.tsx` - استخدام اسم المشروع وإنشاء الرسوم
-5. `src/components/crm/tabs/SubscriptionTab.tsx` - عرض الرسوم السنوية القادمة
+**Query جديد:**
+```typescript
+const { data: annualServices = [] } = useQuery({
+  queryKey: ['pricing-annual-services'],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('pricing_services')
+      .select('*')
+      .eq('service_type', 'recurring_annual')
+      .eq('is_active', true)
+      .order('sort_order');
+    return data || [];
+  },
+  enabled: open,
+});
+```
 
+**واجهة المستخدم:**
+- قائمة منسدلة بالبنود السنوية المتاحة مع زر "إضافة"
+- عند الاختيار: يضاف البند بسعره الافتراضي مع إمكانية التعديل
+- زر "إضافة بند مخصص" للبنود غير الموجودة في الكتالوج
+- لكل بند مضاف: اسم + مبلغ قابل للتعديل + خيار السنة الأولى مجانية + زر حذف
+
+### الملفات المتاثرة
+1. `supabase/migrations/` - إضافة بيانات الرسوم السنوية الافتراضية
+2. `src/pages/admin/PricingSettingsPage.tsx` - تبويب الرسوم السنوية
+3. `src/components/crm/modals/AdvancedQuoteModal.tsx` - قائمة منسدلة بدل الإدخال اليدوي
