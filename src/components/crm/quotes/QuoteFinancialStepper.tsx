@@ -27,6 +27,19 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import {
   CheckCircle2,
   Circle,
   Lock,
@@ -37,6 +50,7 @@ import {
   Receipt,
   FileCheck,
   Send,
+  CalendarIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
@@ -79,8 +93,11 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
   const [rejectionReason, setRejectionReason] = useState('');
 
   // Payment form state
+  const [paymentBankName, setPaymentBankName] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [transferNumber, setTransferNumber] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
 
   // Fetch invoice request status
   const { data: invoiceRequest } = useQuery({
@@ -180,8 +197,11 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
     mutationFn: async () => {
       const { error } = await supabase.from('crm_quotes').update({
         payment_confirmed: true,
+        payment_bank_name: paymentBankName,
         payment_amount: parseFloat(paymentAmount),
+        payment_date: format(paymentDate, 'yyyy-MM-dd'),
         payment_transfer_number: transferNumber,
+        payment_notes: paymentNotes || null,
         payment_confirmed_at: new Date().toISOString(),
         payment_status: 'paid',
         updated_at: new Date().toISOString(),
@@ -192,8 +212,11 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
       queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
       toast.success('تم تأكيد الدفع بنجاح');
       setShowPaymentDialog(false);
+      setPaymentBankName('');
       setPaymentAmount('');
+      setPaymentDate(new Date());
       setTransferNumber('');
+      setPaymentNotes('');
     },
     onError: () => toast.error('حدث خطأ'),
   });
@@ -258,8 +281,13 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
           return `لم يتم التعميد${q.client_rejection_reason ? ' • السبب: ' + q.client_rejection_reason : ''}`;
         return null;
       case 1:
-        if (q.payment_confirmed)
-          return `${formatCurrency(q.payment_amount || 0)} • تحويل #${q.payment_transfer_number || '-'}${q.payment_confirmed_at ? ' • ' + format(new Date(q.payment_confirmed_at), 'dd MMM yyyy', { locale: ar }) : ''}`;
+        if (q.payment_confirmed) {
+          const parts = [formatCurrency(q.payment_amount || 0)];
+          if (q.payment_bank_name) parts.push(q.payment_bank_name);
+          if (q.payment_transfer_number) parts.push(`إيصال #${q.payment_transfer_number}`);
+          if (q.payment_date) parts.push(format(new Date(q.payment_date), 'dd MMM yyyy', { locale: ar }));
+          return parts.join(' • ');
+        }
         return null;
       case 2:
         if (invoiceRequest)
@@ -469,20 +497,78 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>المبلغ المحول (ر.س)</Label>
+              <Label>اسم البنك *</Label>
+              <Select value={paymentBankName} onValueChange={setPaymentBankName}>
+                <SelectTrigger>
+                  <SelectValue placeholder="اختر البنك..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="البنك الأهلي السعودي (SNB)">البنك الأهلي السعودي (SNB)</SelectItem>
+                  <SelectItem value="مصرف الراجحي">مصرف الراجحي</SelectItem>
+                  <SelectItem value="بنك الرياض">بنك الرياض</SelectItem>
+                  <SelectItem value="البنك السعودي البريطاني (ساب)">البنك السعودي البريطاني (ساب)</SelectItem>
+                  <SelectItem value="البنك العربي الوطني">البنك العربي الوطني</SelectItem>
+                  <SelectItem value="مصرف الإنماء">مصرف الإنماء</SelectItem>
+                  <SelectItem value="البنك السعودي الفرنسي">البنك السعودي الفرنسي</SelectItem>
+                  <SelectItem value="البنك السعودي للاستثمار">البنك السعودي للاستثمار</SelectItem>
+                  <SelectItem value="بنك الجزيرة">بنك الجزيرة</SelectItem>
+                  <SelectItem value="بنك البلاد">بنك البلاد</SelectItem>
+                  <SelectItem value="بنك الخليج الدولي - السعودية (ميم)">بنك الخليج الدولي - السعودية (ميم)</SelectItem>
+                  <SelectItem value="أخرى">أخرى</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>المبلغ المحول (ر.س) *</Label>
               <Input
                 type="number"
+                step="0.01"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 placeholder={`المبلغ المتوقع: ${formatCurrency(quote.total_amount)}`}
               />
             </div>
             <div className="space-y-2">
-              <Label>رقم التحويل</Label>
+              <Label>تاريخ التحويل *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'w-full justify-start text-right font-normal',
+                      !paymentDate && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="ml-2 h-4 w-4" />
+                    {paymentDate ? format(paymentDate, 'yyyy-MM-dd') : 'اختر التاريخ'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={paymentDate}
+                    onSelect={(date) => date && setPaymentDate(date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label>رقم الإيصال *</Label>
               <Input
                 value={transferNumber}
                 onChange={(e) => setTransferNumber(e.target.value)}
-                placeholder="أدخل رقم التحويل البنكي"
+                placeholder="أدخل رقم الإيصال"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>ملاحظة</Label>
+              <Textarea
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                placeholder="ملاحظات إضافية..."
+                rows={2}
               />
             </div>
           </div>
@@ -490,7 +576,7 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
             <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>إلغاء</Button>
             <Button
               onClick={() => paymentMutation.mutate()}
-              disabled={paymentMutation.isPending || !paymentAmount || !transferNumber.trim()}
+              disabled={paymentMutation.isPending || !paymentBankName || !paymentAmount || !transferNumber.trim()}
               className="bg-green-600 hover:bg-green-700"
             >
               {paymentMutation.isPending && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
