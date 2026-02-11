@@ -1435,8 +1435,11 @@ export type Database = {
           notes: string | null
           opportunity_id: string | null
           payment_amount: number | null
+          payment_bank_name: string | null
           payment_confirmed: boolean | null
           payment_confirmed_at: string | null
+          payment_date: string | null
+          payment_notes: string | null
           payment_status: string | null
           payment_transfer_number: string | null
           plan_id: string | null
@@ -1483,8 +1486,11 @@ export type Database = {
           notes?: string | null
           opportunity_id?: string | null
           payment_amount?: number | null
+          payment_bank_name?: string | null
           payment_confirmed?: boolean | null
           payment_confirmed_at?: string | null
+          payment_date?: string | null
+          payment_notes?: string | null
           payment_status?: string | null
           payment_transfer_number?: string | null
           plan_id?: string | null
@@ -1531,8 +1537,11 @@ export type Database = {
           notes?: string | null
           opportunity_id?: string | null
           payment_amount?: number | null
+          payment_bank_name?: string | null
           payment_confirmed?: boolean | null
           payment_confirmed_at?: string | null
+          payment_date?: string | null
+          payment_notes?: string | null
           payment_status?: string | null
           payment_transfer_number?: string | null
           plan_id?: string | null
