@@ -1,65 +1,52 @@
 
 
-# خطة: إضافة المنطقة للبريد + إصلاح أزرار البريد جذرياً
+# خطة: إرفاق PDF بالبريد + إصلاح رابط تأكيد الفاتورة
 
-## الملخص
+## المشكلة الجذرية
 
-ثلاث مهام:
-1. عرض "المنطقة" ضمن بيانات العنوان الوطني في بريد المحاسب
-2. التأكد من وجود "تحويل بنكي" في خيارات الدفع (موجود بالفعل في الكود)
-3. إصلاح مشكلة أزرار البريد بشكل جذري: إرسال ملف PDF مرفق كرابط تحميل مباشر دائماً، وضمان عمل زر تأكيد الفاتورة
+1. **رابط تأكيد الفاتورة لا يعمل**: الرابط يشير إلى `webyan.sa/invoice-confirm/...` لكن هذا الموقع لا يحتوي على صفحة التأكيد. التطبيق منشور على `webyan-guide-hub.lovable.app`
+2. **ملف PDF لا يصل كمرفق**: حالياً يُرسل رابط تحميل فقط، والمحاسب يريد الملف جاهزاً في البريد مباشرة
 
 ---
 
-## المشكلة الحالية في الأزرار
+## الحل
 
-- زر "فتح عرض السعر" يفتح رابط لوحة الإدارة التي تحتاج تسجيل دخول -- لن يعمل للمحاسب الخارجي
-- زر "تأكيد إصدار الفاتورة" يفتح صفحة `/invoice-confirm/:id` التي تحتاج نشر التطبيق على `webyan.sa`
-- الحل: استبدال زر "فتح عرض السعر" بـ رابط تحميل PDF مباشر دائماً، وضمان إنشاء الـ PDF قبل الإرسال
+### 1. إرفاق ملف PDF مباشرة بالبريد الإلكتروني
 
----
+**الملف:** `supabase/functions/_shared/smtp-sender.ts`
 
-## التعديلات المطلوبة
-
-### 1. إضافة المنطقة في بريد المحاسب
-
-**الملف:** `supabase/functions/send-invoice-request/index.ts`
-
-إضافة صف "المنطقة" في جدول العنوان الوطني بالبريد مع تحويل القيمة الإنجليزية إلى الاسم العربي:
-
-```text
-المدينة: الرياض
-المنطقة: منطقة الرياض    <-- جديد
-الحي: العليا
-...
-```
-
-سيتم إضافة كائن mapping للمناطق داخل الـ Edge Function:
-
+- توسيع واجهة `EmailParams` لدعم المرفقات:
 ```typescript
-const regionLabels: Record<string, string> = {
-  riyadh: 'منطقة الرياض',
-  makkah: 'منطقة مكة المكرمة',
-  // ... باقي المناطق
-};
+interface EmailAttachment {
+  filename: string;
+  content: Uint8Array; // binary data
+  contentType: string;
+}
+interface EmailParams {
+  // ... الحقول الحالية
+  attachments?: EmailAttachment[];
+}
 ```
 
-### 2. إصلاح أزرار البريد
+- تحديث `sendViaResend` لإرسال المرفقات عبر Resend API (يدعمها أصلاً بصيغة base64)
+- تحديث `sendViaStartTLS` و `sendViaSSL` لبناء رسالة MIME multipart تتضمن المرفقات
 
 **الملف:** `supabase/functions/send-invoice-request/index.ts`
 
-- جعل زر "تحميل عرض السعر PDF" يظهر دائماً عندما يتوفر `quote_pdf_url` (هذا يعمل حالياً)
-- إزالة الخيار البديل الذي يفتح لوحة الإدارة (حذف رابط `/admin/crm/quotes/...`) لأن المحاسب لا يملك وصولاً
-- إذا لم يتوفر PDF، لا يظهر زر عرض السعر بدلاً من إظهار رابط لا يعمل
+- عند توفر `quote_pdf_url`: جلب ملف PDF من التخزين (fetch) وتحويله إلى `Uint8Array`
+- إرفاقه بالبريد كمرفق باسم ملف مثل `عرض-سعر-QT-2026-0001.pdf`
+- الإبقاء على رابط التحميل في البريد كخيار إضافي
+
+### 2. إصلاح رابط تأكيد الفاتورة
 
 **الملف:** `src/components/crm/modals/InvoiceRequestModal.tsx`
 
-- التأكد من أن إنشاء PDF يتم بشكل صحيح وأن `quote_pdf_url` يُمرر دائماً للـ Edge Function
-- إضافة معالجة خطأ أفضل في حال فشل رفع الـ PDF مع إبلاغ المستخدم
+- إرسال `window.location.origin` (عنوان التطبيق الحالي) مع طلب الفاتورة كمعامل `app_base_url`
 
-### 3. ملاحظة حول "تحويل بنكي"
+**الملف:** `supabase/functions/send-invoice-request/index.ts`
 
-خيار "تحويل بنكي" (`bank_transfer`) موجود بالفعل في القائمة المنسدلة في الكود (السطر 488). لا يحتاج تعديلاً.
+- استخدام `app_base_url` المُرسل من العميل لبناء رابط التأكيد بدلاً من `public_base_url` (الذي يشير إلى webyan.sa)
+- الرابط سيصبح: `https://webyan-guide-hub.lovable.app/invoice-confirm/{requestId}`
 
 ---
 
@@ -69,11 +56,22 @@ const regionLabels: Record<string, string> = {
 
 | الملف | التعديل |
 |---|---|
-| `supabase/functions/send-invoice-request/index.ts` | إضافة المنطقة بالعنوان الوطني + إصلاح منطق الأزرار |
-| `src/components/crm/modals/InvoiceRequestModal.tsx` | تحسين معالجة أخطاء رفع PDF |
+| `supabase/functions/_shared/smtp-sender.ts` | دعم المرفقات في SMTP و Resend |
+| `supabase/functions/send-invoice-request/index.ts` | جلب PDF وإرفاقه + إصلاح رابط التأكيد |
+| `src/components/crm/modals/InvoiceRequestModal.tsx` | إرسال `app_base_url` مع الطلب |
 
 ### النشر
 
-- إعادة نشر Edge Function: `send-invoice-request`
-- **مهم**: زر "تأكيد إصدار الفاتورة" يعمل فقط بعد نشر التطبيق على `webyan.sa` -- يجب النشر (Publish) من Lovable لتفعيله
+- إعادة نشر: `send-invoice-request`
+- (smtp-sender مشترك يُستخدم تلقائياً)
+
+### تدفق العمل بعد الإصلاح
+
+```text
+1. الموظف يطلب إصدار فاتورة
+2. النظام ينشئ PDF ويرفعه للتخزين
+3. النظام يجلب PDF من التخزين ويرفقه بالبريد
+4. المحاسب يستلم البريد مع ملف PDF مرفق + زر تأكيد يعمل
+5. المحاسب يضغط زر التأكيد -> يفتح صفحة التأكيد على الرابط الصحيح
+```
 
