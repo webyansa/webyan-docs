@@ -78,6 +78,8 @@ interface Quote {
   subtotal: number;
   total_amount: number;
   status: string;
+  payment_status: string;
+  invoice_status: string;
   valid_until: string | null;
   sent_at: string | null;
   created_at: string;
@@ -93,6 +95,18 @@ interface Quote {
     account_id: string;
   } | null;
 }
+
+const paymentStatusConfig: Record<string, { label: string; className: string }> = {
+  unpaid: { label: 'لم يُدفع', className: 'text-slate-600 bg-slate-100' },
+  paid: { label: 'مدفوع', className: 'text-green-600 bg-green-100' },
+  partially_paid: { label: 'جزئي', className: 'text-amber-600 bg-amber-100' },
+};
+
+const invoiceStatusConfig: Record<string, { label: string; className: string }> = {
+  not_requested: { label: 'لم يُطلب', className: 'text-slate-600 bg-slate-100' },
+  requested: { label: 'تم الطلب', className: 'text-blue-600 bg-blue-100' },
+  issued: { label: 'صدرت', className: 'text-green-600 bg-green-100' },
+};
 
 interface Deal {
   id: string;
@@ -159,6 +173,8 @@ export default function QuotesPage() {
           subtotal,
           total_amount,
           status,
+          payment_status,
+          invoice_status,
           valid_until,
           sent_at,
           created_at,
@@ -451,6 +467,8 @@ export default function QuotesPage() {
                     <TableHead>النوع</TableHead>
                     <TableHead>القيمة</TableHead>
                     <TableHead>الحالة</TableHead>
+                    <TableHead>الدفع</TableHead>
+                    <TableHead>الفاتورة</TableHead>
                     <TableHead>التاريخ</TableHead>
                     <TableHead>إجراءات</TableHead>
                   </TableRow>
@@ -502,6 +520,18 @@ export default function QuotesPage() {
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {getStatusBadge(quote.status)}
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const ps = paymentStatusConfig[quote.payment_status || 'unpaid'] || paymentStatusConfig.unpaid;
+                          return <Badge variant="outline" className={`${ps.className} border-0 text-xs`}>{ps.label}</Badge>;
+                        })()}
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const is = invoiceStatusConfig[quote.invoice_status || 'not_requested'] || invoiceStatusConfig.not_requested;
+                          return <Badge variant="outline" className={`${is.className} border-0 text-xs`}>{is.label}</Badge>;
+                        })()}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         <div className="flex items-center gap-1">

@@ -47,6 +47,7 @@ interface OrganizationData {
   building_number: string | null;
   postal_code: string | null;
   secondary_number: string | null;
+  region: string | null;
 }
 
 interface QuoteData {
@@ -93,7 +94,7 @@ export function InvoiceRequestModal({ open, onClose, quoteId, onSuccess }: Invoi
             id, name, registration_number, tax_number,
             primary_contact_name, primary_contact_email, primary_contact_phone,
             contact_email, contact_phone,
-            city, district, street_name, building_number, postal_code, secondary_number
+            city, district, street_name, building_number, postal_code, secondary_number, region
           )
         `)
         .eq('id', quoteId)
@@ -311,6 +312,17 @@ export function InvoiceRequestModal({ open, onClose, quoteId, onSuccess }: Invoi
                 <div>
                   <Label className="text-muted-foreground">المدينة</Label>
                   <p className="font-medium">{organization.city || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">المنطقة</Label>
+                  <p className="font-medium">
+                    {organization.region ? ({
+                      riyadh: 'منطقة الرياض', makkah: 'منطقة مكة المكرمة', madinah: 'منطقة المدينة المنورة',
+                      qassim: 'منطقة القصيم', eastern: 'المنطقة الشرقية', asir: 'منطقة عسير',
+                      tabuk: 'منطقة تبوك', hail: 'منطقة حائل', northern_borders: 'منطقة الحدود الشمالية',
+                      jazan: 'منطقة جازان', najran: 'منطقة نجران', bahah: 'منطقة الباحة', jawf: 'منطقة الجوف',
+                    } as Record<string, string>)[organization.region] || organization.region : '-'}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">الحي</Label>

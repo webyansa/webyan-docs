@@ -57,7 +57,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           id, name, registration_number, tax_number,
           primary_contact_name, primary_contact_email, primary_contact_phone,
           contact_email, contact_phone,
-          city, district, street_name, building_number, postal_code, secondary_number
+          city, district, street_name, building_number, postal_code, secondary_number, region
         )
       `)
       .eq('id', quote_id)
@@ -107,7 +107,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         expected_payment_method,
         resend_reason: is_resend ? resend_reason : null,
       })
-      .select('request_number')
+      .select('id, request_number')
       .single();
 
     if (insertError) {
@@ -116,7 +116,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const requestNumber = newRequest.request_number;
+    const requestId = newRequest.id;
 
+    // Update quote invoice_status to requested
+    await supabase
+      .from('crm_quotes')
+      .update({ invoice_status: 'requested' } as any)
+      .eq('id', quote_id);
     // Calculate financial values
     const subtotal = quote.subtotal || 0;
     const discountValue = quote.discount_value || 0;
@@ -148,6 +154,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
 
     // Build email HTML
+    const confirmUrl = `${baseUrl}/invoice-confirm/${requestId}`;
+    
     const emailHtml = buildEmailHtml({
       org,
       quote,
@@ -161,6 +169,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       totalAmount,
       description,
       quoteUrl,
+      confirmUrl,
       expected_payment_method,
       notes_for_accounts,
       is_resend,
@@ -216,7 +225,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 function buildEmailHtml(params: any): string {
   const {
     org, quote, requestNumber, subtotal, discountAmount, discountType, discountValue,
-    taxRate, taxAmount, totalAmount, description, quoteUrl,
+    taxRate, taxAmount, totalAmount, description, quoteUrl, confirmUrl,
     expected_payment_method, notes_for_accounts, is_resend, resend_reason, paymentMethodLabels
   } = params;
 
@@ -278,8 +287,13 @@ ${(expected_payment_method || notes_for_accounts) ? `<tr><td style="padding:15px
 ${expected_payment_method ? `<tr><td style="color:${textMuted};width:35%;">طريقة السداد المتوقعة:</td><td style="color:${textDark};">${paymentMethodLabels[expected_payment_method] || expected_payment_method}</td></tr>` : ''}
 ${notes_for_accounts ? `<tr><td style="color:${textMuted};vertical-align:top;">ملاحظات:</td><td style="color:${textDark};">${notes_for_accounts}</td></tr>` : ''}
 </table></td></tr>` : ''}
-${is_resend && resend_reason ? `<tr><td style="padding:15px 30px;"><table width="100%" cellpadding="15" cellspacing="0" style="background-color:#fef3c7;border-radius:8px;border-right:4px solid #f59e0b;"><tr><td><p style="margin:0 0 5px;font-size:13px;color:#92400e;font-weight:bold;font-family:Arial,sans-serif;">⚠️ سبب إعادة الإرسال:</p><p style="margin:0;font-size:14px;color:#78350f;font-family:Arial,sans-serif;">${resend_reason}</p></td></tr></table></td></tr>` : ''}
-<tr><td align="center" style="padding:25px 30px;"><a href="${quoteUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:${primary};text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">🔗 فتح عرض السعر في النظام</a></td></tr>
+  ${is_resend && resend_reason ? `<tr><td style="padding:15px 30px;"><table width="100%" cellpadding="15" cellspacing="0" style="background-color:#fef3c7;border-radius:8px;border-right:4px solid #f59e0b;"><tr><td><p style="margin:0 0 5px;font-size:13px;color:#92400e;font-weight:bold;font-family:Arial,sans-serif;">⚠️ سبب إعادة الإرسال:</p><p style="margin:0;font-size:14px;color:#78350f;font-family:Arial,sans-serif;">${resend_reason}</p></td></tr></table></td></tr>` : ''}
+<tr><td align="center" style="padding:25px 30px;">
+<table cellpadding="0" cellspacing="0"><tr>
+<td align="center" style="padding:0 8px;"><a href="${confirmUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#16a34a;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">✅ تأكيد إصدار الفاتورة</a></td>
+<td align="center" style="padding:0 8px;"><a href="${quoteUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:${primary};text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">🔗 فتح عرض السعر</a></td>
+</tr></table>
+</td></tr>
 <tr><td align="center" bgcolor="${primaryDark}" style="padding:25px;"><p style="margin:0;font-size:13px;color:rgba(255,255,255,0.8);font-family:Arial,sans-serif;">رقم طلب الفاتورة: <strong>${requestNumber}</strong></p><p style="margin:10px 0 0;font-size:12px;color:rgba(255,255,255,0.6);font-family:Arial,sans-serif;">هذا بريد آلي من نظام ويبيان</p></td></tr>
 </table></td></tr></table></body></html>`;
 }

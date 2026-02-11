@@ -26,6 +26,22 @@ import { LifecycleBadge, LifecycleStage, lifecycleConfig } from '../LifecycleBad
 import { CustomerTypeBadge, CustomerType, customerTypeConfig } from '../CustomerTypeBadge';
 import { CustomerNotesSection } from '../CustomerNotesSection';
 
+const saudiRegions = [
+  { value: 'riyadh', label: 'منطقة الرياض' },
+  { value: 'makkah', label: 'منطقة مكة المكرمة' },
+  { value: 'madinah', label: 'منطقة المدينة المنورة' },
+  { value: 'qassim', label: 'منطقة القصيم' },
+  { value: 'eastern', label: 'المنطقة الشرقية' },
+  { value: 'asir', label: 'منطقة عسير' },
+  { value: 'tabuk', label: 'منطقة تبوك' },
+  { value: 'hail', label: 'منطقة حائل' },
+  { value: 'northern_borders', label: 'منطقة الحدود الشمالية' },
+  { value: 'jazan', label: 'منطقة جازان' },
+  { value: 'najran', label: 'منطقة نجران' },
+  { value: 'bahah', label: 'منطقة الباحة' },
+  { value: 'jawf', label: 'منطقة الجوف' },
+];
+
 interface BasicInfoTabProps {
   organization: {
     id: string;
@@ -53,6 +69,7 @@ interface BasicInfoTabProps {
     secondary_number?: string | null;
     district?: string | null;
     postal_code?: string | null;
+    region?: string | null;
   };
   contacts: Array<{
     id: string;
@@ -99,6 +116,7 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
     district: organization.district || '',
     postal_code: organization.postal_code || '',
     city: organization.city || '',
+    region: (organization as any).region || '',
   });
 
   // Auto-fill primary contact when checkbox is checked
@@ -140,7 +158,8 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
           district: form.district || null,
           postal_code: form.postal_code || null,
           city: form.city || null,
-        })
+          region: form.region || null,
+        } as any)
         .eq('id', organization.id);
 
       if (error) throw error;
@@ -179,6 +198,7 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
       district: organization.district || '',
       postal_code: organization.postal_code || '',
       city: organization.city || '',
+      region: (organization as any).region || '',
     });
     setIsEditing(false);
   };
@@ -543,6 +563,19 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                     placeholder="الرياض"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>المنطقة</Label>
+                  <Select value={form.region} onValueChange={(v) => setForm({ ...form, region: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر المنطقة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {saudiRegions.map(r => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </>
             ) : (
               <div className="space-y-3">
@@ -592,6 +625,12 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                       <div className="flex justify-between items-center py-2 border-b border-border/50">
                         <span className="text-muted-foreground text-sm">المدينة</span>
                         <span className="font-medium">{organization.city}</span>
+                      </div>
+                    )}
+                    {(organization as any).region && (
+                      <div className="flex justify-between items-center py-2 border-b border-border/50">
+                        <span className="text-muted-foreground text-sm">المنطقة</span>
+                        <span className="font-medium">{saudiRegions.find(r => r.value === (organization as any).region)?.label || (organization as any).region}</span>
                       </div>
                     )}
                   </div>

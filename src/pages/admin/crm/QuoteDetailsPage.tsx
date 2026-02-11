@@ -69,6 +69,9 @@ import {
   Trash2,
   RotateCcw,
   FolderKanban,
+  Banknote,
+  CircleDollarSign,
+  FileOutput,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
@@ -1104,6 +1107,87 @@ export default function QuoteDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Payment & Invoice Status Card */}
+      {(quote.status === 'accepted' || quote.status === 'sent') && (
+        <Card className="border-primary/20 print:hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CircleDollarSign className="h-5 w-5 text-primary" />
+              حالة الدفع والفاتورة
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Payment Status */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">حالة الدفع</span>
+                  <Badge variant="outline" className={
+                    (quote as any).payment_status === 'paid' 
+                      ? 'text-green-600 border-green-300 bg-green-50' 
+                      : (quote as any).payment_status === 'partially_paid'
+                        ? 'text-amber-600 border-amber-300 bg-amber-50'
+                        : 'text-slate-600 border-slate-300 bg-slate-50'
+                  }>
+                    <Banknote className="h-3.5 w-3.5 ml-1" />
+                    {(quote as any).payment_status === 'paid' ? 'تم الدفع' 
+                     : (quote as any).payment_status === 'partially_paid' ? 'دفع جزئي' 
+                     : 'لم يتم الدفع'}
+                  </Badge>
+                </div>
+                {(quote as any).payment_status !== 'paid' && (
+                  <Button 
+                    size="sm" 
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={async () => {
+                      try {
+                        await supabase.from('crm_quotes').update({ payment_status: 'paid' } as any).eq('id', quoteId);
+                        queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
+                        queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
+                        toast.success('تم تأكيد استلام الدفع');
+                      } catch { toast.error('حدث خطأ'); }
+                    }}
+                  >
+                    <CheckCircle className="h-4 w-4 ml-2" />
+                    تأكيد استلام الدفع
+                  </Button>
+                )}
+              </div>
+
+              {/* Invoice Status */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">حالة الفاتورة</span>
+                  <Badge variant="outline" className={
+                    (quote as any).invoice_status === 'issued'
+                      ? 'text-green-600 border-green-300 bg-green-50'
+                      : (quote as any).invoice_status === 'requested'
+                        ? 'text-blue-600 border-blue-300 bg-blue-50'
+                        : 'text-slate-600 border-slate-300 bg-slate-50'
+                  }>
+                    <FileOutput className="h-3.5 w-3.5 ml-1" />
+                    {(quote as any).invoice_status === 'issued' ? 'تم الإصدار'
+                     : (quote as any).invoice_status === 'requested' ? 'تم الطلب'
+                     : 'لم يُطلب'}
+                  </Badge>
+                </div>
+                {(quote as any).payment_status === 'paid' && (quote as any).invoice_status !== 'issued' && (
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setShowInvoiceRequestModal(true)}
+                  >
+                    <Receipt className="h-4 w-4 ml-2" />
+                    طلب إصدار فاتورة
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions for pending quotes */}
       {(quote.status === 'sent' || quote.status === 'viewed' || quote.status === 'draft') && (
