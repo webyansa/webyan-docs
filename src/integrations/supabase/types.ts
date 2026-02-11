@@ -1418,6 +1418,9 @@ export type Database = {
           account_id: string
           approved_by: string | null
           billing_cycle: string | null
+          client_approved: boolean | null
+          client_approved_at: string | null
+          client_rejection_reason: string | null
           created_at: string | null
           created_by: string | null
           currency: string | null
@@ -1425,11 +1428,17 @@ export type Database = {
           discount_value: number | null
           document_url: string | null
           id: string
+          invoice_sent_to_client: boolean | null
+          invoice_sent_to_client_at: string | null
           invoice_status: string | null
           items: Json | null
           notes: string | null
           opportunity_id: string | null
+          payment_amount: number | null
+          payment_confirmed: boolean | null
+          payment_confirmed_at: string | null
           payment_status: string | null
+          payment_transfer_number: string | null
           plan_id: string | null
           project_id: string | null
           project_name: string | null
@@ -1457,6 +1466,9 @@ export type Database = {
           account_id: string
           approved_by?: string | null
           billing_cycle?: string | null
+          client_approved?: boolean | null
+          client_approved_at?: string | null
+          client_rejection_reason?: string | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
@@ -1464,11 +1476,17 @@ export type Database = {
           discount_value?: number | null
           document_url?: string | null
           id?: string
+          invoice_sent_to_client?: boolean | null
+          invoice_sent_to_client_at?: string | null
           invoice_status?: string | null
           items?: Json | null
           notes?: string | null
           opportunity_id?: string | null
+          payment_amount?: number | null
+          payment_confirmed?: boolean | null
+          payment_confirmed_at?: string | null
           payment_status?: string | null
+          payment_transfer_number?: string | null
           plan_id?: string | null
           project_id?: string | null
           project_name?: string | null
@@ -1496,6 +1514,9 @@ export type Database = {
           account_id?: string
           approved_by?: string | null
           billing_cycle?: string | null
+          client_approved?: boolean | null
+          client_approved_at?: string | null
+          client_rejection_reason?: string | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
@@ -1503,11 +1524,17 @@ export type Database = {
           discount_value?: number | null
           document_url?: string | null
           id?: string
+          invoice_sent_to_client?: boolean | null
+          invoice_sent_to_client_at?: string | null
           invoice_status?: string | null
           items?: Json | null
           notes?: string | null
           opportunity_id?: string | null
+          payment_amount?: number | null
+          payment_confirmed?: boolean | null
+          payment_confirmed_at?: string | null
           payment_status?: string | null
+          payment_transfer_number?: string | null
           plan_id?: string | null
           project_id?: string | null
           project_name?: string | null
