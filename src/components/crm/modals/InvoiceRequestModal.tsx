@@ -213,9 +213,11 @@ export function InvoiceRequestModal({ open, onClose, quoteId, onSuccess }: Invoi
             quotePdfUrl = urlData.publicUrl;
           } else {
             console.error('PDF upload error:', uploadError);
+            toast.warning('تعذر رفع ملف PDF، سيتم إرسال الطلب بدون مرفق');
           }
         } catch (pdfErr) {
           console.error('PDF generation error:', pdfErr);
+          toast.warning('تعذر إنشاء ملف PDF، سيتم إرسال الطلب بدون مرفق');
         }
       }
 
