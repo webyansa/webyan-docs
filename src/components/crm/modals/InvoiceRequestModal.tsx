@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { pdf } from '@react-pdf/renderer';
+import QuotePDFDocument from '@/components/crm/quotes/QuotePDFDocument';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -149,9 +151,74 @@ export function InvoiceRequestModal({ open, onClose, quoteId, onSuccess }: Invoi
     }
   }, [existingRequest]);
 
-  // Submit invoice request
+  // Build quote data for PDF
+  const COMPANY_INFO = {
+    name: 'شركة ويبيان لتقنية المعلومات',
+    nameEn: 'Webyan Information Technology',
+    crNumber: '1010766572',
+    taxNumber: '311517498200003',
+    address: 'الرياض، المملكة العربية السعودية',
+    phone: '+966556aborede',
+    email: 'info@webyan.sa',
+  };
+
+  const quoteDataForPdf = useMemo(() => {
+    if (!quote) return null;
+    const qAny = quote as any;
+    const items = Array.isArray(quote.items) ? quote.items : [];
+    const subtotalBeforeDiscount = items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+    const dv = quote.discount_value || 0;
+    const dt = quote.discount_type || 'fixed';
+    const cd = dt === 'percentage' ? (subtotalBeforeDiscount * dv / 100) : dv;
+    const sad = subtotalBeforeDiscount - cd;
+    const tr = quote.tax_rate || 15;
+    const ta = quote.tax_amount || (sad * tr / 100);
+    const tot = quote.total_amount || (sad + ta);
+    return {
+      ...quote,
+      status: qAny.status || 'draft',
+      items,
+      company: COMPANY_INFO,
+      subtotalBeforeDiscount,
+      calculatedDiscount: cd,
+      discountType: dt,
+      discountAmount: dv,
+      subtotalAfterDiscount: sad,
+      taxRate: tr,
+      taxAmount: ta,
+      totalAmount: tot,
+      tax_inclusive: false,
+    };
+  }, [quote]);
+
+  // Generate and upload PDF, then submit invoice request
   const submitMutation = useMutation({
     mutationFn: async () => {
+      let quotePdfUrl: string | null = null;
+
+      // Generate PDF and upload to storage
+      if (quoteDataForPdf) {
+        try {
+          toast.info('جاري إنشاء ملف عرض السعر PDF...');
+          const blob = await pdf(<QuotePDFDocument data={quoteDataForPdf} />).toBlob();
+          const fileName = `quote-${quote!.quote_number}-${Date.now()}.pdf`;
+          const { error: uploadError } = await supabase.storage
+            .from('ticket-attachments')
+            .upload(`quotes/${fileName}`, blob, { contentType: 'application/pdf' });
+
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage
+              .from('ticket-attachments')
+              .getPublicUrl(`quotes/${fileName}`);
+            quotePdfUrl = urlData.publicUrl;
+          } else {
+            console.error('PDF upload error:', uploadError);
+          }
+        } catch (pdfErr) {
+          console.error('PDF generation error:', pdfErr);
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('send-invoice-request', {
         body: {
           quote_id: quoteId,
@@ -160,6 +227,7 @@ export function InvoiceRequestModal({ open, onClose, quoteId, onSuccess }: Invoi
           sent_by: currentStaff?.id || null,
           is_resend: isResend,
           resend_reason: isResend ? resendReason : null,
+          quote_pdf_url: quotePdfUrl,
         },
       });
 

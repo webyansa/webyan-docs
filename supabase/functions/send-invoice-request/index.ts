@@ -14,6 +14,7 @@ interface RequestBody {
   sent_by?: string;
   is_resend?: boolean;
   resend_reason?: string;
+  quote_pdf_url?: string;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -28,7 +29,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: RequestBody = await req.json();
-    const { quote_id, notes_for_accounts, expected_payment_method, sent_by, is_resend, resend_reason } = body;
+    const { quote_id, notes_for_accounts, expected_payment_method, sent_by, is_resend, resend_reason, quote_pdf_url } = body;
 
     if (!quote_id) {
       throw new Error("quote_id is required");
@@ -175,6 +176,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       is_resend,
       resend_reason,
       paymentMethodLabels,
+      quote_pdf_url,
     });
 
     // Send email using unified smtp-sender (SMTP with Resend fallback)
@@ -226,7 +228,8 @@ function buildEmailHtml(params: any): string {
   const {
     org, quote, requestNumber, subtotal, discountAmount, discountType, discountValue,
     taxRate, taxAmount, totalAmount, description, quoteUrl, confirmUrl,
-    expected_payment_method, notes_for_accounts, is_resend, resend_reason, paymentMethodLabels
+    expected_payment_method, notes_for_accounts, is_resend, resend_reason, paymentMethodLabels,
+    quote_pdf_url
   } = params;
 
   const primary = '#1e40af';
@@ -291,7 +294,7 @@ ${notes_for_accounts ? `<tr><td style="color:${textMuted};vertical-align:top;">�
 <tr><td align="center" style="padding:25px 30px;">
 <table cellpadding="0" cellspacing="0"><tr>
 <td align="center" style="padding:0 8px;"><a href="${confirmUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#16a34a;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">✅ تأكيد إصدار الفاتورة</a></td>
-<td align="center" style="padding:0 8px;"><a href="${quoteUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:${primary};text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">🔗 فتح عرض السعر</a></td>
+${quote_pdf_url ? `<td align="center" style="padding:0 8px;"><a href="${quote_pdf_url}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#7c3aed;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">📄 تحميل عرض السعر PDF</a></td>` : `<td align="center" style="padding:0 8px;"><a href="${quoteUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:${primary};text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">🔗 فتح عرض السعر</a></td>`}
 </tr></table>
 </td></tr>
 <tr><td align="center" bgcolor="${primaryDark}" style="padding:25px;"><p style="margin:0;font-size:13px;color:rgba(255,255,255,0.8);font-family:Arial,sans-serif;">رقم طلب الفاتورة: <strong>${requestNumber}</strong></p><p style="margin:10px 0 0;font-size:12px;color:rgba(255,255,255,0.6);font-family:Arial,sans-serif;">هذا بريد آلي من نظام ويبيان</p></td></tr>
