@@ -15,12 +15,19 @@ export interface SmtpSettings {
   public_base_url: string;
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content: Uint8Array;
+  contentType: string;
+}
+
 export interface EmailParams {
   to: string | string[];
   subject: string;
   html: string;
   from?: string;
   emailType?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailResult {
@@ -111,6 +118,81 @@ export async function getBaseUrl(): Promise<string> {
 }
 
 /**
+ * Encode Uint8Array to base64 string
+ */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * Build MIME multipart message with attachments
+ */
+function buildMimeMessage(params: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+}): string {
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+  const encodedSubject = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`;
+
+  if (!params.attachments || params.attachments.length === 0) {
+    // Simple message without attachments
+    return [
+      `Subject: ${encodedSubject}`,
+      `From: ${params.from}`,
+      `To: ${params.to}`,
+      "MIME-Version: 1.0",
+      'Content-Type: text/html; charset="utf-8"',
+      "Content-Transfer-Encoding: 8bit",
+      "",
+      params.html,
+      ".",
+    ].join("\r\n");
+  }
+
+  // Multipart message with attachments
+  const lines: string[] = [
+    `Subject: ${encodedSubject}`,
+    `From: ${params.from}`,
+    `To: ${params.to}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/html; charset="utf-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    params.html,
+  ];
+
+  for (const att of params.attachments) {
+    const b64 = uint8ArrayToBase64(att.content);
+    // Encode filename for non-ASCII characters
+    const encodedFilename = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(att.filename)))}?=`;
+    lines.push(
+      `--${boundary}`,
+      `Content-Type: ${att.contentType}; name="${encodedFilename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${encodedFilename}"`,
+      "",
+    );
+    // Split base64 into 76-char lines
+    for (let i = 0; i < b64.length; i += 76) {
+      lines.push(b64.substring(i, i + 76));
+    }
+  }
+
+  lines.push(`--${boundary}--`, ".");
+  return lines.join("\r\n");
+}
+
+/**
  * Send email via STARTTLS (for port 587)
  */
 async function sendViaStartTLS(params: {
@@ -122,6 +204,7 @@ async function sendViaStartTLS(params: {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }): Promise<void> {
   const tcpConn = await Deno.connect({ hostname: params.hostname, port: params.port });
   let conn: Deno.Conn = tcpConn;
@@ -196,18 +279,14 @@ async function sendViaStartTLS(params: {
   await write(conn, "DATA");
   await expect(conn, 354);
 
-  // Build MIME message
-  const msg = [
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`,
-    `From: ${params.from}`,
-    `To: ${params.to}`,
-    "MIME-Version: 1.0",
-    'Content-Type: text/html; charset="utf-8"',
-    "Content-Transfer-Encoding: 8bit",
-    "",
-    params.html,
-    ".",
-  ].join("\r\n");
+  // Build MIME message (with or without attachments)
+  const msg = buildMimeMessage({
+    from: params.from,
+    to: params.to,
+    subject: params.subject,
+    html: params.html,
+    attachments: params.attachments,
+  });
 
   await conn.write(encoder.encode(msg + "\r\n"));
   await expect(conn, 250);
@@ -231,6 +310,7 @@ async function sendViaSSL(params: {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }): Promise<void> {
   const conn = await Deno.connectTls({ hostname: params.hostname, port: params.port });
   
@@ -288,18 +368,14 @@ async function sendViaSSL(params: {
   await write("DATA");
   await expect(354);
 
-  // Build MIME message
-  const msg = [
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`,
-    `From: ${params.fromName} <${params.from}>`,
-    `To: ${params.to}`,
-    "MIME-Version: 1.0",
-    'Content-Type: text/html; charset="utf-8"',
-    "Content-Transfer-Encoding: 8bit",
-    "",
-    params.html,
-    ".",
-  ].join("\r\n");
+  // Build MIME message (with or without attachments)
+  const msg = buildMimeMessage({
+    from: `${params.fromName} <${params.from}>`,
+    to: params.to,
+    subject: params.subject,
+    html: params.html,
+    attachments: params.attachments,
+  });
 
   await conn.write(encoder.encode(msg + "\r\n"));
   await expect(250);
@@ -331,6 +407,7 @@ async function sendViaSmtp(settings: SmtpSettings, params: EmailParams): Promise
         to: toEmail,
         subject: params.subject,
         html: params.html,
+        attachments: params.attachments,
       });
     } else if (smtp_encryption === "ssl" || port === 465) {
       await sendViaSSL({
@@ -343,6 +420,7 @@ async function sendViaSmtp(settings: SmtpSettings, params: EmailParams): Promise
         to: toEmail,
         subject: params.subject,
         html: params.html,
+        attachments: params.attachments,
       });
     } else {
       // Fallback to STARTTLS for other configurations
@@ -355,6 +433,7 @@ async function sendViaSmtp(settings: SmtpSettings, params: EmailParams): Promise
         to: toEmail,
         subject: params.subject,
         html: params.html,
+        attachments: params.attachments,
       });
     }
   }
@@ -374,19 +453,30 @@ async function sendViaResend(params: EmailParams, senderName: string = "Webyan")
   // Use ASCII-safe sender name to avoid encoding issues with some mail servers
   const fromAddress = params.from || `${senderName} <support@webyan.sa>`;
   
+  // Build Resend payload with attachments
+  const payload: any = {
+    from: fromAddress,
+    to: toEmails,
+    subject: params.subject,
+    html: params.html,
+    reply_to: "support@webyan.sa",
+  };
+
+  if (params.attachments && params.attachments.length > 0) {
+    payload.attachments = params.attachments.map(att => ({
+      filename: att.filename,
+      content: uint8ArrayToBase64(att.content),
+      content_type: att.contentType,
+    }));
+  }
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${resendApiKey}`,
     },
-    body: JSON.stringify({
-      from: fromAddress,
-      to: toEmails,
-      subject: params.subject,
-      html: params.html,
-      reply_to: "support@webyan.sa",
-    }),
+    body: JSON.stringify(payload),
   });
 
   const responseData = await response.json();
