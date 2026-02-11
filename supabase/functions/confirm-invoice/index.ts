@@ -88,12 +88,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
       orgName = org?.name || '';
     }
 
-    // Send confirmation email to Webyan
-    const settings = await getSmtpSettings();
-    const webyanEmail = settings.support_email || 'support@webyan.sa';
+    // Send confirmation email to Webyan official email from system settings
+    const supabaseForSettings = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: adminEmailSetting } = await supabaseForSettings
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'admin_email')
+      .single();
+    
+    const { data: accountsEmailSetting } = await supabaseForSettings
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'accounts_email')
+      .single();
+
+    // Send to both admin email and accounts email
+    const recipients: string[] = [];
+    if (adminEmailSetting?.value) recipients.push(adminEmailSetting.value);
+    if (accountsEmailSetting?.value && accountsEmailSetting.value !== adminEmailSetting?.value) {
+      recipients.push(accountsEmailSetting.value);
+    }
+    if (recipients.length === 0) recipients.push('support@webyan.sa');
 
     await sendEmail({
-      to: webyanEmail,
+      to: recipients,
       subject: `✅ تم إصدار فاتورة – ${orgName} – طلب ${invoiceRequest.request_number}`,
       html: `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
