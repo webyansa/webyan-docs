@@ -81,8 +81,8 @@ import { PDFDownloadLink, BlobProvider, pdf } from '@react-pdf/renderer';
 import QuotePDFDocument from '@/components/crm/quotes/QuotePDFDocument';
 import { ContractDocumentationModal } from '@/components/operations/ContractDocumentationModal';
 import { useAuth } from '@/hooks/useAuth';
-import { InvoiceRequestModal } from '@/components/crm/modals/InvoiceRequestModal';
 import { InvoiceRequestStatus } from '@/components/crm/InvoiceRequestStatus';
+import { QuoteFinancialStepper } from '@/components/crm/quotes/QuoteFinancialStepper';
 
 interface QuoteItem {
   id?: string;
@@ -147,7 +147,7 @@ export default function QuoteDetailsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
-  const [showInvoiceRequestModal, setShowInvoiceRequestModal] = useState(false);
+  // InvoiceRequestModal is now inside QuoteFinancialStepper
   const [editForm, setEditForm] = useState<{
     title: string;
     quote_type: string;
@@ -682,16 +682,7 @@ export default function QuoteDetailsPage() {
                 </>
               )}
 
-              {/* Invoice Request - for accepted or sent quotes */}
-              {(quote?.status === 'accepted' || quote?.status === 'sent') && (
-                <>
-                  <DropdownMenuItem onClick={() => setShowInvoiceRequestModal(true)}>
-                    <Receipt className="h-4 w-4 ml-2 text-emerald-600" />
-                    طلب إصدار فاتورة
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
+              {/* Invoice Request removed - now handled via QuoteFinancialStepper */}
 
               <DropdownMenuItem onClick={handleSend}>
                 <Send className="h-4 w-4 ml-2" />
@@ -1108,86 +1099,8 @@ export default function QuoteDetailsPage() {
         </div>
       </div>
 
-      {/* Payment & Invoice Status Card */}
-      {(quote.status === 'accepted' || quote.status === 'sent') && (
-        <Card className="border-primary/20 print:hidden">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <CircleDollarSign className="h-5 w-5 text-primary" />
-              حالة الدفع والفاتورة
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Payment Status */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">حالة الدفع</span>
-                  <Badge variant="outline" className={
-                    (quote as any).payment_status === 'paid' 
-                      ? 'text-green-600 border-green-300 bg-green-50' 
-                      : (quote as any).payment_status === 'partially_paid'
-                        ? 'text-amber-600 border-amber-300 bg-amber-50'
-                        : 'text-slate-600 border-slate-300 bg-slate-50'
-                  }>
-                    <Banknote className="h-3.5 w-3.5 ml-1" />
-                    {(quote as any).payment_status === 'paid' ? 'تم الدفع' 
-                     : (quote as any).payment_status === 'partially_paid' ? 'دفع جزئي' 
-                     : 'لم يتم الدفع'}
-                  </Badge>
-                </div>
-                {(quote as any).payment_status !== 'paid' && (
-                  <Button 
-                    size="sm" 
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={async () => {
-                      try {
-                        await supabase.from('crm_quotes').update({ payment_status: 'paid' } as any).eq('id', quoteId);
-                        queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
-                        queryClient.invalidateQueries({ queryKey: ['crm-quotes'] });
-                        toast.success('تم تأكيد استلام الدفع');
-                      } catch { toast.error('حدث خطأ'); }
-                    }}
-                  >
-                    <CheckCircle className="h-4 w-4 ml-2" />
-                    تأكيد استلام الدفع
-                  </Button>
-                )}
-              </div>
-
-              {/* Invoice Status */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">حالة الفاتورة</span>
-                  <Badge variant="outline" className={
-                    (quote as any).invoice_status === 'issued'
-                      ? 'text-green-600 border-green-300 bg-green-50'
-                      : (quote as any).invoice_status === 'requested'
-                        ? 'text-blue-600 border-blue-300 bg-blue-50'
-                        : 'text-slate-600 border-slate-300 bg-slate-50'
-                  }>
-                    <FileOutput className="h-3.5 w-3.5 ml-1" />
-                    {(quote as any).invoice_status === 'issued' ? 'تم الإصدار'
-                     : (quote as any).invoice_status === 'requested' ? 'تم الطلب'
-                     : 'لم يُطلب'}
-                  </Badge>
-                </div>
-                {(quote as any).payment_status === 'paid' && (quote as any).invoice_status !== 'issued' && (
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setShowInvoiceRequestModal(true)}
-                  >
-                    <Receipt className="h-4 w-4 ml-2" />
-                    طلب إصدار فاتورة
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Financial Stepper - 5 sequential stages */}
+      <QuoteFinancialStepper quote={quote} quoteId={quoteId!} />
 
       {/* Quick Actions for pending quotes */}
       {(quote.status === 'sent' || quote.status === 'viewed' || quote.status === 'draft') && (
@@ -1582,15 +1495,7 @@ export default function QuoteDetailsPage() {
         />
       )}
 
-      {/* Invoice Request Modal */}
-      {quote && (
-        <InvoiceRequestModal
-          open={showInvoiceRequestModal}
-          onClose={() => setShowInvoiceRequestModal(false)}
-          quoteId={quoteId!}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['invoice-request-status', quoteId] })}
-        />
-      )}
+      {/* Invoice Request Modal is now inside QuoteFinancialStepper */}
 
       {/* Invoice Request Status - after quote meta info */}
       {quote && (quote.status === 'accepted' || quote.status === 'sent') && (

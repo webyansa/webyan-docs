@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.confirm-invoice]
 verify_jwt = false
+
+[functions.send-invoice-to-client]
+verify_jwt = false
