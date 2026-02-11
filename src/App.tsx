@@ -23,6 +23,7 @@ import EmbedTicketPage from "./pages/embed/EmbedTicketPage";
 import EmbedChatPage from "./pages/embed/EmbedChatPage";
 import EmbedDemoRequestPage from "./pages/embed/EmbedDemoRequestPage";
 import EmbedDemoRequestPopup from "./pages/embed/EmbedDemoRequestPopup";
+import InvoiceConfirmPage from "./pages/embed/InvoiceConfirmPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 
 // Admin pages
@@ -140,6 +141,7 @@ const App = () => (
               <Route path="/embed/chat" element={<EmbedChatPage />} />
               <Route path="/embed/demo-request" element={<EmbedDemoRequestPage />} />
               <Route path="/embed/demo-request-popup" element={<EmbedDemoRequestPopup />} />
+              <Route path="/invoice-confirm/:requestId" element={<InvoiceConfirmPage />} />
               <Route path="/docs/:moduleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug/:articleSlug" element={<ArticlePage />} />

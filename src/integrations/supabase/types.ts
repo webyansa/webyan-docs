@@ -216,6 +216,7 @@ export type Database = {
           primary_contact_email: string | null
           primary_contact_name: string | null
           primary_contact_phone: string | null
+          region: string | null
           registration_number: string | null
           renewal_date: string | null
           sales_owner_id: string | null
@@ -268,6 +269,7 @@ export type Database = {
           primary_contact_email?: string | null
           primary_contact_name?: string | null
           primary_contact_phone?: string | null
+          region?: string | null
           registration_number?: string | null
           renewal_date?: string | null
           sales_owner_id?: string | null
@@ -320,6 +322,7 @@ export type Database = {
           primary_contact_email?: string | null
           primary_contact_name?: string | null
           primary_contact_phone?: string | null
+          region?: string | null
           registration_number?: string | null
           renewal_date?: string | null
           sales_owner_id?: string | null
@@ -1422,9 +1425,11 @@ export type Database = {
           discount_value: number | null
           document_url: string | null
           id: string
+          invoice_status: string | null
           items: Json | null
           notes: string | null
           opportunity_id: string | null
+          payment_status: string | null
           plan_id: string | null
           project_id: string | null
           project_name: string | null
@@ -1459,9 +1464,11 @@ export type Database = {
           discount_value?: number | null
           document_url?: string | null
           id?: string
+          invoice_status?: string | null
           items?: Json | null
           notes?: string | null
           opportunity_id?: string | null
+          payment_status?: string | null
           plan_id?: string | null
           project_id?: string | null
           project_name?: string | null
@@ -1496,9 +1503,11 @@ export type Database = {
           discount_value?: number | null
           document_url?: string | null
           id?: string
+          invoice_status?: string | null
           items?: Json | null
           notes?: string | null
           opportunity_id?: string | null
+          payment_status?: string | null
           plan_id?: string | null
           project_id?: string | null
           project_name?: string | null
@@ -2321,10 +2330,13 @@ export type Database = {
       }
       invoice_requests: {
         Row: {
+          confirmed_at: string | null
+          confirmed_by_name: string | null
           created_at: string
           expected_payment_method: string | null
           external_invoice_no: string | null
           id: string
+          invoice_file_url: string | null
           issued_at: string | null
           notes_for_accounts: string | null
           organization_id: string
@@ -2337,10 +2349,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          confirmed_at?: string | null
+          confirmed_by_name?: string | null
           created_at?: string
           expected_payment_method?: string | null
           external_invoice_no?: string | null
           id?: string
+          invoice_file_url?: string | null
           issued_at?: string | null
           notes_for_accounts?: string | null
           organization_id: string
@@ -2353,10 +2368,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          confirmed_at?: string | null
+          confirmed_by_name?: string | null
           created_at?: string
           expected_payment_method?: string | null
           external_invoice_no?: string | null
           id?: string
+          invoice_file_url?: string | null
           issued_at?: string | null
           notes_for_accounts?: string | null
           organization_id?: string
