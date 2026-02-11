@@ -211,13 +211,17 @@ export function InvoiceRequestModal({ open, onClose, quoteId, onSuccess }: Invoi
               .from('ticket-attachments')
               .getPublicUrl(`quotes/${fileName}`);
             quotePdfUrl = urlData.publicUrl;
+            console.log('PDF uploaded successfully:', quotePdfUrl);
           } else {
             console.error('PDF upload error:', uploadError);
-            toast.warning('تعذر رفع ملف PDF، سيتم إرسال الطلب بدون مرفق');
+            toast.error('فشل رفع ملف PDF: ' + (uploadError.message || 'خطأ غير معروف'));
+            // Don't proceed without PDF - throw to stop
+            throw new Error('فشل رفع ملف عرض السعر PDF. تأكد من الاتصال وحاول مرة أخرى.');
           }
-        } catch (pdfErr) {
+        } catch (pdfErr: any) {
           console.error('PDF generation error:', pdfErr);
-          toast.warning('تعذر إنشاء ملف PDF، سيتم إرسال الطلب بدون مرفق');
+          toast.error('فشل إنشاء ملف PDF: ' + (pdfErr.message || 'خطأ غير معروف'));
+          throw new Error('فشل إنشاء ملف عرض السعر PDF. حاول مرة أخرى.');
         }
       }
 
