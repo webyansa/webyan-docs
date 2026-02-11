@@ -230,6 +230,7 @@ export function InvoiceRequestModal({ open, onClose, quoteId, onSuccess }: Invoi
           is_resend: isResend,
           resend_reason: isResend ? resendReason : null,
           quote_pdf_url: quotePdfUrl,
+          app_base_url: window.location.origin,
         },
       });
 

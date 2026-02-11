@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendEmail, getSmtpSettings } from "../_shared/smtp-sender.ts";
+import type { EmailAttachment } from "../_shared/smtp-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,7 @@ interface RequestBody {
   is_resend?: boolean;
   resend_reason?: string;
   quote_pdf_url?: string;
+  app_base_url?: string;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -29,7 +31,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: RequestBody = await req.json();
-    const { quote_id, notes_for_accounts, expected_payment_method, sent_by, is_resend, resend_reason, quote_pdf_url } = body;
+    const { quote_id, notes_for_accounts, expected_payment_method, sent_by, is_resend, resend_reason, quote_pdf_url, app_base_url } = body;
 
     if (!quote_id) {
       throw new Error("quote_id is required");
@@ -124,6 +126,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .from('crm_quotes')
       .update({ invoice_status: 'requested' } as any)
       .eq('id', quote_id);
+
     // Calculate financial values
     const subtotal = quote.subtotal || 0;
     const discountValue = quote.discount_value || 0;
@@ -136,10 +139,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const taxAmount = quote.tax_amount || (afterDiscount * taxRate / 100);
     const totalAmount = quote.total_amount || (afterDiscount + taxAmount);
 
-    // Get base URL from settings
+    // Use app_base_url from client for confirm URL (fixes 404 issue)
     const settings = await getSmtpSettings();
-    const baseUrl = settings.public_base_url || 'https://webyan.sa';
-    const quoteUrl = `${baseUrl}/admin/crm/quotes/${quote_id}`;
+    const confirmBaseUrl = app_base_url || settings.public_base_url || 'https://webyan.sa';
 
     // Build invoice description
     const planName = (quote.plan as any)?.name;
@@ -155,7 +157,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
 
     // Build email HTML
-    const confirmUrl = `${baseUrl}/invoice-confirm/${requestId}`;
+    const confirmUrl = `${confirmBaseUrl}/invoice-confirm/${requestId}`;
     
     const emailHtml = buildEmailHtml({
       org,
@@ -169,7 +171,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       taxAmount,
       totalAmount,
       description,
-      quoteUrl,
       confirmUrl,
       expected_payment_method,
       notes_for_accounts,
@@ -179,17 +180,41 @@ Deno.serve(async (req: Request): Promise<Response> => {
       quote_pdf_url,
     });
 
+    // Fetch PDF file and attach it to the email
+    const attachments: EmailAttachment[] = [];
+    if (quote_pdf_url) {
+      try {
+        console.log('Fetching PDF from:', quote_pdf_url);
+        const pdfResponse = await fetch(quote_pdf_url);
+        if (pdfResponse.ok) {
+          const pdfArrayBuffer = await pdfResponse.arrayBuffer();
+          const pdfBytes = new Uint8Array(pdfArrayBuffer);
+          const safeFilename = `Quote-${quote.quote_number}.pdf`;
+          attachments.push({
+            filename: safeFilename,
+            content: pdfBytes,
+            contentType: 'application/pdf',
+          });
+          console.log(`PDF attached: ${safeFilename} (${pdfBytes.length} bytes)`);
+        } else {
+          console.error('Failed to fetch PDF:', pdfResponse.status, pdfResponse.statusText);
+        }
+      } catch (pdfFetchError) {
+        console.error('Error fetching PDF for attachment:', pdfFetchError);
+      }
+    }
+
     // Send email using unified smtp-sender (SMTP with Resend fallback)
     const emailResult = await sendEmail({
       to: accountsEmail,
       subject: `طلب إصدار فاتورة – ${org.name} – عرض سعر ${quote.quote_number}`,
       html: emailHtml,
       emailType: 'invoice_request',
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     if (!emailResult.success) {
       console.error('Email send failed:', emailResult.error);
-      // Still return success for the request creation, but note the email issue
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -227,7 +252,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 function buildEmailHtml(params: any): string {
   const {
     org, quote, requestNumber, subtotal, discountAmount, discountType, discountValue,
-    taxRate, taxAmount, totalAmount, description, quoteUrl, confirmUrl,
+    taxRate, taxAmount, totalAmount, description, confirmUrl,
     expected_payment_method, notes_for_accounts, is_resend, resend_reason, paymentMethodLabels,
     quote_pdf_url
   } = params;
@@ -258,12 +283,17 @@ function buildEmailHtml(params: any): string {
   const bgGray = '#f3f4f6';
   const bgWhite = '#ffffff';
 
-  // Build buttons: PDF download (if available) + confirm invoice
+  // Build buttons: confirm invoice only (PDF is attached to the email)
   let buttonsHtml = '';
   if (quote_pdf_url) {
     buttonsHtml += `<td align="center" style="padding:0 8px;"><a href="${quote_pdf_url}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#7c3aed;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">📄 تحميل عرض السعر PDF</a></td>`;
   }
   buttonsHtml += `<td align="center" style="padding:0 8px;"><a href="${confirmUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#16a34a;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">✅ تأكيد إصدار الفاتورة</a></td>`;
+
+  // Note about PDF attachment
+  const pdfNote = quote_pdf_url 
+    ? `<tr><td style="padding:10px 30px;"><table width="100%" cellpadding="12" cellspacing="0" style="background-color:#eff6ff;border-radius:8px;border-right:4px solid #3b82f6;"><tr><td><p style="margin:0;font-size:13px;color:#1e40af;font-family:Arial,sans-serif;">📎 ملف عرض السعر PDF مرفق مع هذا البريد</p></td></tr></table></td></tr>`
+    : '';
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -276,6 +306,7 @@ function buildEmailHtml(params: any): string {
 <h1 style="margin:0;font-size:24px;color:#ffffff;font-family:Arial,sans-serif;">🧾 طلب إصدار فاتورة</h1>
 <p style="margin:10px 0 0;font-size:14px;color:rgba(255,255,255,0.9);font-family:Arial,sans-serif;">عرض سعر رقم: ${quote.quote_number}</p>
 </td></tr>
+${pdfNote}
 <tr><td style="padding:25px 30px 15px;">
 <h2 style="margin:0 0 15px;font-size:16px;color:${primary};font-family:Arial,sans-serif;border-bottom:2px solid ${primary};padding-bottom:8px;">📋 بيانات العميل</h2>
 <table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
