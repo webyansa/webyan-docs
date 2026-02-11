@@ -232,6 +232,24 @@ function buildEmailHtml(params: any): string {
     quote_pdf_url
   } = params;
 
+  // Region labels mapping
+  const regionLabels: Record<string, string> = {
+    riyadh: 'منطقة الرياض',
+    makkah: 'منطقة مكة المكرمة',
+    madinah: 'منطقة المدينة المنورة',
+    qassim: 'منطقة القصيم',
+    eastern: 'المنطقة الشرقية',
+    asir: 'منطقة عسير',
+    tabuk: 'منطقة تبوك',
+    hail: 'منطقة حائل',
+    northern_borders: 'منطقة الحدود الشمالية',
+    jazan: 'منطقة جازان',
+    najran: 'منطقة نجران',
+    bahah: 'منطقة الباحة',
+    jawf: 'منطقة الجوف',
+  };
+  const regionLabel = org.region ? (regionLabels[org.region] || org.region) : '-';
+
   const primary = '#1e40af';
   const primaryDark = '#1e3a8a';
   const textDark = '#1f2937';
@@ -239,6 +257,13 @@ function buildEmailHtml(params: any): string {
   const bgLight = '#f9fafb';
   const bgGray = '#f3f4f6';
   const bgWhite = '#ffffff';
+
+  // Build buttons: PDF download (if available) + confirm invoice
+  let buttonsHtml = '';
+  if (quote_pdf_url) {
+    buttonsHtml += `<td align="center" style="padding:0 8px;"><a href="${quote_pdf_url}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#7c3aed;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">📄 تحميل عرض السعر PDF</a></td>`;
+  }
+  buttonsHtml += `<td align="center" style="padding:0 8px;"><a href="${confirmUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#16a34a;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">✅ تأكيد إصدار الفاتورة</a></td>`;
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -265,6 +290,7 @@ function buildEmailHtml(params: any): string {
 <h2 style="margin:0 0 15px;font-size:16px;color:${primary};font-family:Arial,sans-serif;border-bottom:2px solid ${primary};padding-bottom:8px;">📍 العنوان الوطني</h2>
 <table width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;font-family:Arial,sans-serif;">
 <tr><td style="color:${textMuted};width:35%;">المدينة:</td><td style="color:${textDark};">${org.city || '-'}</td></tr>
+<tr><td style="color:${textMuted};">المنطقة:</td><td style="color:${textDark};">${regionLabel}</td></tr>
 <tr><td style="color:${textMuted};">الحي:</td><td style="color:${textDark};">${org.district || '-'}</td></tr>
 <tr><td style="color:${textMuted};">الشارع:</td><td style="color:${textDark};">${org.street_name || '-'}</td></tr>
 <tr><td style="color:${textMuted};">رقم المبنى:</td><td style="color:${textDark};">${org.building_number || '-'}</td></tr>
@@ -293,8 +319,7 @@ ${notes_for_accounts ? `<tr><td style="color:${textMuted};vertical-align:top;">�
   ${is_resend && resend_reason ? `<tr><td style="padding:15px 30px;"><table width="100%" cellpadding="15" cellspacing="0" style="background-color:#fef3c7;border-radius:8px;border-right:4px solid #f59e0b;"><tr><td><p style="margin:0 0 5px;font-size:13px;color:#92400e;font-weight:bold;font-family:Arial,sans-serif;">⚠️ سبب إعادة الإرسال:</p><p style="margin:0;font-size:14px;color:#78350f;font-family:Arial,sans-serif;">${resend_reason}</p></td></tr></table></td></tr>` : ''}
 <tr><td align="center" style="padding:25px 30px;">
 <table cellpadding="0" cellspacing="0"><tr>
-<td align="center" style="padding:0 8px;"><a href="${confirmUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#16a34a;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">✅ تأكيد إصدار الفاتورة</a></td>
-${quote_pdf_url ? `<td align="center" style="padding:0 8px;"><a href="${quote_pdf_url}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:#7c3aed;text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">📄 تحميل عرض السعر PDF</a></td>` : `<td align="center" style="padding:0 8px;"><a href="${quoteUrl}" target="_blank" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:bold;color:#ffffff;background-color:${primary};text-decoration:none;border-radius:8px;font-family:Arial,sans-serif;">🔗 فتح عرض السعر</a></td>`}
+${buttonsHtml}
 </tr></table>
 </td></tr>
 <tr><td align="center" bgcolor="${primaryDark}" style="padding:25px;"><p style="margin:0;font-size:13px;color:rgba(255,255,255,0.8);font-family:Arial,sans-serif;">رقم طلب الفاتورة: <strong>${requestNumber}</strong></p><p style="margin:10px 0 0;font-size:12px;color:rgba(255,255,255,0.6);font-family:Arial,sans-serif;">هذا بريد آلي من نظام ويبيان</p></td></tr>
