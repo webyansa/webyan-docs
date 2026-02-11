@@ -199,20 +199,40 @@ export default function ProjectsPage() {
     });
   };
 
+  // Validate if project can be deleted
+  const canDeleteProject = (project: any): { allowed: boolean; reason?: string } => {
+    const phases = project.project_phases || [];
+    const hasStartedPhases = phases.some((p: any) => p.status === 'in_progress' || p.status === 'completed');
+    const allCompleted = phases.length > 0 && phases.every((p: any) => p.status === 'completed');
+    const isCompleted = project.status === 'completed';
+    const isActive = project.status === 'active';
+
+    // Allow: completed project with all phases done
+    if (isCompleted && (allCompleted || phases.length === 0)) return { allowed: true };
+    // Allow: active project with NO started/completed phases
+    if (isActive && !hasStartedPhases) return { allowed: true };
+    // Block: in-progress or has started phases
+    return { allowed: false, reason: 'لا يمكن حذف مشروع قيد التنفيذ. يمكن حذف المشاريع المكتملة أو النشطة التي لم يبدأ تنفيذ أي مرحلة فيها.' };
+  };
+
   // Delete projects mutation
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      // Delete phases first
-      const { error: phasesError } = await supabase
-        .from('project_phases')
-        .delete()
-        .in('project_id', ids);
-      if (phasesError) throw phasesError;
+      // Cascading delete: remove all related records first
+      await supabase.from('project_sprints').delete().in('project_id', ids);
+      await supabase.from('project_service_notes').delete().in('project_id', ids);
+      await supabase.from('project_activity_log').delete().in('project_id', ids);
+      await supabase.from('project_team_members').delete().in('project_id', ids);
+      await supabase.from('project_phases').delete().in('project_id', ids);
+      for (const id of ids) {
+        await supabase.from('client_recurring_charges').delete().eq('project_id', id);
+      }
+      await supabase.from('staff_project_history').delete().in('project_id', ids);
+      // Unlink quotes (set project_id to null instead of deleting)
+      await supabase.from('crm_quotes').update({ project_id: null }).in('project_id', ids);
 
-      const { error } = await supabase
-        .from('crm_implementations')
-        .delete()
-        .in('id', ids);
+      // Finally delete the project itself
+      const { error } = await supabase.from('crm_implementations').delete().in('id', ids);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -228,6 +248,14 @@ export default function ProjectsPage() {
 
   const handleDeleteConfirm = () => {
     if (deleteTarget) {
+      // Validate all targets before deleting
+      const targetProjects = projects.filter((p: any) => deleteTarget.includes(p.id));
+      const blocked = targetProjects.find((p: any) => !canDeleteProject(p).allowed);
+      if (blocked) {
+        toast.error(canDeleteProject(blocked).reason!);
+        setDeleteConfirmOpen(false);
+        return;
+      }
       deleteMutation.mutate(deleteTarget);
     }
     setDeleteConfirmOpen(false);
@@ -507,7 +535,15 @@ export default function ProjectsPage() {
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => { setDeleteTarget([project.id]); setDeleteConfirmOpen(true); }}
+                          onClick={() => {
+                            const check = canDeleteProject(project);
+                            if (!check.allowed) {
+                              toast.error(check.reason!);
+                              return;
+                            }
+                            setDeleteTarget([project.id]);
+                            setDeleteConfirmOpen(true);
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
