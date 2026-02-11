@@ -51,7 +51,16 @@ import {
   FileCheck,
   Send,
   CalendarIcon,
+  Pencil,
+  Undo2,
+  MoreHorizontal,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/crm/pipelineConfig';
 import { format } from 'date-fns';
@@ -87,6 +96,8 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
   const [showInvoiceRequestModal, setShowInvoiceRequestModal] = useState(false);
   const [showIssueConfirmDialog, setShowIssueConfirmDialog] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showRollbackConfirm, setShowRollbackConfirm] = useState<number | null>(null);
+  const [editingStep, setEditingStep] = useState<number | null>(null);
 
   // Approval form state
   const [approvalChoice, setApprovalChoice] = useState<'yes' | 'no'>('yes');
@@ -261,15 +272,88 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
     onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الإرسال'),
   });
 
+  // Rollback mutation - resets a stage and all stages after it
+  const rollbackMutation = useMutation({
+    mutationFn: async (stepIndex: number) => {
+      const resetData: any = { updated_at: new Date().toISOString() };
+      
+      // Reset from stepIndex onwards
+      if (stepIndex <= 4) {
+        resetData.invoice_sent_to_client = false;
+        resetData.invoice_sent_to_client_at = null;
+      }
+      if (stepIndex <= 3) {
+        resetData.invoice_status = stepIndex <= 2 ? 'none' : 'requested';
+      }
+      if (stepIndex <= 2) {
+        // Don't reset invoice_status here if rolling back step 2, keep it
+        // Actually reset invoice request status
+        resetData.invoice_status = 'none';
+      }
+      if (stepIndex <= 1) {
+        resetData.payment_confirmed = false;
+        resetData.payment_amount = null;
+        resetData.payment_bank_name = null;
+        resetData.payment_date = null;
+        resetData.payment_transfer_number = null;
+        resetData.payment_notes = null;
+        resetData.payment_confirmed_at = null;
+        resetData.payment_status = 'unpaid';
+      }
+      if (stepIndex <= 0) {
+        resetData.client_approved = null;
+        resetData.client_approved_at = null;
+        resetData.client_rejection_reason = null;
+      }
+
+      const { error } = await supabase.from('crm_quotes').update(resetData).eq('id', quoteId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-quote-details', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-request-for-stepper', quoteId] });
+      toast.success('تم التراجع بنجاح');
+      setShowRollbackConfirm(null);
+    },
+    onError: () => toast.error('حدث خطأ أثناء التراجع'),
+  });
+
+  const handleEditStep = (stepIndex: number) => {
+    const q = quote as any;
+    // Pre-fill form with existing data then open dialog
+    if (stepIndex === 0) {
+      setApprovalChoice(q.client_approved ? 'yes' : 'no');
+      setRejectionReason(q.client_rejection_reason || '');
+      setEditingStep(0);
+      setShowApprovalDialog(true);
+    } else if (stepIndex === 1) {
+      setPaymentBankName(q.payment_bank_name || '');
+      setPaymentAmount(q.payment_amount?.toString() || '');
+      setPaymentDate(q.payment_date ? new Date(q.payment_date) : new Date());
+      setTransferNumber(q.payment_transfer_number || '');
+      setPaymentNotes(q.payment_notes || '');
+      setEditingStep(1);
+      setShowPaymentDialog(true);
+    }
+  };
+
   const handleStepAction = (stepIndex: number) => {
     switch (stepIndex) {
-      case 0: setShowApprovalDialog(true); break;
-      case 1: setShowPaymentDialog(true); break;
+      case 0: setEditingStep(null); setShowApprovalDialog(true); break;
+      case 1: setEditingStep(null); setShowPaymentDialog(true); break;
       case 2: setShowInvoiceRequestModal(true); break;
       case 3: setShowIssueConfirmDialog(true); break;
       case 4: setShowSendDialog(true); break;
     }
   };
+
+  const getRollbackLabel = (stepIndex: number): string => {
+    const labels = ['التراجع عن التعميد', 'التراجع عن تأكيد الدفع', 'التراجع عن طلب الفاتورة', 'التراجع عن إصدار الفاتورة', 'التراجع عن الإرسال'];
+    return labels[stepIndex] || 'تراجع';
+  };
+
+  // Can edit only steps 0 and 1 (approval & payment have editable fields)
+  const canEditStep = (stepIndex: number) => stepIndex <= 1;
 
   const getStepDetails = (stepIndex: number): string | null => {
     const q = quote as any;
@@ -411,11 +495,38 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
                         </Badge>
                       </div>
 
-                      {status === 'active' && (
-                        <Button size="sm" onClick={() => handleStepAction(index)}>
-                          {getActionLabel(index)}
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {status === 'active' && (
+                          <Button size="sm" onClick={() => handleStepAction(index)}>
+                            {getActionLabel(index)}
+                          </Button>
+                        )}
+
+                        {(status === 'completed' || status === 'rejected') && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canEditStep(index) && status === 'completed' && (
+                                <DropdownMenuItem onClick={() => handleEditStep(index)}>
+                                  <Pencil className="h-4 w-4 ml-2" />
+                                  تعديل البيانات
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                onClick={() => setShowRollbackConfirm(index)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Undo2 className="h-4 w-4 ml-2" />
+                                {getRollbackLabel(index)}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
 
                     {details && (
@@ -638,6 +749,38 @@ export function QuoteFinancialStepper({ quote, quoteId }: QuoteFinancialStepperP
               {sendToClientMutation.isPending && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
               <Send className="h-4 w-4 ml-2" />
               إرسال الفاتورة
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rollback Confirmation Dialog */}
+      <AlertDialog open={showRollbackConfirm !== null} onOpenChange={(open) => !open && setShowRollbackConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Undo2 className="h-5 w-5" />
+              تأكيد التراجع
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {showRollbackConfirm !== null && (
+                <>
+                  سيتم التراجع عن مرحلة "<strong>{STEPS[showRollbackConfirm]?.label}</strong>" وجميع المراحل التي تليها.
+                  <br />
+                  <span className="text-destructive font-medium">هذا الإجراء لا يمكن التراجع عنه.</span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => showRollbackConfirm !== null && rollbackMutation.mutate(showRollbackConfirm)}
+              disabled={rollbackMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {rollbackMutation.isPending && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
+              تأكيد التراجع
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
