@@ -1,99 +1,74 @@
 
-# نظام الاشعارات المركزي الاحترافي للوحة التحكم
+
+# فصل نماذج التضمين: تذاكر الدعم والمراسلات
 
 ## الوضع الحالي
 
-النظام الحالي يعمل بطريقتين منفصلتين:
-- **اشعارات لحظية (Toast):** تظهر كرسائل مؤقتة عبر `useStaffNotifications` ثم تختفي -- لا يتم حفظها
-- **اشعارات ثابتة (Bell):** تستخدم جدول `user_notifications` لكنها محدودة بإشعارات المقالات والتذاكر للعملاء فقط
+- جدول `embed_tokens` واحد يخدم كلا النوعين (تذاكر + دردشة) بدون تمييز بينهما
+- صفحة `EmbedSettingsPage` (تذاكر) موجودة في قسم "العملاء (قديم)" في القائمة الجانبية
+- صفحة `ChatEmbedSettingsPage` (دردشة) موجودة في قسم "المحادثات"
+- لا يوجد ربط بين رموز التضمين وملف العميل (CustomerProfilePage)
 
-**المشكلة:** لا يوجد مركز اشعارات ثابت ومستمر للادارة يغطي جميع الاحداث
+## الحل
 
----
+### 1. اضافة عمود `token_type` لجدول `embed_tokens`
 
-## الحل المقترح
+اضافة عمود جديد يميز نوع الرمز:
+- `ticket` -- نموذج تذاكر الدعم
+- `chat` -- نموذج المراسلات/الدردشة
 
-بناء نظام اشعارات مركزي متكامل يشمل:
+القيمة الافتراضية `ticket` لضمان توافق الرموز الحالية.
 
-1. **جدول جديد `admin_notifications`** لحفظ جميع الاشعارات بشكل دائم
-2. **Hook جديد `useAdminNotifications`** لادارة الاشعارات مع صوت وربط فوري
-3. **مكون `AdminNotificationDropdown`** في الهيدر مع قائمة منسدلة احترافية
-4. **ربط تلقائي** -- كل حدث في النظام يولد اشعار محفوظ + صوت + رابط مباشر
+### 2. نقل "تضمين تذاكر الدعم" الى قسم تذاكر الدعم في القائمة الجانبية
 
----
+نقل الرابط من قسم "العملاء (قديم)" الى قسم "تذاكر الدعم" ليصبح:
+- جميع التذاكر
+- اعدادات التصعيد
+- البلاغات
+- **تضمين تذاكر الدعم** (جديد هنا)
 
-## انواع الاشعارات المدعومة
+### 3. فلترة كل صفحة حسب النوع
 
-| النوع | المصدر | الرابط عند الضغط |
-|-------|--------|-----------------|
-| تذكرة جديدة | `support_tickets` INSERT | صفحة التذكرة |
-| رد على تذكرة | `ticket_replies` INSERT | صفحة التذكرة |
-| انجاز تذكرة | `support_tickets` UPDATE (status=closed) | صفحة التذكرة |
-| طلب اجتماع | `meeting_requests` INSERT | صفحة الاجتماعات |
-| اتمام اجتماع | `meeting_requests` UPDATE (status=completed) | صفحة الاجتماعات |
-| طلب عرض توضيحي | `website_form_submissions` INSERT | صفحة طلبات الموقع |
-| فتح محادثة | `conversations` INSERT | صندوق الوارد |
-| تحديث مشروع | `project_activity_log` INSERT | صفحة المشروع |
-| مرحلة منجزة | `project_activity_log` (phase_completed) | صفحة المشروع |
-| تاكيد فاتورة | `invoice_requests` UPDATE (status=issued) | صفحة عروض الاسعار |
+- `EmbedSettingsPage` يعرض فقط الرموز من نوع `ticket`
+- `ChatEmbedSettingsPage` يعرض فقط الرموز من نوع `chat`
+- عند انشاء رمز جديد يتم حفظ النوع المناسب تلقائيا
+
+### 4. اضافة تبويب "التضمين" في ملف العميل (CustomerProfilePage)
+
+تبويب جديد "التضمين" يعرض:
+- جميع رموز التضمين المرتبطة بالعميل (تذاكر + دردشة)
+- امكانية انشاء رمز تذاكر جديد او رمز دردشة جديد مباشرة من ملف العميل
+- عرض حالة كل رمز (فعال/معطل) مع احصائيات الاستخدام
+- نسخ كود التضمين مباشرة
 
 ---
 
 ## التفاصيل التقنية
 
-### 1. جدول قاعدة البيانات `admin_notifications`
+### قاعدة البيانات
 
 ```text
-admin_notifications
---------------------
-id              UUID (PK)
-type            TEXT (نوع الاشعار)
-title           TEXT (عنوان الاشعار)
-message         TEXT (وصف مختصر)
-link            TEXT (رابط المصدر)
-metadata        JSONB (بيانات اضافية)
-is_read         BOOLEAN (default: false)
-created_at      TIMESTAMPTZ
+ALTER TABLE embed_tokens ADD COLUMN token_type TEXT DEFAULT 'ticket';
+-- تحديث الرموز الحالية التي تبدا بـ chat_ لتصبح من نوع chat
+UPDATE embed_tokens SET token_type = 'chat' WHERE token LIKE 'chat_%';
 ```
-
-- تفعيل Realtime على الجدول
-- سياسات RLS: القراءة والتعديل للادارة والمحررين فقط
-
-### 2. Hook: `useAdminNotifications.ts`
-
-- جلب الاشعارات من `admin_notifications` مرتبة بالاحدث
-- اشتراك Realtime لاستقبال الاشعارات الجديدة فوريا
-- تشغيل صوت تنبيه عند وصول اشعار جديد
-- دوال: `markAsRead`, `markAllAsRead`, `deleteNotification`
-
-### 3. مكون `AdminNotificationDropdown.tsx`
-
-- ايقونة الجرس مع عداد الاشعارات غير المقروءة
-- قائمة منسدلة تعرض الاشعارات مع ايقونات ملونة حسب النوع
-- الضغط على اي اشعار ينقل المستخدم الى مصدر الاشعار مباشرة
-- زر "قراءة الكل" وزر حذف لكل اشعار
-
-### 4. تحديث `useStaffNotifications.tsx`
-
-- عند اكتشاف اي حدث جديد عبر Realtime، يتم:
-  - عرض Toast لحظي (كما هو حاليا)
-  - حفظ الاشعار في جدول `admin_notifications` ليظهر في القائمة المنسدلة
-
-### 5. اضافة اشعارات جديدة
-
-- اشتراك في `support_tickets` UPDATE لاكتشاف اغلاق التذاكر
-- اشتراك في `meeting_requests` UPDATE لاكتشاف اتمام الاجتماعات
-- اشتراك في `invoice_requests` UPDATE لاكتشاف تاكيد الفواتير
-
-### 6. تحديث `AdminLayout.tsx`
-
-- اضافة `AdminNotificationDropdown` في الهيدر بجانب اشعارات المحادثات
-- تفعيل `useStaffNotifications` داخل AdminLayout لضمان عمل الاشعارات
 
 ### الملفات المتاثرة
 
-- **جديد:** `src/hooks/useAdminNotifications.ts`
-- **جديد:** `src/components/layout/AdminNotificationDropdown.tsx`
-- **تعديل:** `src/hooks/useStaffNotifications.tsx` (اضافة حفظ في الجدول + اشتراكات جديدة)
-- **تعديل:** `src/pages/admin/AdminLayout.tsx` (اضافة المكون في الهيدر)
-- **قاعدة بيانات:** انشاء جدول `admin_notifications` + RLS + Realtime
+| الملف | التغيير |
+|-------|---------|
+| `src/pages/admin/AdminLayout.tsx` | نقل رابط التضمين من قسم العملاء الى قسم التذاكر |
+| `src/pages/admin/EmbedSettingsPage.tsx` | فلترة بـ `token_type = 'ticket'` وحفظ النوع عند الانشاء |
+| `src/pages/admin/ChatEmbedSettingsPage.tsx` | فلترة بـ `token_type = 'chat'` وحفظ النوع عند الانشاء |
+| `src/pages/admin/crm/CustomerProfilePage.tsx` | اضافة تبويب "التضمين" |
+| `src/components/crm/tabs/EmbedTokensTab.tsx` | **جديد** -- مكون التبويب لعرض وانشاء رموز التضمين في ملف العميل |
+
+### مكون `EmbedTokensTab.tsx`
+
+- يستقبل `organizationId` و `organizationName`
+- يجلب رموز التضمين المرتبطة بالعميل من `embed_tokens`
+- يعرضها مقسمة: قسم "تذاكر الدعم" وقسم "المراسلات"
+- زر انشاء رمز جديد مع اختيار النوع (تذكرة/دردشة)
+- نسخ كود التضمين (iframe / floating button) مباشرة
+- تفعيل/تعطيل/حذف الرموز
+
