@@ -212,40 +212,71 @@ Deno.serve(async (req: Request) => {
 
     // 1) Confirmation email to customer
     if (resendApiKey) {
+      // 1) Confirmation email to customer
       emailPromises.push((async () => {
         try {
+          console.log('Sending customer confirmation email to:', body.email);
           const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: "Webyan <noreply@webyan.sa>",
+              from: "Webyan Support <support@webyan.sa>",
+              reply_to: "support@webyan.sa",
               to: [body.email],
               subject: "تم استلام طلب العرض التوضيحي - ويبيان",
               html: buildCustomerEmail(body, submission.submission_number)
             })
           });
-          if (!res.ok) console.error('Customer email failed:', await res.text());
+          const resText = await res.text();
+          if (!res.ok) {
+            console.error('Customer email failed:', resText);
+          } else {
+            console.log('Customer email sent successfully:', resText);
+            // Log to email_logs
+            await supabase.from('email_logs').insert({
+              recipient_email: body.email,
+              subject: "تم استلام طلب العرض التوضيحي - ويبيان",
+              email_type: 'demo_request_confirmation',
+              status: 'success',
+              method: 'resend'
+            });
+          }
         } catch (e) { console.error('Customer email error:', e); }
       })());
 
       // 2) Admin notification email
       if (adminEmail) {
+        console.log('Sending admin notification email to:', adminEmail);
         emailPromises.push((async () => {
           try {
             const res = await fetch("https://api.resend.com/emails", {
               method: "POST",
               headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({
-                from: "Webyan System <noreply@webyan.sa>",
+                from: "Webyan Support <support@webyan.sa>",
                 reply_to: body.email,
                 to: [adminEmail],
                 subject: `🔔 طلب عرض توضيحي جديد - ${body.organization_name}`,
                 html: buildAdminEmail(body, submission.submission_number, isNewLead)
               })
             });
-            if (!res.ok) console.error('Admin email failed:', await res.text());
+            const resText = await res.text();
+            if (!res.ok) {
+              console.error('Admin email failed:', resText);
+            } else {
+              console.log('Admin email sent successfully:', resText);
+              await supabase.from('email_logs').insert({
+                recipient_email: adminEmail,
+                subject: `🔔 طلب عرض توضيحي جديد - ${body.organization_name}`,
+                email_type: 'demo_request_admin_notification',
+                status: 'success',
+                method: 'resend'
+              });
+            }
           } catch (e) { console.error('Admin email error:', e); }
         })());
+      } else {
+        console.warn('No admin email found in system_settings');
       }
     }
 
