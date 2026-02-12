@@ -2317,6 +2317,7 @@ export type Database = {
           primary_color: string | null
           secondary_color: string | null
           token: string
+          token_type: string | null
           updated_at: string
           usage_count: number | null
           welcome_message: string | null
@@ -2335,6 +2336,7 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           token: string
+          token_type?: string | null
           updated_at?: string
           usage_count?: number | null
           welcome_message?: string | null
@@ -2353,6 +2355,7 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           token?: string
+          token_type?: string | null
           updated_at?: string
           usage_count?: number | null
           welcome_message?: string | null

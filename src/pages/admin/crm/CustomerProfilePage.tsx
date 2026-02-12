@@ -16,6 +16,7 @@ import { SalesTab } from '@/components/crm/tabs/SalesTab';
 import { HostingTab } from '@/components/crm/tabs/HostingTab';
 import { DeliveryTab } from '@/components/crm/tabs/DeliveryTab';
 import { PortalAccountsTab } from '@/components/crm/tabs/PortalAccountsTab';
+import { EmbedTokensTab } from '@/components/crm/tabs/EmbedTokensTab';
 import { CustomerType } from '@/components/crm/CustomerTypeBadge';
 import { LifecycleStage } from '@/components/crm/LifecycleBadge';
 
@@ -268,6 +269,12 @@ export default function CustomerProfilePage() {
             حسابات البوابة
           </TabsTrigger>
           <TabsTrigger 
+            value="embed"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            التضمين
+          </TabsTrigger>
+          <TabsTrigger 
             value="timeline"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
@@ -334,6 +341,13 @@ export default function CustomerProfilePage() {
 
         <TabsContent value="portal-accounts" className="mt-6">
           <PortalAccountsTab 
+            organizationId={organization.id}
+            organizationName={organization.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="embed" className="mt-6">
+          <EmbedTokensTab 
             organizationId={organization.id}
             organizationName={organization.name}
           />
