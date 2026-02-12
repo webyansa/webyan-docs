@@ -87,30 +87,7 @@
       max-height: 700px;
       border: none;
       display: block;
-    }
-    .webyan-demo-close {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.9);
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-      transition: background 0.2s ease;
-    }
-    .webyan-demo-close:hover {
-      background: white;
-    }
-    .webyan-demo-close svg {
-      width: 18px;
-      height: 18px;
-      color: #374151;
+      border-radius: 16px;
     }
     .webyan-demo-button {
       position: fixed;
@@ -224,11 +201,6 @@
   var popup = document.createElement('div');
   popup.className = 'webyan-demo-popup';
   popup.innerHTML = `
-    <button class="webyan-demo-close" onclick="window.WebyanDemo.close()">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    </button>
     <iframe id="webyan-demo-iframe" title="طلب عرض توضيحي"></iframe>
   `;
   document.body.appendChild(popup);
