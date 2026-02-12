@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useStaffNotifications } from '@/hooks/useStaffNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
@@ -38,6 +39,7 @@ import {
   Layers
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
+import { AdminNotificationDropdown } from '@/components/layout/AdminNotificationDropdown';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -191,6 +193,9 @@ export default function AdminLayout() {
   const { user, role, loading, authStatus, authError, signOut, isAdminOrEditor } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Activate staff notifications (realtime + save to DB)
+  useStaffNotifications();
+
   useEffect(() => {
     // Never redirect based on partial/unknown state.
     if (authStatus === 'unauthenticated') {
@@ -333,7 +338,10 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Chat notifications (داخل لوحة التحكم فقط) */}
+            {/* Admin notifications bell */}
+            <AdminNotificationDropdown />
+
+            {/* Chat notifications */}
             {permissions?.canViewAllChats && (
               <ChatNotificationDropdown userType="admin" linkTo="/admin/chat" />
             )}
