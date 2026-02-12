@@ -73,7 +73,7 @@ export default function EmbedChatWidget({
   defaultMessage = '',
   welcomeMessage = 'مرحباً بك! 👋 يسعدنا التواصل معك. فريق الدعم الفني جاهز لمساعدتك.'
 }: EmbedChatWidgetProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [name, setName] = useState(prefillName);
   const [email, setEmail] = useState(prefillEmail || contactEmail || '');
   const [messageText, setMessageText] = useState('');
@@ -394,37 +394,7 @@ export default function EmbedChatWidget({
   const webyanSecondary = secondaryColor;
   const gradientStyle = `linear-gradient(135deg, ${webyanPrimary} 0%, ${webyanSecondary} 100%)`;
 
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 left-6 group z-50"
-      >
-        <span 
-          className="absolute inset-0 rounded-full animate-ping opacity-30"
-          style={{ background: webyanSecondary }}
-        />
-        <div 
-          className="relative h-16 w-16 rounded-full shadow-xl flex items-center justify-center text-white transition-all duration-300 group-hover:scale-110 group-hover:shadow-2xl"
-          style={{ background: gradientStyle }}
-        >
-          <MessageCircle className="h-7 w-7" />
-        </div>
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-          <div 
-            className="text-white text-sm px-4 py-2 rounded-lg whitespace-nowrap shadow-lg"
-            style={{ background: webyanPrimary }}
-          >
-            مرحباً! كيف يمكننا مساعدتك؟
-          </div>
-          <div 
-            className="w-3 h-3 rotate-45 mx-auto -mt-1.5"
-            style={{ background: webyanPrimary }}
-          />
-        </div>
-      </button>
-    );
-  }
+  // No longer render a FAB button - the widget is always open in embed mode
 
   return (
     <>
@@ -478,10 +448,9 @@ export default function EmbedChatWidget({
         </div>
       )}
 
-      <div className={`fixed bottom-6 left-6 w-[380px] sm:w-[420px] h-[600px] rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 border ${
-        isDark ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'
+      <div className={`w-full h-screen flex flex-col overflow-hidden ${
+        isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
       }`}
-      style={{ boxShadow: '0 25px 50px -12px rgba(38, 60, 132, 0.25)' }}
       >
         {/* Header */}
         <div 
@@ -541,7 +510,7 @@ export default function EmbedChatWidget({
                 variant="ghost" 
                 size="icon" 
                 className="h-10 w-10 rounded-xl text-white hover:bg-white/20 transition-colors" 
-                onClick={() => setIsOpen(false)}
+                onClick={() => window.parent.postMessage({ type: 'WEBYAN_CHAT_CLOSED' }, '*')}
               >
                 <X className="h-5 w-5" />
               </Button>
