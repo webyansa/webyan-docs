@@ -27,14 +27,18 @@ const interestTypeLabels: Record<string, string> = {
   'consulting': 'استشارة/تحول رقمي'
 };
 
+const orgSizeLabels: Record<string, string> = {
+  'small': 'صغيرة (أقل من 10 موظفين)',
+  'medium': 'متوسطة (10-50 موظف)',
+  'large': 'كبيرة (أكثر من 50 موظف)'
+};
+
 Deno.serve(async (req: Request) => {
-  // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate API Key
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey) {
       return new Response(
@@ -43,19 +47,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify API Key
-    const tokenHash = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(apiKey)
-    );
-    const tokenHashHex = Array.from(new Uint8Array(tokenHash))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+    const tokenHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(apiKey));
+    const tokenHashHex = Array.from(new Uint8Array(tokenHash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
     const { data: tokenData, error: tokenError } = await supabase
       .from('website_api_tokens')
@@ -70,30 +67,20 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Update token usage
-    await supabase
-      .from('website_api_tokens')
-      .update({ 
-        last_used_at: new Date().toISOString(),
-        usage_count: tokenData.usage_count + 1 
-      })
-      .eq('id', tokenData.id);
+    await supabase.from('website_api_tokens').update({ 
+      last_used_at: new Date().toISOString(),
+      usage_count: tokenData.usage_count + 1 
+    }).eq('id', tokenData.id);
 
-    // Parse request body
     const body: DemoRequestPayload = await req.json();
 
-    // Validate required fields
     if (!body.organization_name || !body.contact_name || !body.email) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "الحقول المطلوبة: اسم الجهة، اسم الشخص، البريد الإلكتروني" 
-        }),
+        JSON.stringify({ success: false, error: "الحقول المطلوبة: اسم الجهة، اسم الشخص، البريد الإلكتروني" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Validate email format - simple and reliable regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(body.email.trim())) {
       return new Response(
@@ -102,11 +89,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get client info
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "";
     const userAgent = req.headers.get("user-agent") || "";
 
-    // Check for existing lead by email (deduplication)
+    // Check for existing lead
     const { data: existingLead } = await supabase
       .from('crm_leads')
       .select('id, company_name, stage, converted_to_account_id')
@@ -120,10 +106,7 @@ Deno.serve(async (req: Request) => {
     let isNewLead = false;
 
     if (existingLead && !existingLead.converted_to_account_id) {
-      // Existing lead found - add activity instead of creating new
       leadId = existingLead.id;
-
-      // Check for active opportunity
       const { data: existingOpportunity } = await supabase
         .from('crm_opportunities')
         .select('id, stage, status')
@@ -135,21 +118,15 @@ Deno.serve(async (req: Request) => {
 
       if (existingOpportunity) {
         opportunityId = existingOpportunity.id;
-        // Add activity to existing opportunity
         await supabase.from('crm_opportunity_activities').insert({
           opportunity_id: existingOpportunity.id,
           activity_type: 'website_request',
           title: 'طلب عرض توضيحي جديد من الموقع',
-          description: `تم استلام طلب عرض توضيحي جديد من الموقع. نوع الاهتمام: ${interestTypeLabels[body.interest_type || ''] || 'غير محدد'}`,
-          metadata: {
-            form_type: 'demo_request',
-            interest_type: body.interest_type,
-            notes: body.notes
-          }
+          description: `تم استلام طلب عرض توضيحي جديد. نوع الاهتمام: ${interestTypeLabels[body.interest_type || ''] || 'غير محدد'}`,
+          metadata: { form_type: 'demo_request', interest_type: body.interest_type, notes: body.notes }
         });
       }
     } else {
-      // Create new lead
       isNewLead = true;
       const { data: newLead, error: leadError } = await supabase
         .from('crm_leads')
@@ -166,8 +143,7 @@ Deno.serve(async (req: Request) => {
           utm_source: body.utm_source,
           utm_campaign: body.utm_campaign,
           tags: ['demo_request', 'website'],
-          estimated_value: body.interest_type === 'custom_platform' ? 50000 : 
-                          body.interest_type === 'consulting' ? 10000 : 5000
+          estimated_value: body.interest_type === 'custom_platform' ? 50000 : body.interest_type === 'consulting' ? 10000 : 5000
         })
         .select('id')
         .single();
@@ -176,33 +152,20 @@ Deno.serve(async (req: Request) => {
         console.error('Error creating lead:', leadError);
         throw new Error('فشل في إنشاء العميل المحتمل');
       }
-
       leadId = newLead.id;
     }
 
-    // Create form submission record
+    // Create form submission
     const { data: submission, error: submissionError } = await supabase
       .from('website_form_submissions')
       .insert({
-        form_type: 'demo_request',
-        status: 'new',
-        organization_name: body.organization_name,
-        contact_name: body.contact_name,
-        email: body.email.toLowerCase().trim(),
-        phone: body.phone,
-        city: body.city,
-        interest_type: body.interest_type,
-        organization_size: body.organization_size,
-        notes: body.notes,
-        source: 'website',
-        source_page: body.source_page,
-        utm_source: body.utm_source,
-        utm_campaign: body.utm_campaign,
-        utm_medium: body.utm_medium,
-        ip_address: ip,
-        user_agent: userAgent,
-        lead_id: leadId,
-        opportunity_id: opportunityId
+        form_type: 'demo_request', status: 'new',
+        organization_name: body.organization_name, contact_name: body.contact_name,
+        email: body.email.toLowerCase().trim(), phone: body.phone, city: body.city,
+        interest_type: body.interest_type, organization_size: body.organization_size,
+        notes: body.notes, source: 'website', source_page: body.source_page,
+        utm_source: body.utm_source, utm_campaign: body.utm_campaign, utm_medium: body.utm_medium,
+        ip_address: ip, user_agent: userAgent, lead_id: leadId, opportunity_id: opportunityId
       })
       .select('id, submission_number')
       .single();
@@ -212,7 +175,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('فشل في حفظ الطلب');
     }
 
-    // Create notification for sales team
+    // Create in-app notifications
     const { data: adminUsers } = await supabase
       .from('user_roles')
       .select('user_id')
@@ -224,163 +187,197 @@ Deno.serve(async (req: Request) => {
         title: `طلب عرض توضيحي جديد - ${body.organization_name}`,
         message: `تم استلام طلب عرض توضيحي جديد من ${body.contact_name} - ${interestTypeLabels[body.interest_type || ''] || 'غير محدد'}`,
         type: 'website_request',
-        metadata: {
-          submission_id: submission.id,
-          submission_number: submission.submission_number,
-          lead_id: leadId,
-          is_new_lead: isNewLead
-        }
+        metadata: { submission_id: submission.id, submission_number: submission.submission_number, lead_id: leadId, is_new_lead: isNewLead }
       }));
-
       await supabase.from('user_notifications').insert(notifications);
     }
 
-    // Send confirmation email to customer
+    // Get admin email from system settings
+    let adminEmail: string | null = null;
     try {
-      const resendApiKey = Deno.env.get("RESEND_API_KEY");
-      if (resendApiKey) {
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${resendApiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            from: "Webyan <noreply@webyan.sa>",
-            to: [body.email],
-            subject: "تم استلام طلب العرض التوضيحي - ويبيان",
-            html: `
-              <!DOCTYPE html>
-              <html dir="rtl" lang="ar">
-              <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              </head>
-              <body style="font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); padding: 30px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">ويبيان</h1>
-                      <p style="color: #e0f2fe; margin: 10px 0 0 0; font-size: 14px;">حلول رقمية للقطاع غير الربحي</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 30px;">
-                      <h2 style="color: #1e293b; margin: 0 0 20px 0; font-size: 20px;">مرحباً ${body.contact_name}،</h2>
-                      <p style="color: #475569; line-height: 1.8; margin: 0 0 20px 0;">
-                        شكراً لاهتمامكم بخدمات ويبيان. تم استلام طلب العرض التوضيحي الخاص بكم وسيقوم فريقنا بالتواصل معكم في أقرب وقت.
-                      </p>
-                      
-                      <table width="100%" style="background-color: #f1f5f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <tr>
-                          <td>
-                            <p style="color: #64748b; margin: 0 0 8px 0; font-size: 12px;">رقم الطلب</p>
-                            <p style="color: #0ea5e9; margin: 0; font-size: 18px; font-weight: bold;">${submission.submission_number}</p>
-                          </td>
-                        </tr>
-                      </table>
-                      
-                      <table width="100%" style="border: 1px solid #e2e8f0; border-radius: 8px; margin: 20px 0;">
-                        <tr>
-                          <td style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
-                            <strong style="color: #1e293b;">الجهة:</strong>
-                            <span style="color: #475569;">${body.organization_name}</span>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
-                            <strong style="color: #1e293b;">نوع الاهتمام:</strong>
-                            <span style="color: #475569;">${interestTypeLabels[body.interest_type || ''] || 'غير محدد'}</span>
-                          </td>
-                        </tr>
-                        ${body.city ? `
-                        <tr>
-                          <td style="padding: 15px;">
-                            <strong style="color: #1e293b;">المدينة:</strong>
-                            <span style="color: #475569;">${body.city}</span>
-                          </td>
-                        </tr>
-                        ` : ''}
-                      </table>
-                      
-                      <table width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0;" cellpadding="0" cellspacing="0">
-                        <tr>
-                          <td style="padding: 20px;">
-                            <p style="color: #1e293b; font-weight: bold; margin: 0 0 12px 0; font-size: 14px;">📞 تواصل معنا</p>
-                            <table cellpadding="0" cellspacing="0" width="100%">
-                              <tr>
-                                <td style="padding: 6px 0;">
-                                  <span style="color: #475569; font-size: 14px;">✉️ البريد الإلكتروني: </span>
-                                  <a href="mailto:hala@webyan.sa" style="color: #0ea5e9; text-decoration: none; font-size: 14px;">hala@webyan.sa</a>
-                                </td>
-                              </tr>
-                              <tr>
-                                <td style="padding: 6px 0;">
-                                  <span style="color: #475569; font-size: 14px;">📱 الجوال: </span>
-                                  <a href="tel:+966538553400" style="color: #0ea5e9; text-decoration: none; font-size: 14px;" dir="ltr">+966 53 855 3400</a>
-                                </td>
-                              </tr>
-                              <tr>
-                                <td style="padding: 6px 0;">
-                                  <span style="color: #475569; font-size: 14px;">💬 واتساب: </span>
-                                  <a href="https://wa.me/966538553400" style="color: #0ea5e9; text-decoration: none; font-size: 14px;" dir="ltr">+966 53 855 3400</a>
-                                </td>
-                              </tr>
-                            </table>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f8fafc; padding: 20px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
-                      <p style="color: #94a3b8; margin: 0; font-size: 12px;">
-                        © ${new Date().getFullYear()} ويبيان - جميع الحقوق محفوظة
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </body>
-              </html>
-            `
-          })
-        });
-
-        if (!emailResponse.ok) {
-          console.error('Failed to send confirmation email:', await emailResponse.text());
-        }
-      }
-    } catch (emailError) {
-      console.error('Email sending error:', emailError);
-      // Don't fail the request if email fails
+      const { data: settingsData } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'accounts_email')
+        .single();
+      if (settingsData?.value) adminEmail = settingsData.value;
+    } catch (e) {
+      console.error('Error fetching admin email:', e);
     }
+
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+
+    // Send emails in parallel
+    const emailPromises: Promise<void>[] = [];
+
+    // 1) Confirmation email to customer
+    if (resendApiKey) {
+      emailPromises.push((async () => {
+        try {
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "Webyan <noreply@webyan.sa>",
+              to: [body.email],
+              subject: "تم استلام طلب العرض التوضيحي - ويبيان",
+              html: buildCustomerEmail(body, submission.submission_number)
+            })
+          });
+          if (!res.ok) console.error('Customer email failed:', await res.text());
+        } catch (e) { console.error('Customer email error:', e); }
+      })());
+
+      // 2) Admin notification email
+      if (adminEmail) {
+        emailPromises.push((async () => {
+          try {
+            const res = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: "Webyan System <noreply@webyan.sa>",
+                reply_to: body.email,
+                to: [adminEmail],
+                subject: `🔔 طلب عرض توضيحي جديد - ${body.organization_name}`,
+                html: buildAdminEmail(body, submission.submission_number, isNewLead)
+              })
+            });
+            if (!res.ok) console.error('Admin email failed:', await res.text());
+          } catch (e) { console.error('Admin email error:', e); }
+        })());
+      }
+    }
+
+    await Promise.allSettled(emailPromises);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "تم استلام طلبك بنجاح وسنتواصل معك قريباً",
-        data: {
-          submission_number: submission.submission_number,
-          is_new_lead: isNewLead
-        }
+        data: { submission_number: submission.submission_number, is_new_lead: isNewLead }
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
     console.error("Error processing demo request:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : "حدث خطأ غير متوقع" 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      }
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "حدث خطأ غير متوقع" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
+
+function buildCustomerEmail(body: DemoRequestPayload, submissionNumber: string): string {
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
+  <tr><td style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); padding: 30px; text-align: center;">
+    <h1 style="color: #ffffff; margin: 0; font-size: 24px;">ويبيان</h1>
+    <p style="color: #e0f2fe; margin: 10px 0 0 0; font-size: 14px;">حلول رقمية للقطاع غير الربحي</p>
+  </td></tr>
+  <tr><td style="padding: 35px 30px;">
+    <h2 style="color: #1e293b; margin: 0 0 16px 0; font-size: 20px;">مرحباً ${body.contact_name}،</h2>
+    <p style="color: #475569; line-height: 1.8; margin: 0 0 20px 0;">شكراً لاهتمامكم بخدمات ويبيان. تم استلام طلب العرض التوضيحي وسيتواصل معكم فريقنا قريباً.</p>
+    <table width="100%" style="background-color: #f0f9ff; border-radius: 10px; margin: 20px 0;" cellpadding="0" cellspacing="0">
+      <tr><td style="padding: 16px 20px;">
+        <p style="color: #64748b; margin: 0 0 4px 0; font-size: 12px;">رقم الطلب</p>
+        <p style="color: #0284c7; margin: 0; font-size: 20px; font-weight: bold; letter-spacing: 1px;">${submissionNumber}</p>
+      </td></tr>
+    </table>
+    <table width="100%" style="border: 1px solid #e2e8f0; border-radius: 10px; margin: 20px 0; border-collapse: separate; overflow: hidden;" cellpadding="0" cellspacing="0">
+      <tr><td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><strong style="color: #374151;">الجهة:</strong> <span style="color: #475569;">${body.organization_name}</span></td></tr>
+      <tr><td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9;"><strong style="color: #374151;">نوع الاهتمام:</strong> <span style="color: #475569;">${interestTypeLabels[body.interest_type || ''] || 'غير محدد'}</span></td></tr>
+      ${body.city ? `<tr><td style="padding: 12px 16px;"><strong style="color: #374151;">المنطقة:</strong> <span style="color: #475569;">${body.city}</span></td></tr>` : ''}
+    </table>
+    <table width="100%" style="background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; margin: 24px 0;" cellpadding="0" cellspacing="0">
+      <tr><td style="padding: 20px;">
+        <p style="color: #1e293b; font-weight: 600; margin: 0 0 14px 0; font-size: 14px;">للتواصل معنا</p>
+        <table cellpadding="0" cellspacing="0" width="100%">
+          <tr><td style="padding: 5px 0;"><table cellpadding="0" cellspacing="0"><tr>
+            <td style="width: 28px; text-align: center;"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2709.png" width="16" height="16" alt="email" style="vertical-align: middle;" /></td>
+            <td style="padding-right: 6px; color: #64748b; font-size: 13px;">البريد:</td>
+            <td><a href="mailto:hala@webyan.sa" style="color: #0284c7; text-decoration: none; font-size: 13px;">hala@webyan.sa</a></td>
+          </tr></table></td></tr>
+          <tr><td style="padding: 5px 0;"><table cellpadding="0" cellspacing="0"><tr>
+            <td style="width: 28px; text-align: center;"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4f1.png" width="16" height="16" alt="phone" style="vertical-align: middle;" /></td>
+            <td style="padding-right: 6px; color: #64748b; font-size: 13px;">الجوال:</td>
+            <td><a href="tel:+966538553400" style="color: #0284c7; text-decoration: none; font-size: 13px;" dir="ltr">+966 53 855 3400</a></td>
+          </tr></table></td></tr>
+          <tr><td style="padding: 5px 0;"><table cellpadding="0" cellspacing="0"><tr>
+            <td style="width: 28px; text-align: center;"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4ac.png" width="16" height="16" alt="whatsapp" style="vertical-align: middle;" /></td>
+            <td style="padding-right: 6px; color: #64748b; font-size: 13px;">واتساب:</td>
+            <td><a href="https://wa.me/966538553400" style="color: #0284c7; text-decoration: none; font-size: 13px;" dir="ltr">+966 53 855 3400</a></td>
+          </tr></table></td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="background-color: #f8fafc; padding: 16px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+    <p style="color: #94a3b8; margin: 0; font-size: 11px;">&copy; ${new Date().getFullYear()} ويبيان - جميع الحقوق محفوظة</p>
+  </td></tr>
+</table>
+</body></html>`;
+}
+
+function buildAdminEmail(body: DemoRequestPayload, submissionNumber: string, isNewLead: boolean): string {
+  const rows = [
+    { label: 'اسم الجهة', value: body.organization_name, icon: '🏢' },
+    { label: 'اسم الشخص', value: body.contact_name, icon: '👤' },
+    { label: 'البريد الإلكتروني', value: body.email, icon: '✉️' },
+    { label: 'رقم الجوال', value: body.phone || 'لم يُحدد', icon: '📱' },
+    { label: 'المنطقة', value: body.city || 'لم تُحدد', icon: '📍' },
+    { label: 'نوع الاهتمام', value: interestTypeLabels[body.interest_type || ''] || 'غير محدد', icon: '🎯' },
+    { label: 'حجم الجهة', value: body.organization_size ? orgSizeLabels[body.organization_size] || body.organization_size : 'لم يُحدد', icon: '📊' },
+  ];
+
+  const dataRows = rows.map(r => `
+    <tr>
+      <td style="padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 13px; white-space: nowrap; width: 130px;">
+        <span style="margin-left: 6px;">${r.icon}</span> ${r.label}
+      </td>
+      <td style="padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #1e293b; font-size: 13px; font-weight: 500;">
+        ${r.value}
+      </td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+  <tr><td style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 24px 30px;">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td><h1 style="color: #fff; margin: 0; font-size: 18px;">🔔 طلب عرض توضيحي جديد</h1>
+        <p style="color: #fed7aa; margin: 6px 0 0 0; font-size: 13px;">${isNewLead ? '⭐ عميل محتمل جديد' : '🔄 عميل محتمل موجود'} • رقم الطلب: ${submissionNumber}</p>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding: 28px 30px;">
+    <p style="color: #475569; font-size: 14px; line-height: 1.7; margin: 0 0 20px 0;">
+      تم استلام طلب عرض توضيحي جديد من الموقع الإلكتروني. فيما يلي بيانات العميل:
+    </p>
+    <table width="100%" style="border: 1px solid #e2e8f0; border-radius: 10px; border-collapse: separate; overflow: hidden;" cellpadding="0" cellspacing="0">
+      ${dataRows}
+    </table>
+    ${body.notes ? `
+    <div style="margin-top: 20px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 14px 16px;">
+      <p style="color: #92400e; font-weight: 600; margin: 0 0 6px 0; font-size: 13px;">📝 ملاحظات العميل:</p>
+      <p style="color: #78350f; margin: 0; font-size: 13px; line-height: 1.7;">${body.notes}</p>
+    </div>` : ''}
+    ${body.source_page ? `
+    <p style="color: #94a3b8; font-size: 11px; margin: 20px 0 0 0;">
+      📄 الصفحة المصدر: <span dir="ltr" style="color: #64748b;">${body.source_page}</span>
+    </p>` : ''}
+    ${body.utm_source ? `<p style="color: #94a3b8; font-size: 11px; margin: 4px 0 0 0;">📊 UTM Source: ${body.utm_source}${body.utm_campaign ? ' | Campaign: ' + body.utm_campaign : ''}</p>` : ''}
+  </td></tr>
+  <tr><td style="background-color: #f8fafc; padding: 16px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+    <p style="color: #94a3b8; margin: 0; font-size: 11px;">هذه رسالة آلية من نظام ويبيان • ${new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+  </td></tr>
+</table>
+</body></html>`;
+}
