@@ -49,48 +49,83 @@ serve(async (req) => {
 
     // Verify embed token or auth header
     if (embedToken) {
-      const { data: tokenData, error: tokenError } = await supabase
-        .from('embed_tokens')
-        .select(`
-          id,
-          organization_id,
-          is_active,
-          allowed_domains,
-          organization:client_organizations(id, name, contact_email)
-        `)
-        .eq('token', embedToken)
-        .single();
+      // Check if it's a new API key (wbyn_ prefix)
+      if (embedToken.startsWith('wbyn_')) {
+        const { data: apiKeyData, error: apiKeyError } = await supabase
+          .from('client_api_keys')
+          .select(`
+            id,
+            organization_id,
+            is_active,
+            organization:client_organizations(id, name, contact_email)
+          `)
+          .eq('api_key', embedToken)
+          .eq('is_active', true)
+          .maybeSingle();
 
-      if (tokenError || !tokenData || !tokenData.is_active) {
-        return new Response(
-          JSON.stringify({ error: 'Invalid or inactive embed token' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Check allowed domains
-      if (tokenData.allowed_domains && tokenData.allowed_domains.length > 0) {
-        const requestDomain = origin.replace(/^https?:\/\//, '').split('/')[0];
-        const isAllowed = tokenData.allowed_domains.some((domain: string) =>
-          requestDomain === domain || requestDomain.endsWith('.' + domain)
-        );
-        if (!isAllowed) {
+        if (apiKeyError || !apiKeyData) {
           return new Response(
-            JSON.stringify({ error: 'Domain not allowed' }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Invalid or inactive API key' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+
+        organizationId = apiKeyData.organization_id;
+        // Don't set embedTokenId for API keys - it references embed_tokens table
+        embedTokenId = null;
+        organizationName = (apiKeyData.organization as any)?.name || null;
+
+        // Update usage
+        await supabase
+          .from('client_api_keys')
+          .update({ last_used_at: new Date().toISOString(), usage_count: (apiKeyData as any).usage_count + 1 })
+          .eq('id', apiKeyData.id);
+
+      } else {
+        // Legacy embed token flow
+        const { data: tokenData, error: tokenError } = await supabase
+          .from('embed_tokens')
+          .select(`
+            id,
+            organization_id,
+            is_active,
+            allowed_domains,
+            organization:client_organizations(id, name, contact_email)
+          `)
+          .eq('token', embedToken)
+          .single();
+
+        if (tokenError || !tokenData || !tokenData.is_active) {
+          return new Response(
+            JSON.stringify({ error: 'Invalid or inactive embed token' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check allowed domains
+        if (tokenData.allowed_domains && tokenData.allowed_domains.length > 0) {
+          const requestDomain = origin.replace(/^https?:\/\//, '').split('/')[0];
+          const isAllowed = tokenData.allowed_domains.some((domain: string) =>
+            requestDomain === domain || requestDomain.endsWith('.' + domain)
+          );
+          if (!isAllowed) {
+            return new Response(
+              JSON.stringify({ error: 'Domain not allowed' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+
+        organizationId = tokenData.organization_id;
+        embedTokenId = tokenData.id;
+        organizationName = (tokenData.organization as any)?.name || null;
+
+        // Update token usage
+        await supabase
+          .from('embed_tokens')
+          .update({ last_used_at: new Date().toISOString(), usage_count: (tokenData as any).usage_count + 1 })
+          .eq('id', tokenData.id);
       }
-
-      organizationId = tokenData.organization_id;
-      embedTokenId = tokenData.id;
-      organizationName = (tokenData.organization as any)?.name || null;
-
-      // Update token usage
-      await supabase
-        .from('embed_tokens')
-        .update({ last_used_at: new Date().toISOString(), usage_count: (tokenData as any).usage_count + 1 })
-        .eq('id', tokenData.id);
 
     } else if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
@@ -162,12 +197,28 @@ serve(async (req) => {
         let existingConversation = null;
         
         if (embedTokenId && organizationId) {
-          // For embed widget: find existing open conversation with same embed_token_id and organization
+          // For legacy embed widget: find existing open conversation with same embed_token_id
           const { data: existing } = await supabase
             .from('conversations')
             .select('*')
             .eq('embed_token_id', embedTokenId)
             .eq('organization_id', organizationId)
+            .in('status', ['unassigned', 'assigned'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (existing) {
+            existingConversation = existing;
+          }
+        } else if (organizationId && !clientAccountId && !embedTokenId) {
+          // For API key embed: find existing open conversation by org + source=embed
+          const { data: existing } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('organization_id', organizationId)
+            .eq('source', 'embed')
+            .is('embed_token_id', null)
             .in('status', ['unassigned', 'assigned'])
             .order('created_at', { ascending: false })
             .limit(1)
