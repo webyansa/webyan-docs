@@ -114,7 +114,7 @@ export default function StaffProjectDetails() {
   }, [project?.id, deliveryEditMode]);
 
   // Fetch project phases with assigned staff info
-  const { data: phases = [] } = useQuery({
+  const { data: phases = [], refetch: refetchPhases } = useQuery({
     queryKey: ['staff-project-phases', id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -131,6 +131,44 @@ export default function StaffProjectDetails() {
     },
     enabled: !!id,
   });
+
+  // Realtime subscription for phases + project updates
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`staff-project-realtime-${id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'project_phases',
+        filter: `project_id=eq.${id}`,
+      }, () => {
+        refetchPhases();
+        refetch();
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'crm_implementations',
+        filter: `id=eq.${id}`,
+      }, () => {
+        refetch();
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'project_activity_log',
+        filter: `project_id=eq.${id}`,
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ['staff-project-activities', id] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, refetchPhases, refetch, queryClient]);
 
   // Fetch activity log
   const { data: activities = [] } = useQuery({
@@ -251,11 +289,13 @@ export default function StaffProjectDetails() {
 
       return { progress, nextPhase };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff-project', id] });
-      queryClient.invalidateQueries({ queryKey: ['staff-project-phases', id] });
-      queryClient.invalidateQueries({ queryKey: ['staff-project-activities', id] });
-      queryClient.invalidateQueries({ queryKey: ['staff-projects'] });
+    onSuccess: async () => {
+      await Promise.all([
+        refetchPhases(),
+        refetch(),
+        queryClient.invalidateQueries({ queryKey: ['staff-project-activities', id] }),
+        queryClient.invalidateQueries({ queryKey: ['staff-projects'] }),
+      ]);
       toast.success('تم إتمام المرحلة بنجاح');
       setCompletePhaseDialogOpen(false);
       setPhaseNotes('');
@@ -325,10 +365,12 @@ export default function StaffProjectDetails() {
         metadata: { phase_id: phaseId, phase_type: phase?.phase_type },
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff-project', id] });
-      queryClient.invalidateQueries({ queryKey: ['staff-project-phases', id] });
-      queryClient.invalidateQueries({ queryKey: ['staff-project-activities', id] });
+    onSuccess: async () => {
+      await Promise.all([
+        refetchPhases(),
+        refetch(),
+        queryClient.invalidateQueries({ queryKey: ['staff-project-activities', id] }),
+      ]);
       toast.success('تم بدء المرحلة');
     },
   });
