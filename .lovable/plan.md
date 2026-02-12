@@ -1,43 +1,18 @@
 
 
-# اعادة هيكلة نظام التضمين: API Key موحد لكل عميل
+# اعادة هيكلة نظام التضمين: نظام API Key موحد
 
 ## المشكلة الحالية
 
-النظام الحالي ينشئ رمز تضمين (token) لكل عميل ولكل نوع (تذاكر/مراسلات)، وكل رمز ينتج كود تضمين مختلف. هذا يعني ادارة عشرات الاكواد المختلفة.
+1. كل عميل يحتاج رمز تضمين منفصل وكود تضمين مختلف -- ادارة عشرات الاكواد
+2. نموذج التذاكر ونموذج المراسلات يستخدمان نفس البنية لكن غير منفصلين تماما في التضمين
+3. لا يوجد نظام API Key مركزي -- كل token فريد لكل عميل
 
-## الحل المقترح
-
-### المفهوم الاساسي
-
-```text
-+------------------+     +-------------------+     +------------------+
-|  كود تضمين واحد  | --> | API Key العميل    | --> | تحديد المنظمة   |
-|  (تذاكر / دردشة) |     | (متغير في الكود)  |     | واظهار النموذج  |
-+------------------+     +-------------------+     +------------------+
-```
-
-- **كود تضمين تذاكر واحد** يعمل لجميع العملاء
-- **كود تضمين مراسلات واحد** يعمل لجميع العملاء
-- كل عميل يحصل على **API Key فريد** يُضاف كمتغير في الكود
-- النظام يقرأ الـ API Key ويتعرف على العميل تلقائياً
-
-### مثال على كود التضمين الموحد (تذاكر)
+## الحل: كود تضمين واحد + API Key لكل عميل
 
 ```text
-<script src="https://yoursite.com/embed/webyan-ticket-widget.js"
-  data-api-key="YOUR_CLIENT_API_KEY"
-  data-position="bottom-right">
-</script>
-```
-
-### مثال على كود التضمين الموحد (مراسلات)
-
-```text
-<script src="https://yoursite.com/embed/webyan-chat-widget.js"
-  data-api-key="YOUR_CLIENT_API_KEY"
-  data-position="bottom-right">
-</script>
+كود تضمين واحد (تذاكر)     +     API Key العميل     =     تعرف تلقائي
+كود تضمين واحد (مراسلات)    +     API Key العميل     =     تعرف تلقائي
 ```
 
 ---
@@ -46,54 +21,82 @@
 
 ### 1. جدول جديد: `client_api_keys`
 
-جدول مستقل لـ API Keys العملاء، منفصل عن embed_tokens:
-
 | العمود | النوع | الوصف |
 |--------|-------|-------|
 | id | UUID | المعرف |
-| organization_id | UUID | ربط بالعميل |
-| api_key | TEXT | المفتاح الفريد (مثل: `wbyn_xxxxxxxxxxxx`) |
+| organization_id | UUID (FK) | ربط بالعميل |
+| api_key | TEXT (UNIQUE) | المفتاح الفريد `wbyn_xxxxxxxxxxxx` |
 | name | TEXT | اسم وصفي |
 | is_active | BOOLEAN | مفعل/معطل |
 | usage_count | INT | عدد الاستخدامات |
-| last_used_at | TIMESTAMP | آخر استخدام |
-| allowed_domains | TEXT[] | النطاقات المسموحة |
-| expires_at | TIMESTAMP | تاريخ الانتهاء (اختياري) |
+| last_used_at | TIMESTAMP | اخر استخدام |
+| allowed_domains | TEXT[] | النطاقات المسموحة (اختياري) |
 | created_at | TIMESTAMP | تاريخ الانشاء |
 
-### 2. ملفات JavaScript للتضمين (عامة لكل العملاء)
+مع سياسات RLS للادمن فقط.
 
-**`public/embed/webyan-ticket-widget.js`** -- سكريبت يقرأ الـ `data-api-key` وينشئ iframe يشير الى `/embed/ticket?key=API_KEY`
+### 2. سكريبتان منفصلان للتضمين
 
-**`public/embed/webyan-chat-widget.js`** -- سكريبت يقرأ الـ `data-api-key` وينشئ iframe يشير الى `/embed/chat?key=API_KEY`
+**`public/embed/webyan-ticket-widget.js`** -- سكريبت موحد لتذاكر الدعم
 
-كل سكريبت ينشئ زر عائم + نافذة popup بشكل احترافي مع دعم التخصيص عبر `data-*` attributes.
+**`public/embed/webyan-chat-widget.js`** -- سكريبت موحد للمراسلات
+
+كل سكريبت:
+- يقرا `data-api-key` من عنصر الـ script
+- ينشئ زر عائم احترافي (مثل Intercom)
+- عند الضغط يفتح popup يحتوي iframe
+- يمرر الـ API Key كـ parameter: `/embed/ticket?key=API_KEY` او `/embed/chat?key=API_KEY`
+
+مثال الاستخدام النهائي لتذاكر الدعم:
+```text
+<script 
+  src="https://yoursite.com/embed/webyan-ticket-widget.js"
+  data-api-key="wbyn_xxxxxxxxxxxxxxxxx"
+  data-position="bottom-right"
+  data-color="#3b82f6">
+</script>
+```
+
+مثال الاستخدام النهائي للمراسلات:
+```text
+<script 
+  src="https://yoursite.com/embed/webyan-chat-widget.js"
+  data-api-key="wbyn_xxxxxxxxxxxxxxxxx"
+  data-position="bottom-left"
+  data-color="#10b981">
+</script>
+```
 
 ### 3. تحديث صفحات التضمين
 
-**`EmbedTicketPage.tsx`** -- يقبل `key` (API Key) بالاضافة الى `token` (للتوافق مع الرموز القديمة)
+**`EmbedTicketPage.tsx`** -- يقبل `key` (API Key جديد) بالاضافة الى `token` (للتوافق القديم):
+- اذا وجد `key` يبحث في `client_api_keys` ويحدد المنظمة
+- اذا وجد `token` يعمل بالطريقة القديمة (توافق)
 
-**`EmbedChatPage.tsx`** -- نفس التحديث
+**`EmbedChatPage.tsx`** -- نفس المنطق
 
-**`verify-embed-token` (Edge Function)** -- يدعم التحقق من API Key الجديد بالاضافة الى الرموز القديمة
+**`verify-embed-token` (Edge Function)** -- يدعم التحقق من النوعين:
+- اذا بدا بـ `wbyn_` يبحث في `client_api_keys`
+- غير ذلك يبحث في `embed_tokens` (توافق)
 
-### 4. صفحة ادارة API Keys (منفصلة تماماً)
+### 4. اعادة هيكلة صفحات الادارة
 
-**`EmbedSettingsPage.tsx` (تذاكر الدعم):**
-- قسم علوي: **كود التضمين الموحد** مع تعليمات النسخ
-- قسم سفلي: **قائمة API Keys** لكل عميل مع ازرار انشاء/تعطيل/حذف
-- كل key يعرض: اسم العميل، المفتاح، الحالة، الاستخدام
+**`EmbedSettingsPage.tsx` (تضمين تذاكر الدعم):**
+- قسم علوي: **كود التضمين الموحد** مع شرح وزر نسخ
+- قسم سفلي: **قائمة API Keys العملاء** مع ازرار انشاء/تعطيل/حذف
+- كل key يعرض: اسم العميل، المفتاح، الحالة، عدد الاستخدام
 
-**`ChatEmbedSettingsPage.tsx` (المراسلات):**
-- نفس الهيكل لكن لنموذج المراسلات
-- اعدادات اضافية (رسالة الترحيب، الالوان) مرتبطة بالـ API Key
+**`ChatEmbedSettingsPage.tsx` (تضمين المراسلات):**
+- نفس الهيكل لكن بكود مراسلات مختلف
+- اعدادات اضافية للمراسلات (رسالة ترحيب، الوان) تبقى مرتبطة بـ embed_tokens
 
-### 5. تحديث ملف العميل (CustomerProfilePage)
+### 5. تحديث ملف العميل
 
-تبويب "التضمين" يعرض API Key العميل مع امكانية:
-- انشاء API Key جديد
-- نسخ الكود الجاهز (مع المفتاح مضمن)
-- عرض احصائيات الاستخدام
+**`EmbedTokensTab.tsx`** يعرض:
+- API Key العميل مع زر نسخ
+- الرموز القديمة (embed_tokens) للتوافق
+- امكانية انشاء API Key جديد
+- نسخ كود التضمين الجاهز (مع المفتاح مضمن تلقائيا)
 
 ---
 
@@ -105,29 +108,25 @@
 |-------|---------|
 | **قاعدة البيانات** | انشاء جدول `client_api_keys` مع RLS |
 | `public/embed/webyan-ticket-widget.js` | **جديد** -- سكريبت تضمين تذاكر موحد |
-| `public/embed/webyan-chat-widget.js` | **تعديل** -- سكريبت تضمين مراسلات موحد |
-| `src/pages/admin/EmbedSettingsPage.tsx` | اعادة هيكلة كاملة -- كود موحد + ادارة API Keys |
-| `src/pages/admin/ChatEmbedSettingsPage.tsx` | اعادة هيكلة كاملة -- كود موحد + ادارة API Keys |
+| `public/embed/webyan-chat-widget.js` | **جديد** -- سكريبت تضمين مراسلات موحد |
+| `src/pages/admin/EmbedSettingsPage.tsx` | اعادة هيكلة -- كود موحد + ادارة API Keys |
+| `src/pages/admin/ChatEmbedSettingsPage.tsx` | اعادة هيكلة -- كود موحد + ادارة API Keys |
 | `src/pages/embed/EmbedTicketPage.tsx` | دعم `key` parameter |
 | `src/pages/embed/EmbedChatPage.tsx` | دعم `key` parameter |
 | `supabase/functions/verify-embed-token/index.ts` | دعم التحقق من API Key |
-| `supabase/functions/create-embed-ticket/index.ts` | دعم API Key |
 | `src/components/crm/tabs/EmbedTokensTab.tsx` | تحديث لعرض API Keys |
 
-### سكريبت التضمين الموحد (webyan-ticket-widget.js)
+### تصميم API Key
 
-السكريبت يعمل كالتالي:
-1. يقرأ `data-api-key` من عنصر الـ script
-2. يقرأ الاعدادات الاختيارية (`data-position`, `data-color`, `data-text`)
-3. ينشئ زر عائم احترافي
-4. عند الضغط يفتح popup يحتوي iframe مع الـ API Key
-5. يدعم الاغلاق بالضغط خارج النافذة او بزر الاغلاق
+- الصيغة: `wbyn_` + 32 حرف عشوائي (حروف وارقام)
+- مثال: `wbyn_a7Bk9mP2xR4qW8nY1sT6uV3jL5hF0`
+- فريد على مستوى الجدول (UNIQUE constraint)
 
-### امان API Key
+### امان
 
-- المفتاح يبدأ بـ `wbyn_` متبوعاً بـ 32 حرف عشوائي
+- RLS: فقط المستخدمون بدور admin يمكنهم ادارة API Keys
 - التحقق من النطاق المسموح (اختياري)
-- تسجيل كل استخدام مع النطاق المصدر
-- امكانية تعطيل المفتاح فوراً
-- RLS policies لحماية الجدول
+- تسجيل كل استخدام (usage_count + last_used_at)
+- امكانية تعطيل المفتاح فوريا
+- Edge Function يتحقق من الصلاحية قبل عرض النموذج
 
