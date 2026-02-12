@@ -37,6 +37,7 @@ import {
 import { fetchProjectDetailsById, isUuid } from '@/lib/operations/projectQueries';
 import { getPhaseConfig } from '@/lib/operations/phaseUtils';
 import { StaffPhaseCard } from '@/components/operations/StaffPhaseCard';
+import { ServiceExecutionCard } from '@/components/operations/ServiceExecutionCard';
 
 export default function StaffProjectDetails() {
   const { id } = useParams<{ id: string }>();
@@ -459,7 +460,10 @@ export default function StaffProjectDetails() {
 
   const statusConfig = projectStatuses[project.status as keyof typeof projectStatuses];
   const priorityConfig = priorities[project.priority as keyof typeof priorities];
-  const progress = getProgress();
+  const isServiceExecution = project.project_type === 'service_execution';
+  const progress = isServiceExecution
+    ? (project.service_status === 'completed' ? 100 : project.service_status === 'in_progress' ? 50 : 0)
+    : getProgress();
 
   return (
     <div className="space-y-6">
@@ -495,12 +499,26 @@ export default function StaffProjectDetails() {
               </div>
               <Progress value={progress} className="h-3" />
             </div>
-            <div className="text-center px-4 border-r">
-              <p className="text-2xl font-bold">
-                {phases.filter((p: any) => p.status === 'completed').length}/{phases.length}
-              </p>
-              <p className="text-xs text-muted-foreground">مراحل مكتملة</p>
-            </div>
+            {isServiceExecution ? (
+              <div className="text-center px-4 border-r">
+                <Badge variant="outline" className={cn(
+                  project.service_status === 'completed' ? 'text-green-600 bg-green-100' :
+                  project.service_status === 'in_progress' ? 'text-blue-600 bg-blue-100' :
+                  'text-gray-600 bg-gray-100'
+                )}>
+                  {project.service_status === 'completed' ? 'مكتمل' :
+                   project.service_status === 'in_progress' ? 'قيد التنفيذ' : 'في الانتظار'}
+                </Badge>
+                <p className="text-xs text-muted-foreground mt-1">تنفيذ خدمة</p>
+              </div>
+            ) : (
+              <div className="text-center px-4 border-r">
+                <p className="text-2xl font-bold">
+                  {phases.filter((p: any) => p.status === 'completed').length}/{phases.length}
+                </p>
+                <p className="text-xs text-muted-foreground">مراحل مكتملة</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -509,7 +527,7 @@ export default function StaffProjectDetails() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="summary">ملخص</TabsTrigger>
-          <TabsTrigger value="phases">المراحل</TabsTrigger>
+          <TabsTrigger value="phases">{isServiceExecution ? 'تنفيذ الخدمة' : 'المراحل'}</TabsTrigger>
           <TabsTrigger value="delivery">التسليم</TabsTrigger>
           <TabsTrigger value="activity">النشاط</TabsTrigger>
         </TabsList>
@@ -646,14 +664,27 @@ export default function StaffProjectDetails() {
           </Card>
         </TabsContent>
 
-        {/* Phases Tab */}
+        {/* Phases / Service Execution Tab */}
         <TabsContent value="phases" className="space-y-4">
-          <StaffPhaseCard
-            phases={phases}
-            projectId={id!}
-            currentStaffId={staffId || ''}
-            currentStaffName={currentStaff?.full_name}
-          />
+          {isServiceExecution ? (
+            <ServiceExecutionCard
+              projectId={id!}
+              projectName={project.project_name}
+              serviceStatus={project.service_status || 'pending'}
+              serviceStartedAt={project.service_started_at}
+              serviceCompletedAt={project.service_completed_at}
+              staffId={staffId}
+              staffName={currentStaff?.full_name}
+              canEdit={project.implementer_id === staffId}
+            />
+          ) : (
+            <StaffPhaseCard
+              phases={phases}
+              projectId={id!}
+              currentStaffId={staffId || ''}
+              currentStaffName={currentStaff?.full_name}
+            />
+          )}
         </TabsContent>
 
         {/* Delivery Tab */}
