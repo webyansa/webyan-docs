@@ -142,6 +142,53 @@ export type Database = {
           },
         ]
       }
+      client_api_keys: {
+        Row: {
+          allowed_domains: string[] | null
+          api_key: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_used_at: string | null
+          name: string
+          organization_id: string
+          updated_at: string
+          usage_count: number
+        }
+        Insert: {
+          allowed_domains?: string[] | null
+          api_key: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          name?: string
+          organization_id: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Update: {
+          allowed_domains?: string[] | null
+          api_key?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_api_keys_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_invoices: {
         Row: {
           amount: number

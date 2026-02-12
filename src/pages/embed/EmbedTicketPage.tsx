@@ -61,6 +61,8 @@ const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'
 const EmbedTicketPage = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const apiKey = searchParams.get('key');
+  const activeKey = apiKey || token; // Prefer API key, fallback to legacy token
   const mode = searchParams.get('mode') || 'full'; // full, compact, widget
   const theme = searchParams.get('theme') || 'light'; // light, dark
   const primaryColor = searchParams.get('color') || '#3b82f6';
@@ -91,7 +93,7 @@ const EmbedTicketPage = () => {
 
   useEffect(() => {
     verifyToken();
-  }, [token]);
+  }, [activeKey]);
 
   // Listen for postMessage from parent window
   useEffect(() => {
@@ -115,15 +117,19 @@ const EmbedTicketPage = () => {
   }, [loading, error]);
 
   const verifyToken = async () => {
-    if (!token) {
-      setError('رمز التضمين مفقود');
+    if (!activeKey) {
+      setError('رمز التضمين أو مفتاح API مفقود');
       setLoading(false);
       return;
     }
 
     try {
+      const body = activeKey.startsWith('wbyn_') 
+        ? { apiKey: activeKey } 
+        : { token: activeKey };
+      
       const { data, error } = await supabase.functions.invoke('verify-embed-token', {
-        body: { token },
+        body,
         headers: {
           'x-embed-origin': window.location.origin
         }
@@ -236,12 +242,19 @@ const EmbedTicketPage = () => {
         screenshotUrl = await uploadImage();
       }
 
+      const submitBody: any = {
+        ...formData,
+        screenshotUrl,
+      };
+      // Use apiKey or token based on which one is active
+      if (activeKey?.startsWith('wbyn_')) {
+        submitBody.apiKey = activeKey;
+      } else {
+        submitBody.token = activeKey;
+      }
+
       const { data, error } = await supabase.functions.invoke('create-embed-ticket', {
-        body: {
-          token,
-          ...formData,
-          screenshotUrl
-        },
+        body: submitBody,
         headers: {
           'x-embed-origin': window.location.origin
         }
