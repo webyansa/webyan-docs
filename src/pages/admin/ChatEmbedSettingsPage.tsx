@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Code2, Copy, Check, Plus, Trash2, RefreshCw, Globe, Calendar, 
   Eye, EyeOff, AlertCircle, ExternalLink, FileCode, Loader2, 
   Shield, Clock, Activity, HelpCircle, Building2, MessageCircle,
-  Palette, MessageSquare, Sparkles
+  Palette, MessageSquare, Sparkles, UserPlus, Search
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,7 +64,9 @@ const defaultMessagePresets = [
 ];
 
 export default function ChatEmbedSettingsPage() {
+  const navigate = useNavigate();
   const [tokens, setTokens] = useState<EmbedToken[]>([]);
+  const [orgSearch, setOrgSearch] = useState('');
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -388,21 +391,54 @@ window.addEventListener('message',function(e){
                 </div>
                 <div className="space-y-2">
                   <Label>المنظمة *</Label>
-                  <Select 
-                    value={newToken.organization_id}
-                    onValueChange={(value) => setNewToken({ ...newToken, organization_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="اختر المنظمة" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {organizations.map(org => (
-                        <SelectItem key={org.id} value={org.id}>
-                          {org.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select 
+                        value={newToken.organization_id}
+                        onValueChange={(value) => setNewToken({ ...newToken, organization_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر المنظمة" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <div className="p-2 sticky top-0 bg-popover border-b">
+                            <div className="flex items-center gap-2 px-2 py-1 rounded-md border bg-background">
+                              <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                              <input
+                                placeholder="بحث عن عميل..."
+                                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                value={orgSearch}
+                                onChange={(e) => setOrgSearch(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
+                          <ScrollArea className="max-h-[200px]">
+                            {organizations
+                              .filter(org => org.name.toLowerCase().includes(orgSearch.toLowerCase()))
+                              .map(org => (
+                                <SelectItem key={org.id} value={org.id}>
+                                  {org.name}
+                                </SelectItem>
+                              ))}
+                            {organizations.filter(org => org.name.toLowerCase().includes(orgSearch.toLowerCase())).length === 0 && (
+                              <p className="text-sm text-muted-foreground text-center py-4">لا توجد نتائج</p>
+                            )}
+                          </ScrollArea>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="إضافة عميل جديد"
+                      onClick={() => navigate('/admin/clients')}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
