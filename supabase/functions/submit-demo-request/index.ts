@@ -198,7 +198,7 @@ Deno.serve(async (req: Request) => {
       const { data: settingsData } = await supabase
         .from('system_settings')
         .select('value')
-        .eq('key', 'accounts_email')
+        .eq('key', 'admin_email')
         .single();
       if (settingsData?.value) adminEmail = settingsData.value;
     } catch (e) {
