@@ -58,6 +58,22 @@ interface EmbedToken {
   };
 }
 
+interface ApiKey {
+  id: string;
+  organization_id: string;
+  api_key: string;
+  name: string;
+  is_active: boolean;
+  usage_count: number;
+  last_used_at: string | null;
+  allowed_domains: string[] | null;
+  created_at: string;
+  organization?: {
+    id: string;
+    name: string;
+  };
+}
+
 interface Organization {
   id: string;
   name: string;
@@ -66,20 +82,32 @@ interface Organization {
 const EmbedSettingsPage = () => {
   const navigate = useNavigate();
   const [tokens, setTokens] = useState<EmbedToken[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [orgSearch, setOrgSearch] = useState('');
+  const [apiKeyOrgSearch, setApiKeyOrgSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [creatingApiKey, setCreatingApiKey] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showCreateApiKeyDialog, setShowCreateApiKeyDialog] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [selectedToken, setSelectedToken] = useState<EmbedToken | null>(null);
+  const [activeMainTab, setActiveMainTab] = useState('apikeys');
   
   const [newToken, setNewToken] = useState({
     name: '',
     organization_id: '',
     allowed_domains: '',
     expires_days: '0',
-    allow_any_domain: true // Default to unrestricted
+    allow_any_domain: true
+  });
+
+  const [newApiKey, setNewApiKey] = useState({
+    name: 'المفتاح الرئيسي',
+    organization_id: '',
+    allowed_domains: '',
+    allow_any_domain: true
   });
 
   const baseUrl = window.location.origin;
@@ -90,7 +118,7 @@ const EmbedSettingsPage = () => {
 
   const fetchData = async () => {
     try {
-      const [tokensRes, orgsRes] = await Promise.all([
+      const [tokensRes, orgsRes, apiKeysRes] = await Promise.all([
         supabase
           .from('embed_tokens')
           .select('*, organization:client_organizations(id, name)')
@@ -100,11 +128,16 @@ const EmbedSettingsPage = () => {
           .from('client_organizations')
           .select('id, name')
           .eq('is_active', true)
-          .order('name')
+          .order('name'),
+        supabase
+          .from('client_api_keys')
+          .select('*, organization:client_organizations(id, name)')
+          .order('created_at', { ascending: false })
       ]);
 
       if (tokensRes.data) setTokens(tokensRes.data);
       if (orgsRes.data) setOrganizations(orgsRes.data);
+      if (apiKeysRes.data) setApiKeys(apiKeysRes.data as any);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('فشل في تحميل البيانات');
@@ -112,6 +145,81 @@ const EmbedSettingsPage = () => {
       setLoading(false);
     }
   };
+
+  const generateApiKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let key = 'wbyn_';
+    for (let i = 0; i < 32; i++) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return key;
+  };
+
+  const handleCreateApiKey = async () => {
+    if (!newApiKey.organization_id) {
+      toast.error('يرجى اختيار العميل');
+      return;
+    }
+    setCreatingApiKey(true);
+    try {
+      const key = generateApiKey();
+      const domains = newApiKey.allowed_domains
+        .split(',')
+        .map(d => d.trim())
+        .filter(d => d);
+
+      const { error } = await supabase
+        .from('client_api_keys')
+        .insert({
+          api_key: key,
+          name: newApiKey.name,
+          organization_id: newApiKey.organization_id,
+          allowed_domains: domains.length > 0 ? domains : null,
+          is_active: true
+        });
+
+      if (error) throw error;
+      toast.success('تم إنشاء API Key بنجاح');
+      setShowCreateApiKeyDialog(false);
+      setNewApiKey({ name: 'المفتاح الرئيسي', organization_id: '', allowed_domains: '', allow_any_domain: true });
+      fetchData();
+    } catch (error) {
+      console.error('Error creating API key:', error);
+      toast.error('فشل في إنشاء المفتاح');
+    } finally {
+      setCreatingApiKey(false);
+    }
+  };
+
+  const handleToggleApiKey = async (ak: ApiKey) => {
+    try {
+      const { error } = await supabase
+        .from('client_api_keys')
+        .update({ is_active: !ak.is_active })
+        .eq('id', ak.id);
+      if (error) throw error;
+      toast.success(ak.is_active ? 'تم تعطيل المفتاح' : 'تم تفعيل المفتاح');
+      fetchData();
+    } catch { toast.error('فشل في تحديث المفتاح'); }
+  };
+
+  const handleDeleteApiKey = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المفتاح؟')) return;
+    try {
+      const { error } = await supabase.from('client_api_keys').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('تم حذف المفتاح');
+      fetchData();
+    } catch { toast.error('فشل في حذف المفتاح'); }
+  };
+
+  const getUniversalTicketCode = (key: string) =>
+`<script 
+  src="${baseUrl}/embed/webyan-ticket-widget.js"
+  data-api-key="${key}"
+  data-position="bottom-right"
+  data-color="#3b82f6">
+</script>`;
 
   const generateToken = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

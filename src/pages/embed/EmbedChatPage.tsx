@@ -19,6 +19,8 @@ interface TokenSettings {
 export default function EmbedChatPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
+  const apiKey = searchParams.get('key') || '';
+  const activeKey = apiKey || token;
   const theme = searchParams.get('theme') as 'light' | 'dark' || 'light';
   
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
@@ -32,13 +34,71 @@ export default function EmbedChatPage() {
 
   useEffect(() => {
     const fetchClientInfo = async () => {
-      if (!token) {
+      if (!activeKey) {
         setLoading(false);
         return;
       }
 
+      // Handle new API key (wbyn_ prefix)
+      if (activeKey.startsWith('wbyn_')) {
+        try {
+          const { data: apiKeyData, error: apiKeyError } = await supabase
+            .from('client_api_keys')
+            .select(`
+              id,
+              organization_id,
+              is_active,
+              organization:client_organizations(id, name, contact_email)
+            `)
+            .eq('api_key', activeKey)
+            .eq('is_active', true)
+            .single();
+
+          if (apiKeyError || !apiKeyData) {
+            console.error('Invalid API key:', apiKeyError);
+            setLoading(false);
+            return;
+          }
+
+          const org = apiKeyData.organization as any;
+          const organizationId = apiKeyData.organization_id;
+
+          const { data: primaryContact } = await supabase
+            .from('client_accounts')
+            .select('full_name, email')
+            .eq('organization_id', organizationId)
+            .eq('is_primary_contact', true)
+            .eq('is_active', true)
+            .maybeSingle();
+
+          let contact = primaryContact;
+          if (!contact) {
+            const { data: anyContact } = await supabase
+              .from('client_accounts')
+              .select('full_name, email')
+              .eq('organization_id', organizationId)
+              .eq('is_active', true)
+              .order('created_at', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            contact = anyContact;
+          }
+
+          setClientInfo({
+            name: contact?.full_name || '',
+            email: contact?.email || org?.contact_email || '',
+            organizationName: org?.name || 'الدعم الفني'
+          });
+        } catch (error) {
+          console.error('Error with API key:', error);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Legacy token flow
       try {
-        // Verify token and get organization info + custom settings
         const { data: tokenData, error: tokenError } = await supabase
           .from('embed_tokens')
           .select(`
@@ -49,11 +109,7 @@ export default function EmbedChatPage() {
             default_message,
             primary_color,
             secondary_color,
-            organization:client_organizations(
-              id,
-              name,
-              contact_email
-            )
+            organization:client_organizations(id, name, contact_email)
           `)
           .eq('token', token)
           .single();
@@ -64,7 +120,6 @@ export default function EmbedChatPage() {
           return;
         }
 
-        // Set custom token settings
         setTokenSettings({
           welcomeMessage: tokenData.welcome_message || 'مرحباً بك! 👋 يسعدنا التواصل معك. فريق الدعم الفني جاهز لمساعدتك.',
           defaultMessage: tokenData.default_message || 'مرحباً، أحتاج المساعدة بخصوص...',
@@ -75,7 +130,6 @@ export default function EmbedChatPage() {
         const org = tokenData.organization as any;
         const organizationId = tokenData.organization_id;
 
-        // Try to get primary contact for this organization
         const { data: primaryContact } = await supabase
           .from('client_accounts')
           .select('full_name, email')
@@ -84,7 +138,6 @@ export default function EmbedChatPage() {
           .eq('is_active', true)
           .maybeSingle();
 
-        // If no primary contact, get any active contact
         let contact = primaryContact;
         if (!contact) {
           const { data: anyContact } = await supabase
@@ -111,13 +164,13 @@ export default function EmbedChatPage() {
     };
 
     fetchClientInfo();
-  }, [token]);
+  }, [activeKey]);
 
-  if (!token) {
+  if (!activeKey) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center p-6">
-          <p className="text-destructive font-medium">رمز التضمين مطلوب</p>
+          <p className="text-destructive font-medium">رمز التضمين أو مفتاح API مطلوب</p>
           <p className="text-sm text-muted-foreground mt-2">
             يرجى التأكد من صحة رابط التضمين
           </p>
@@ -141,7 +194,7 @@ export default function EmbedChatPage() {
   return (
     <div className="min-h-screen bg-transparent">
       <EmbedChatWidget 
-        embedToken={token}
+        embedToken={activeKey}
         theme={theme}
         primaryColor={tokenSettings.primaryColor}
         secondaryColor={tokenSettings.secondaryColor}

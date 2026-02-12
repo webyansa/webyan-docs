@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -19,29 +18,89 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { token } = await req.json();
+    const { token, apiKey } = await req.json();
     const origin = req.headers.get('x-embed-origin') || req.headers.get('origin') || '';
+    
+    // Determine which key to use
+    const key = apiKey || token;
 
-    if (!token) {
+    if (!key) {
       return new Response(
-        JSON.stringify({ valid: false, error: 'Token is required' }),
+        JSON.stringify({ valid: false, error: 'Token or API Key is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch token from database
+    // Check if it's a new-style API key (starts with wbyn_)
+    if (key.startsWith('wbyn_')) {
+      const { data: apiKeyData, error: apiKeyError } = await supabase
+        .from('client_api_keys')
+        .select(`
+          *,
+          organization:client_organizations(id, name, logo_url, contact_email)
+        `)
+        .eq('api_key', key)
+        .eq('is_active', true)
+        .single();
+
+      if (apiKeyError || !apiKeyData) {
+        return new Response(
+          JSON.stringify({ valid: false, error: 'Invalid or inactive API Key' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check allowed domains
+      if (apiKeyData.allowed_domains && apiKeyData.allowed_domains.length > 0) {
+        const originDomain = origin.replace(/^https?:\/\//, '').split('/')[0];
+        const isAllowed = apiKeyData.allowed_domains.some((domain: string) => {
+          if (domain.startsWith('*.')) {
+            const baseDomain = domain.slice(2);
+            return originDomain === baseDomain || originDomain.endsWith('.' + baseDomain);
+          }
+          return domain === originDomain || domain === origin;
+        });
+
+        if (!isAllowed) {
+          return new Response(
+            JSON.stringify({ valid: false, error: 'Origin not allowed' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Update usage stats
+      await supabase
+        .from('client_api_keys')
+        .update({
+          usage_count: (apiKeyData.usage_count || 0) + 1,
+          last_used_at: new Date().toISOString()
+        })
+        .eq('id', apiKeyData.id);
+
+      return new Response(
+        JSON.stringify({
+          valid: true,
+          organization: apiKeyData.organization,
+          apiKeyId: apiKeyData.id,
+          organizationId: apiKeyData.organization_id
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Legacy token flow (embed_tokens table)
     const { data: embedToken, error } = await supabase
       .from('embed_tokens')
       .select(`
         *,
         organization:client_organizations(id, name, logo_url, contact_email)
       `)
-      .eq('token', token)
+      .eq('token', key)
       .eq('is_active', true)
       .single();
 
     if (error || !embedToken) {
-      console.log('Token not found or inactive:', token);
       return new Response(
         JSON.stringify({ valid: false, error: 'Invalid or inactive token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -50,7 +109,6 @@ serve(async (req) => {
 
     // Check expiration
     if (embedToken.expires_at && new Date(embedToken.expires_at) < new Date()) {
-      console.log('Token expired:', token);
       return new Response(
         JSON.stringify({ valid: false, error: 'Token has expired' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -61,7 +119,6 @@ serve(async (req) => {
     if (embedToken.allowed_domains && embedToken.allowed_domains.length > 0) {
       const originDomain = origin.replace(/^https?:\/\//, '').split('/')[0];
       const isAllowed = embedToken.allowed_domains.some((domain: string) => {
-        // Support wildcard domains like *.example.com
         if (domain.startsWith('*.')) {
           const baseDomain = domain.slice(2);
           return originDomain === baseDomain || originDomain.endsWith('.' + baseDomain);
@@ -70,7 +127,6 @@ serve(async (req) => {
       });
 
       if (!isAllowed) {
-        console.log('Origin not allowed:', origin, 'Allowed:', embedToken.allowed_domains);
         return new Response(
           JSON.stringify({ valid: false, error: 'Origin not allowed' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
