@@ -33,14 +33,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Dialog,
-  DialogPortal,
-  DialogOverlay,
-} from '@/components/ui/dialog';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 const formSchema = z.object({
   organization_name: z
@@ -109,7 +102,6 @@ const saudiRegions = [
 ];
 
 export default function EmbedDemoRequestPopup() {
-  const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submissionNumber, setSubmissionNumber] = useState<string | null>(null);
@@ -129,32 +121,10 @@ export default function EmbedDemoRequestPopup() {
     },
   });
 
-  // Listen for postMessage to open the popup
+  // Notify parent on mount
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'WEBYAN_OPEN_DEMO_FORM') {
-        setIsOpen(true);
-        setIsSuccess(false);
-        setError(null);
-        form.reset();
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    
-    // Auto-open if URL has ?autoopen=true
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('autoopen') === 'true') {
-      setIsOpen(true);
-    }
-
-    return () => window.removeEventListener('message', handleMessage);
-  }, [form]);
-
-  // Notify parent when popup state changes
-  useEffect(() => {
-    window.parent.postMessage({ type: 'WEBYAN_POPUP_STATE', isOpen }, '*');
-  }, [isOpen]);
+    window.parent.postMessage({ type: 'WEBYAN_POPUP_STATE', isOpen: true }, '*');
+  }, []);
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
@@ -198,7 +168,6 @@ export default function EmbedDemoRequestPopup() {
       setSubmissionNumber(result.data?.submission_number || null);
       setIsSuccess(true);
       
-      // Notify parent of success
       window.parent.postMessage({ type: 'WEBYAN_FORM_SUBMITTED', success: true }, '*');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -208,317 +177,299 @@ export default function EmbedDemoRequestPopup() {
   };
 
   const handleClose = () => {
-    setIsOpen(false);
     window.parent.postMessage({ type: 'WEBYAN_POPUP_CLOSED' }, '*');
   };
 
-  return (
-    <div className="min-h-screen bg-transparent" dir="rtl">
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogPortal>
-          <DialogOverlay className="bg-transparent" />
-          <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] max-h-[90vh] p-0 gap-0 overflow-hidden border border-gray-200 shadow-2xl rounded-2xl bg-white duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]" style={{ outline: 'none' }}>
-          <div className="p-5 pb-4 bg-gradient-to-r from-sky-500 to-sky-600 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <Send className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">طلب عرض توضيحي</h2>
-                <p className="text-sm text-sky-100">أخبرنا عن جهتكم وسنتواصل معكم</p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20 rounded-full h-8 w-8"
-              onClick={handleClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+  // Success State
+  if (isSuccess) {
+    return (
+      <div className="h-screen bg-white flex items-center justify-center p-6" dir="rtl">
+        <div className="w-full max-w-sm text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="h-8 w-8 text-green-600" />
           </div>
-
-          <ScrollArea className="max-h-[calc(90vh-100px)]">
-            <div className="p-6">
-              {isSuccess ? (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle2 className="h-8 w-8 text-green-600" />
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">
-                    تم استلام طلبك بنجاح!
-                  </h2>
-                  <p className="text-gray-600 mb-4">
-                    شكراً لاهتمامكم بخدمات ويبيان. سيقوم فريقنا بالتواصل معكم في أقرب وقت.
-                  </p>
-                  {submissionNumber && (
-                    <div className="bg-sky-50 rounded-lg p-4 mb-4 inline-block">
-                      <p className="text-sm text-sky-600 mb-1">رقم الطلب</p>
-                      <p className="text-xl font-bold text-sky-700">{submissionNumber}</p>
-                    </div>
-                  )}
-                  <div className="mt-6">
-                    <Button onClick={handleClose} variant="outline">
-                      إغلاق
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    {error && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3">
-                        <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-red-800">خطأ في الإرسال</p>
-                          <p className="text-sm text-red-600">{error}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    <FormField
-                      control={form.control}
-                      name="organization_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-sm">
-                            <Building2 className="h-4 w-4 text-sky-500" />
-                            اسم الجهة / الجمعية *
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="مثال: جمعية البر الخيرية" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="contact_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-sm">
-                            <User className="h-4 w-4 text-sky-500" />
-                            اسم الشخص *
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="الاسم الكامل" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-2 text-sm">
-                              <Mail className="h-4 w-4 text-sky-500" />
-                              البريد الإلكتروني *
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="email"
-                                placeholder="example@domain.com"
-                                dir="ltr"
-                                className="text-left"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="phone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-2 text-sm">
-                              <Phone className="h-4 w-4 text-sky-500" />
-                              رقم الجوال
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="tel"
-                                placeholder="05xxxxxxxx"
-                                dir="ltr"
-                                className="text-left"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4 text-sky-500" />
-                            المنطقة
-                          </FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="اختر المنطقة" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {saudiRegions.map((region) => (
-                                <SelectItem key={region.value} value={region.value}>
-                                  {region.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="interest_type"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm">نوع الاهتمام *</FormLabel>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="grid gap-2"
-                            >
-                              {interestOptions.map((option) => (
-                                <label
-                                  key={option.value}
-                                  className={cn(
-                                    'flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all',
-                                    field.value === option.value
-                                      ? 'border-sky-500 bg-sky-50'
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  )}
-                                >
-                                  <RadioGroupItem value={option.value} />
-                                  <div>
-                                    <p className="font-medium text-gray-900 text-sm">{option.label}</p>
-                                    <p className="text-xs text-gray-500">{option.description}</p>
-                                  </div>
-                                </label>
-                              ))}
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="organization_size"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm">حجم الجهة (اختياري)</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="اختر حجم الجهة" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {sizeOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  <span>{option.label}</span>
-                                  <span className="text-xs text-muted-foreground mr-2">
-                                    ({option.description})
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm">ملاحظات / احتياج مختصر</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="أخبرنا المزيد عن احتياجاتكم..."
-                              className="resize-none"
-                              rows={3}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button
-                      type="submit"
-                      className="w-full h-11 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="h-5 w-5 ml-2 animate-spin" />
-                          جاري الإرسال...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-5 w-5 ml-2" />
-                          إرسال الطلب
-                        </>
-                      )}
-                    </Button>
-
-                    <p className="text-xs text-center text-gray-500">
-                      بالضغط على "إرسال الطلب" فإنك توافق على{' '}
-                      <a
-                        href="https://webyan.net/privacy"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sky-600 hover:underline"
-                      >
-                        سياسة الخصوصية
-                      </a>
-                    </p>
-                  </form>
-                </Form>
-              )}
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            تم استلام طلبك بنجاح!
+          </h2>
+          <p className="text-gray-600 mb-4 text-sm">
+            شكراً لاهتمامكم بخدمات ويبيان. سيقوم فريقنا بالتواصل معكم في أقرب وقت.
+          </p>
+          {submissionNumber && (
+            <div className="bg-sky-50 rounded-lg p-4 mb-6">
+              <p className="text-sm text-sky-600 mb-1">رقم الطلب</p>
+              <p className="text-xl font-bold text-sky-700">{submissionNumber}</p>
             </div>
-          </ScrollArea>
-        </DialogPrimitive.Content>
-        </DialogPortal>
-      </Dialog>
-
-      {/* Trigger Button for standalone testing */}
-      {!isOpen && (
-        <div className="fixed bottom-6 left-6 z-50">
-          <Button
-            onClick={() => setIsOpen(true)}
-            className="h-14 px-6 rounded-full shadow-lg bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700"
-          >
-            <Send className="h-5 w-5 ml-2" />
-            طلب عرض توضيحي
+          )}
+          <Button onClick={handleClose} variant="outline" className="px-8">
+            إغلاق
           </Button>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen bg-white flex flex-col overflow-hidden" dir="rtl">
+      {/* Header */}
+      <div className="flex-shrink-0 px-5 py-4 bg-gradient-to-r from-sky-500 to-sky-600 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center">
+            <Send className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-white">طلب عرض توضيحي</h2>
+            <p className="text-xs text-sky-100">أخبرنا عن جهتكم وسنتواصل معكم</p>
+          </div>
+        </div>
+        <button
+          onClick={handleClose}
+          className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+        >
+          <X className="h-4 w-4 text-white" />
+        </button>
+      </div>
+
+      {/* Scrollable Form Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-5">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800">خطأ في الإرسال</p>
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              <FormField
+                control={form.control}
+                name="organization_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2 text-sm">
+                      <Building2 className="h-4 w-4 text-sky-500" />
+                      اسم الجهة / الجمعية *
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="مثال: جمعية البر الخيرية" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="contact_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-sky-500" />
+                      اسم الشخص *
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="الاسم الكامل" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2 text-sm">
+                        <Mail className="h-4 w-4 text-sky-500" />
+                        البريد الإلكتروني *
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="example@domain.com"
+                          dir="ltr"
+                          className="text-left"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2 text-sm">
+                        <Phone className="h-4 w-4 text-sky-500" />
+                        رقم الجوال
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="tel"
+                          placeholder="05xxxxxxxx"
+                          dir="ltr"
+                          className="text-left"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2 text-sm">
+                      <MapPin className="h-4 w-4 text-sky-500" />
+                      المنطقة
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر المنطقة" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {saudiRegions.map((region) => (
+                          <SelectItem key={region.value} value={region.value}>
+                            {region.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="interest_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">نوع الاهتمام *</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="grid gap-2"
+                      >
+                        {interestOptions.map((option) => (
+                          <label
+                            key={option.value}
+                            className={cn(
+                              'flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all',
+                              field.value === option.value
+                                ? 'border-sky-500 bg-sky-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            )}
+                          >
+                            <RadioGroupItem value={option.value} />
+                            <div>
+                              <p className="font-medium text-gray-900 text-sm">{option.label}</p>
+                              <p className="text-xs text-gray-500">{option.description}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="organization_size"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">حجم الجهة (اختياري)</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر حجم الجهة" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {sizeOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <span>{option.label}</span>
+                            <span className="text-xs text-muted-foreground mr-2">
+                              ({option.description})
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">ملاحظات / احتياج مختصر</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="أخبرنا المزيد عن احتياجاتكم..."
+                        className="resize-none"
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Button
+                type="submit"
+                className="w-full h-11 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 ml-2 animate-spin" />
+                    جاري الإرسال...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-5 w-5 ml-2" />
+                    إرسال الطلب
+                  </>
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-gray-500">
+                بالضغط على "إرسال الطلب" فإنك توافق على{' '}
+                <a
+                  href="https://webyan.net/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-600 hover:underline"
+                >
+                  سياسة الخصوصية
+                </a>
+              </p>
+            </form>
+          </Form>
+        </div>
+      </div>
     </div>
   );
 }
