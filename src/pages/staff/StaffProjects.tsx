@@ -32,7 +32,7 @@ export default function StaffProjects() {
   const staffId = permissions.staffId;
   
   const [roleFilter, setRoleFilter] = useState<FilterRole>('all');
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('active');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
 
   // Fetch projects assigned to this staff member
   const { data: projects = [], isLoading, refetch } = useQuery({
@@ -102,6 +102,7 @@ export default function StaffProjects() {
 
   // Stats
   const activeProjects = projects.filter((p: any) => p.status === 'active').length;
+  const completedProjects = projects.filter((p: any) => p.status === 'completed').length;
   const overdueProjects = projects.filter((p: any) => isOverdue(p)).length;
   const onHoldProjects = projects.filter((p: any) => p.status === 'on_hold').length;
 
@@ -131,7 +132,7 @@ export default function StaffProjects() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -174,6 +175,19 @@ export default function StaffProjects() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-100">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{completedProjects}</p>
+                <p className="text-sm text-muted-foreground">مكتملة (رصيدك)</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-100">
                 <FolderKanban className="h-5 w-5 text-blue-600" />
               </div>
@@ -195,9 +209,9 @@ export default function StaffProjects() {
                 <SelectValue placeholder="حالة المشروع" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">النشطة والمتوقفة</SelectItem>
-                <SelectItem value="completed">المكتملة</SelectItem>
                 <SelectItem value="all">جميع المشاريع</SelectItem>
+                <SelectItem value="active">النشطة والمتوقفة</SelectItem>
+                <SelectItem value="completed">المكتملة فقط</SelectItem>
               </SelectContent>
             </Select>
 

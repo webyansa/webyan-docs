@@ -79,18 +79,13 @@ export function ServiceExecutionCard({
         performed_by_name: staffName,
       });
 
-      // Notify admins
-      const { data: admins } = await supabase.from('user_roles').select('user_id').eq('role', 'admin');
-      if (admins?.length) {
-        await supabase.from('user_notifications').insert(
-          admins.map(a => ({
-            user_id: a.user_id,
-            title: 'بدء تنفيذ خدمة',
-            message: `${staffName || 'موظف'} بدأ تنفيذ الخدمة في "${projectName}"`,
-            type: 'service_started',
-          }))
-        );
-      }
+      // Save admin notification
+      await supabase.from('admin_notifications').insert({
+        type: 'project_update',
+        title: `بدء تنفيذ خدمة: ${projectName}`,
+        message: `${staffName || 'موظف'} بدأ تنفيذ الخدمة`,
+        link: `/admin/projects/${projectId}`,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
@@ -134,18 +129,13 @@ export function ServiceExecutionCard({
         performed_by_name: staffName,
       });
 
-      // Notify admins
-      const { data: admins } = await supabase.from('user_roles').select('user_id').eq('role', 'admin');
-      if (admins?.length) {
-        await supabase.from('user_notifications').insert(
-          admins.map(a => ({
-            user_id: a.user_id,
-            title: 'اكتمال تنفيذ خدمة',
-            message: `${staffName || 'موظف'} أنهى تنفيذ الخدمة في "${projectName}"`,
-            type: 'service_completed',
-          }))
-        );
-      }
+      // Save admin notification
+      await supabase.from('admin_notifications').insert({
+        type: 'phase_completed',
+        title: `اكتمال تنفيذ خدمة: ${projectName}`,
+        message: `${staffName || 'موظف'} أنهى تنفيذ الخدمة`,
+        link: `/admin/projects/${projectId}`,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
