@@ -13,6 +13,7 @@
     position: script.getAttribute('data-position') || 'bottom-right',
     color: script.getAttribute('data-color') || '#3b82f6',
     text: script.getAttribute('data-text') || 'الدعم الفني',
+    trigger: script.getAttribute('data-trigger') || '',
     baseUrl: script.src.replace(/\/embed\/webyan-ticket-widget\.js.*$/, '')
   };
 
@@ -42,13 +43,6 @@
   var fabPos = (isRight ? 'right:20px;' : 'left:20px;') + (isTop ? 'top:20px;' : 'bottom:20px;');
   var popupPos = (isRight ? 'right:20px;' : 'left:20px;') + (isTop ? 'top:90px;' : 'bottom:90px;');
 
-  // Create FAB
-  var fab = document.createElement('button');
-  fab.id = 'webyan-ticket-fab';
-  fab.setAttribute('aria-label', config.text);
-  fab.style.cssText = 'background:' + config.color + ';' + fabPos;
-  fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
-
   // Create popup
   var popup = document.createElement('div');
   popup.id = 'webyan-ticket-popup';
@@ -60,25 +54,48 @@
   iframe.setAttribute('loading', 'lazy');
   popup.appendChild(iframe);
 
-  document.body.appendChild(fab);
   document.body.appendChild(popup);
 
-  // Toggle logic
   var isOpen = false;
   function toggle() {
     isOpen = !isOpen;
     popup.classList.toggle('open', isOpen);
-    fab.classList.toggle('open', isOpen);
-    fab.innerHTML = isOpen
-      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
-      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
+    if (fab) fab.classList.toggle('open', isOpen);
+    if (fab) {
+      fab.innerHTML = isOpen
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
+    }
   }
 
-  fab.addEventListener('click', toggle);
+  // Trigger mode: attach to existing button(s)
+  var fab = null;
+  if (config.trigger) {
+    var triggers = document.querySelectorAll(config.trigger);
+    if (triggers.length > 0) {
+      triggers.forEach(function(el) {
+        el.addEventListener('click', function(e) {
+          e.preventDefault();
+          toggle();
+        });
+      });
+    } else {
+      console.warn('[Webyan] Trigger element not found: ' + config.trigger);
+    }
+  } else {
+    // Default: create floating FAB
+    fab = document.createElement('button');
+    fab.id = 'webyan-ticket-fab';
+    fab.setAttribute('aria-label', config.text);
+    fab.style.cssText = 'background:' + config.color + ';' + fabPos;
+    fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
+    fab.addEventListener('click', toggle);
+    document.body.appendChild(fab);
+  }
 
   // Close on outside click
   document.addEventListener('click', function(e) {
-    if (isOpen && !e.target.closest('#webyan-ticket-fab') && !e.target.closest('#webyan-ticket-popup')) {
+    if (isOpen && !e.target.closest('#webyan-ticket-popup') && !e.target.closest('#webyan-ticket-fab') && !e.target.closest(config.trigger || '#webyan-ticket-fab')) {
       toggle();
     }
   });
@@ -89,4 +106,7 @@
       toggle();
     }
   });
+
+  // Expose global API
+  window.WebyanTicket = { open: function() { if (!isOpen) toggle(); }, close: function() { if (isOpen) toggle(); }, toggle: toggle };
 })();
