@@ -86,7 +86,7 @@ export function ContractDocumentationModal({
   // Team assignment state
   const [implementerId, setImplementerId] = useState<string>('');
   const [csmId, setCsmId] = useState<string>('');
-  
+  const [projectManagerId, setProjectManagerId] = useState<string>('');
   // Template selection
   const derivedProjectType = quoteType ? (quoteTypeToProjectType[quoteType] || 'custom_platform') : 'custom_platform';
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -305,6 +305,7 @@ export function ContractDocumentationModal({
             priority: 'medium',
             implementer_id: implementerId,
             csm_id: csmId,
+            project_manager_id: (projectManagerId && projectManagerId !== '__none__') ? projectManagerId : null,
             budget: executionBudget,
           })
           .select()
@@ -370,6 +371,9 @@ export function ContractDocumentationModal({
           { project_id: project.id, staff_id: implementerId, role: 'implementer', assigned_by: staffId },
           { project_id: project.id, staff_id: csmId, role: 'csm', assigned_by: staffId },
         ];
+        if (projectManagerId) {
+          teamMembers.push({ project_id: project.id, staff_id: projectManagerId, role: 'project_manager', assigned_by: staffId });
+        }
 
         await supabase
           .from('project_team_members')
@@ -928,6 +932,29 @@ export function ContractDocumentationModal({
                         </Select>
                         <p className="text-xs text-muted-foreground">
                           {teamRoles.csm.description}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          مدير المشروع
+                        </Label>
+                        <Select value={projectManagerId} onValueChange={setProjectManagerId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="اختر مدير المشروع (اختياري)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">غير محدد</SelectItem>
+                            {staffMembers?.map((staff) => (
+                              <SelectItem key={staff.id} value={staff.id}>
+                                {staff.full_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          مسؤول عن متابعة وإدارة المشروع
                         </p>
                       </div>
                     </div>
