@@ -303,9 +303,33 @@ Deno.serve(async (req: Request) => {
                         ` : ''}
                       </table>
                       
-                      <p style="color: #475569; line-height: 1.8; margin: 20px 0 0 0;">
-                        إذا كان لديكم أي استفسار، يمكنكم التواصل معنا عبر البريد الإلكتروني: <a href="mailto:hala@webyan.sa" style="color: #0ea5e9;">hala@webyan.sa</a> أو عبر الجوال أو الواتساب: <a href="tel:+966538553400" style="color: #0ea5e9;">+966 53 855 3400</a>
-                      </p>
+                      <table width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0;" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="padding: 20px;">
+                            <p style="color: #1e293b; font-weight: bold; margin: 0 0 12px 0; font-size: 14px;">📞 تواصل معنا</p>
+                            <table cellpadding="0" cellspacing="0" width="100%">
+                              <tr>
+                                <td style="padding: 6px 0;">
+                                  <span style="color: #475569; font-size: 14px;">✉️ البريد الإلكتروني: </span>
+                                  <a href="mailto:hala@webyan.sa" style="color: #0ea5e9; text-decoration: none; font-size: 14px;">hala@webyan.sa</a>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 6px 0;">
+                                  <span style="color: #475569; font-size: 14px;">📱 الجوال: </span>
+                                  <a href="tel:+966538553400" style="color: #0ea5e9; text-decoration: none; font-size: 14px;" dir="ltr">+966 53 855 3400</a>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding: 6px 0;">
+                                  <span style="color: #475569; font-size: 14px;">💬 واتساب: </span>
+                                  <a href="https://wa.me/966538553400" style="color: #0ea5e9; text-decoration: none; font-size: 14px;" dir="ltr">+966 53 855 3400</a>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
                     </td>
                   </tr>
                   <tr>
