@@ -123,7 +123,7 @@ export default function ProjectsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('staff_members')
-        .select('id, full_name, role')
+        .select('id, full_name')
         .eq('is_active', true)
         .order('full_name');
       if (error) throw error;
@@ -170,9 +170,9 @@ export default function ProjectsPage() {
             ? format(projectForm.expected_delivery_date, 'yyyy-MM-dd')
             : null,
           stage: isService ? null : (templatePhases[0]?.phase_type || null),
-          implementer_id: projectForm.implementer_id || null,
-          csm_id: projectForm.csm_id || null,
-          project_manager_id: projectForm.project_manager_id || null,
+          implementer_id: (projectForm.implementer_id && projectForm.implementer_id !== '__none__') ? projectForm.implementer_id : null,
+          csm_id: (projectForm.csm_id && projectForm.csm_id !== '__none__') ? projectForm.csm_id : null,
+          project_manager_id: (projectForm.project_manager_id && projectForm.project_manager_id !== '__none__') ? projectForm.project_manager_id : null,
         })
         .select()
         .single();
