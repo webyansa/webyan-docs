@@ -78,12 +78,43 @@ serve(async (req) => {
         })
         .eq('id', apiKeyData.id);
 
+      // Fetch primary contact info
+      let contactName = '';
+      let contactEmail = '';
+      const { data: primaryContact } = await supabase
+        .from('client_accounts')
+        .select('full_name, email')
+        .eq('organization_id', apiKeyData.organization_id)
+        .eq('is_primary_contact', true)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (primaryContact) {
+        contactName = primaryContact.full_name || '';
+        contactEmail = primaryContact.email || '';
+      } else {
+        const { data: anyContact } = await supabase
+          .from('client_accounts')
+          .select('full_name, email')
+          .eq('organization_id', apiKeyData.organization_id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (anyContact) {
+          contactName = anyContact.full_name || '';
+          contactEmail = anyContact.email || '';
+        }
+      }
+
       return new Response(
         JSON.stringify({
           valid: true,
           organization: apiKeyData.organization,
           apiKeyId: apiKeyData.id,
-          organizationId: apiKeyData.organization_id
+          organizationId: apiKeyData.organization_id,
+          contactName,
+          contactEmail: contactEmail || apiKeyData.organization?.contact_email || ''
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

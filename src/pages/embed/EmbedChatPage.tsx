@@ -39,123 +39,42 @@ export default function EmbedChatPage() {
         return;
       }
 
-      // Handle new API key (wbyn_ prefix)
-      if (activeKey.startsWith('wbyn_')) {
-        try {
-          const { data: apiKeyData, error: apiKeyError } = await supabase
-            .from('client_api_keys')
-            .select(`
-              id,
-              organization_id,
-              is_active,
-              organization:client_organizations(id, name, contact_email)
-            `)
-            .eq('api_key', activeKey)
-            .eq('is_active', true)
-            .single();
-
-          if (apiKeyError || !apiKeyData) {
-            console.error('Invalid API key:', apiKeyError);
-            setLoading(false);
-            return;
-          }
-
-          const org = apiKeyData.organization as any;
-          const organizationId = apiKeyData.organization_id;
-
-          const { data: primaryContact } = await supabase
-            .from('client_accounts')
-            .select('full_name, email')
-            .eq('organization_id', organizationId)
-            .eq('is_primary_contact', true)
-            .eq('is_active', true)
-            .maybeSingle();
-
-          let contact = primaryContact;
-          if (!contact) {
-            const { data: anyContact } = await supabase
-              .from('client_accounts')
-              .select('full_name, email')
-              .eq('organization_id', organizationId)
-              .eq('is_active', true)
-              .order('created_at', { ascending: true })
-              .limit(1)
-              .maybeSingle();
-            contact = anyContact;
-          }
-
-          setClientInfo({
-            name: contact?.full_name || '',
-            email: contact?.email || org?.contact_email || '',
-            organizationName: org?.name || 'الدعم الفني'
-          });
-        } catch (error) {
-          console.error('Error with API key:', error);
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Legacy token flow
       try {
-        const { data: tokenData, error: tokenError } = await supabase
-          .from('embed_tokens')
-          .select(`
-            id,
-            organization_id,
-            is_active,
-            welcome_message,
-            default_message,
-            primary_color,
-            secondary_color,
-            organization:client_organizations(id, name, contact_email)
-          `)
-          .eq('token', token)
-          .single();
+        // Use the verify-embed-token edge function which has service role access
+        const { data, error } = await supabase.functions.invoke('verify-embed-token', {
+          body: { token: activeKey.startsWith('wbyn_') ? undefined : activeKey, apiKey: activeKey.startsWith('wbyn_') ? activeKey : undefined }
+        });
 
-        if (tokenError || !tokenData || !tokenData.is_active) {
-          console.error('Invalid embed token:', tokenError);
+        if (error || !data?.valid) {
+          console.error('Invalid token/key:', error || data?.error);
           setLoading(false);
           return;
         }
 
-        setTokenSettings({
-          welcomeMessage: tokenData.welcome_message || 'مرحباً بك! 👋 يسعدنا التواصل معك. فريق الدعم الفني جاهز لمساعدتك.',
-          defaultMessage: tokenData.default_message || 'مرحباً، أحتاج المساعدة بخصوص...',
-          primaryColor: tokenData.primary_color || '#263c84',
-          secondaryColor: tokenData.secondary_color || '#24c2ec'
-        });
-
-        const org = tokenData.organization as any;
-        const organizationId = tokenData.organization_id;
-
-        const { data: primaryContact } = await supabase
-          .from('client_accounts')
-          .select('full_name, email')
-          .eq('organization_id', organizationId)
-          .eq('is_primary_contact', true)
-          .eq('is_active', true)
-          .maybeSingle();
-
-        let contact = primaryContact;
-        if (!contact) {
-          const { data: anyContact } = await supabase
-            .from('client_accounts')
-            .select('full_name, email')
-            .eq('organization_id', organizationId)
-            .eq('is_active', true)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-          contact = anyContact;
-        }
-
+        // Set client info from the edge function response
         setClientInfo({
-          name: contact?.full_name || '',
-          email: contact?.email || org?.contact_email || '',
-          organizationName: org?.name || 'الدعم الفني'
+          name: data.contactName || '',
+          email: data.contactEmail || data.organization?.contact_email || '',
+          organizationName: data.organization?.name || 'الدعم الفني'
         });
+
+        // For legacy tokens, fetch settings separately
+        if (!activeKey.startsWith('wbyn_')) {
+          const { data: tokenData } = await supabase
+            .from('embed_tokens')
+            .select('welcome_message, default_message, primary_color, secondary_color')
+            .eq('token', activeKey)
+            .maybeSingle();
+
+          if (tokenData) {
+            setTokenSettings({
+              welcomeMessage: tokenData.welcome_message || tokenSettings.welcomeMessage,
+              defaultMessage: tokenData.default_message || tokenSettings.defaultMessage,
+              primaryColor: tokenData.primary_color || tokenSettings.primaryColor,
+              secondaryColor: tokenData.secondary_color || tokenSettings.secondaryColor
+            });
+          }
+        }
       } catch (error) {
         console.error('Error fetching client info:', error);
       } finally {
