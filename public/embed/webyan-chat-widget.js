@@ -9,7 +9,7 @@
   var config = {
     apiKey: script.getAttribute('data-api-key') || '',
     position: script.getAttribute('data-position') || 'bottom-right',
-    color: script.getAttribute('data-color') || '#10b981',
+    color: script.getAttribute('data-color') || '#263c84',
     text: script.getAttribute('data-text') || 'المراسلات',
     baseUrl: script.src.replace(/\/embed\/webyan-chat-widget\.js.*$/, '')
   };
@@ -21,11 +21,10 @@
 
   var style = document.createElement('style');
   style.textContent = [
-    '#webyan-chat-fab{position:fixed;z-index:999999;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s cubic-bezier(.4,0,.2,1);box-shadow:0 6px 24px rgba(0,0,0,0.25);animation:webyan-c-pulse 2.5s infinite}',
-    '#webyan-chat-fab:hover{transform:scale(1.08) translateY(-2px)}',
-    '#webyan-chat-fab svg{width:26px;height:26px;color:#fff;transition:transform .3s}',
+    '#webyan-chat-fab{position:fixed;z-index:999999;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s cubic-bezier(.4,0,.2,1);box-shadow:0 4px 20px rgba(38,60,132,0.4);background:linear-gradient(135deg,#263c84 0%,#24c2ec 100%)!important}',
+    '#webyan-chat-fab:hover{transform:scale(1.1) translateY(-2px);box-shadow:0 8px 30px rgba(36,194,236,0.5)}',
+    '#webyan-chat-fab svg{width:26px;height:26px;color:#fff;transition:transform .3s;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.2))}',
     '#webyan-chat-fab.open svg{transform:rotate(90deg)}',
-    '@keyframes webyan-c-pulse{0%,100%{box-shadow:0 6px 24px rgba(0,0,0,0.25)}50%{box-shadow:0 6px 40px rgba(0,0,0,0.35)}}',
     '#webyan-chat-popup{position:fixed;z-index:999998;width:400px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.2);opacity:0;visibility:hidden;transform:translateY(16px) scale(0.96);transition:all .3s cubic-bezier(.4,0,.2,1);overflow:hidden}',
     '#webyan-chat-popup.open{opacity:1;visibility:visible;transform:translateY(0) scale(1)}',
     '#webyan-chat-popup iframe{width:100%;height:100%;border:none}',
@@ -41,7 +40,7 @@
   var fab = document.createElement('button');
   fab.id = 'webyan-chat-fab';
   fab.setAttribute('aria-label', config.text);
-  fab.style.cssText = 'background:' + config.color + ';' + fabPos;
+  fab.style.cssText = 'background:linear-gradient(135deg,' + config.color + ' 0%,#24c2ec 100%);' + fabPos;
   fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 
   var popup = document.createElement('div');
