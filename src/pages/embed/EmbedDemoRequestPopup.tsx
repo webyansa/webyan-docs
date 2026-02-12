@@ -35,8 +35,6 @@ import {
 } from '@/components/ui/form';
 import {
   Dialog,
-  DialogHeader,
-  DialogTitle,
   DialogPortal,
   DialogOverlay,
 } from '@/components/ui/dialog';
@@ -218,33 +216,27 @@ export default function EmbedDemoRequestPopup() {
     <div className="min-h-screen bg-transparent" dir="rtl">
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogPortal>
-          <DialogOverlay className="bg-black/30 backdrop-blur-sm" />
-          <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] max-h-[90vh] p-0 gap-0 overflow-hidden border-0 shadow-2xl rounded-2xl bg-white duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]">
-          <DialogHeader className="p-6 pb-4 border-b bg-gradient-to-r from-sky-500 to-sky-600">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Send className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold text-white">
-                    طلب عرض توضيحي
-                  </DialogTitle>
-                  <p className="text-sm text-sky-100 mt-1">
-                    أخبرنا عن جهتكم وسنتواصل معكم
-                  </p>
-                </div>
+          <DialogOverlay className="bg-transparent" />
+          <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] max-h-[90vh] p-0 gap-0 overflow-hidden border border-gray-200 shadow-2xl rounded-2xl bg-white duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]" style={{ outline: 'none' }}>
+          <div className="p-5 pb-4 bg-gradient-to-r from-sky-500 to-sky-600 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                <Send className="h-5 w-5 text-white" />
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 rounded-full"
-                onClick={handleClose}
-              >
-                <X className="h-5 w-5" />
-              </Button>
+              <div>
+                <h2 className="text-lg font-bold text-white">طلب عرض توضيحي</h2>
+                <p className="text-sm text-sky-100">أخبرنا عن جهتكم وسنتواصل معكم</p>
+              </div>
             </div>
-          </DialogHeader>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20 rounded-full h-8 w-8"
+              onClick={handleClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
           <ScrollArea className="max-h-[calc(90vh-100px)]">
             <div className="p-6">
