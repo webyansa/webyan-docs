@@ -24,7 +24,7 @@ import { projectStatuses, priorities, projectPhases } from '@/lib/operations/pro
 import { format, isPast, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
-type FilterRole = 'all' | 'implementer' | 'csm';
+type FilterRole = 'all' | 'implementer' | 'csm' | 'project_manager';
 type FilterStatus = 'active' | 'completed' | 'all';
 
 export default function StaffProjects() {
@@ -54,8 +54,10 @@ export default function StaffProjects() {
         query = query.eq('implementer_id', staffId);
       } else if (roleFilter === 'csm') {
         query = query.eq('csm_id', staffId);
+      } else if (roleFilter === 'project_manager') {
+        query = query.eq('project_manager_id', staffId);
       } else {
-        query = query.or(`implementer_id.eq.${staffId},csm_id.eq.${staffId}`);
+        query = query.or(`implementer_id.eq.${staffId},csm_id.eq.${staffId},project_manager_id.eq.${staffId}`);
       }
 
       // Filter by status
@@ -92,12 +94,21 @@ export default function StaffProjects() {
   };
 
   const getMyRole = (project: any) => {
-    if (project.implementer_id === staffId && project.csm_id === staffId) {
-      return 'both';
-    }
-    if (project.implementer_id === staffId) return 'implementer';
-    if (project.csm_id === staffId) return 'csm';
-    return null;
+    const roles: string[] = [];
+    if (project.implementer_id === staffId) roles.push('implementer');
+    if (project.csm_id === staffId) roles.push('csm');
+    if (project.project_manager_id === staffId) roles.push('project_manager');
+    if (roles.length === 0) return null;
+    if (roles.length === 1) return roles[0];
+    return 'multiple';
+  };
+
+  const getRoleBadges = (project: any) => {
+    const badges: { key: string; label: string; icon: typeof User }[] = [];
+    if (project.implementer_id === staffId) badges.push({ key: 'impl', label: 'مسؤول التنفيذ', icon: User });
+    if (project.csm_id === staffId) badges.push({ key: 'csm', label: 'نجاح العميل', icon: Users });
+    if (project.project_manager_id === staffId) badges.push({ key: 'pm', label: 'مدير المشروع', icon: Users });
+    return badges;
   };
 
   // Stats
@@ -223,6 +234,7 @@ export default function StaffProjects() {
                 <SelectItem value="all">جميع الأدوار</SelectItem>
                 <SelectItem value="implementer">مسؤول التنفيذ</SelectItem>
                 <SelectItem value="csm">مسؤول نجاح العميل</SelectItem>
+                <SelectItem value="project_manager">مدير المشروع</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -285,31 +297,13 @@ export default function StaffProjects() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* My Role Badge */}
-                  <div className="flex items-center gap-2">
-                    {myRole === 'implementer' && (
-                      <Badge variant="secondary" className="text-xs">
-                        <User className="h-3 w-3 ml-1" />
-                        مسؤول التنفيذ
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {getRoleBadges(project).map(b => (
+                      <Badge key={b.key} variant="secondary" className="text-xs">
+                        <b.icon className="h-3 w-3 ml-1" />
+                        {b.label}
                       </Badge>
-                    )}
-                    {myRole === 'csm' && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Users className="h-3 w-3 ml-1" />
-                        مسؤول نجاح العميل
-                      </Badge>
-                    )}
-                    {myRole === 'both' && (
-                      <>
-                        <Badge variant="secondary" className="text-xs">
-                          <User className="h-3 w-3 ml-1" />
-                          التنفيذ
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          <Users className="h-3 w-3 ml-1" />
-                          نجاح العميل
-                        </Badge>
-                      </>
-                    )}
+                    ))}
                   </div>
 
                   {/* Current Phase */}
