@@ -34,23 +34,14 @@ export function useChatNotifications(options: UseChatNotificationsOptions) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
 
-  // Create audio element for notification sound (using a simple notification beep)
+  // Create audio element for notification sound
   useEffect(() => {
-    // Create a simple notification sound using Web Audio API
-    const createNotificationSound = () => {
-      const audio = new Audio();
-      // Using a base64 encoded short notification sound
-      audio.src = 'data:audio/mp3;base64,//uQxAAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//uQxBUAAADSAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
-      audio.volume = 0.6;
-      return audio;
-    };
-    
-    audioRef.current = createNotificationSound();
+    const audio = new Audio('https://cdn.freesound.org/previews/536/536420_11943129-lq.mp3');
+    audio.volume = 0.6;
+    audioRef.current = audio;
     
     return () => {
-      if (audioRef.current) {
-        audioRef.current = null;
-      }
+      audioRef.current = null;
     };
   }, []);
 
