@@ -116,6 +116,7 @@ export default function ChatEmbedSettingsPage() {
         supabase
           .from('embed_tokens')
           .select('*, organization:client_organizations(id, name)')
+          .filter('token_type', 'eq', 'chat')
           .order('created_at', { ascending: false }),
         supabase
           .from('client_organizations')
@@ -173,8 +174,9 @@ export default function ChatEmbedSettingsPage() {
           welcome_message: newToken.welcome_message,
           default_message: newToken.default_message,
           primary_color: newToken.primary_color,
-          secondary_color: newToken.secondary_color
-        });
+          secondary_color: newToken.secondary_color,
+          token_type: 'chat'
+        } as any);
 
       if (error) throw error;
 

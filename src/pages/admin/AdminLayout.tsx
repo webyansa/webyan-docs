@@ -112,6 +112,7 @@ const ticketsSection: NavSection = {
     { title: 'جميع التذاكر', href: '/admin/tickets', icon: Ticket, permission: 'canViewAllTickets' },
     { title: 'إعدادات التصعيد', href: '/admin/escalation-settings', icon: AlertTriangle, permission: 'canManageEscalation' },
     { title: 'البلاغات', href: '/admin/issues', icon: AlertTriangle, permission: 'canViewAllTickets' },
+    { title: 'تضمين تذاكر الدعم', href: '/admin/embed-settings', icon: Code2, permission: 'canManageEmbedSettings' },
   ]
 };
 
@@ -156,7 +157,6 @@ const clientsSection: NavSection = {
   sectionPermission: 'canManageClients',
   items: [
     { title: 'التقييمات', href: '/admin/feedback', icon: ThumbsUp, permission: 'canManageClients' },
-    { title: 'إعدادات التضمين', href: '/admin/embed-settings', icon: Code2, permission: 'canManageEmbedSettings' },
   ]
 };
 

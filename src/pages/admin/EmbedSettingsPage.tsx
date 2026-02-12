@@ -88,6 +88,7 @@ const EmbedSettingsPage = () => {
         supabase
           .from('embed_tokens')
           .select('*, organization:client_organizations(id, name)')
+          .or('token_type.eq.ticket,token_type.is.null')
           .order('created_at', { ascending: false }),
         supabase
           .from('client_organizations')
@@ -142,8 +143,9 @@ const EmbedSettingsPage = () => {
           organization_id: newToken.organization_id,
           allowed_domains: domains,
           expires_at: expiresAt,
-          is_active: true
-        });
+          is_active: true,
+          token_type: 'ticket'
+        } as any);
 
       if (error) throw error;
 
