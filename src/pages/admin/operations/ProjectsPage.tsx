@@ -59,6 +59,9 @@ export default function ProjectsPage() {
     template_id: '',
     received_date: new Date(),
     expected_delivery_date: undefined as Date | undefined,
+    implementer_id: '',
+    csm_id: '',
+    project_manager_id: '',
   });
 
   // Fetch projects
@@ -114,6 +117,21 @@ export default function ProjectsPage() {
     enabled: newProjectOpen && projectForm.project_type !== 'service_execution',
   });
 
+  // Fetch staff for team assignment
+  const { data: staffMembers = [] } = useQuery({
+    queryKey: ['staff-for-project-team'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('staff_members')
+        .select('id, full_name, role')
+        .eq('is_active', true)
+        .order('full_name');
+      if (error) throw error;
+      return data;
+    },
+    enabled: newProjectOpen,
+  });
+
   // Fetch current staff
   const { data: currentStaff } = useQuery({
     queryKey: ['current-staff', user?.id],
@@ -152,6 +170,9 @@ export default function ProjectsPage() {
             ? format(projectForm.expected_delivery_date, 'yyyy-MM-dd')
             : null,
           stage: isService ? null : (templatePhases[0]?.phase_type || null),
+          implementer_id: projectForm.implementer_id || null,
+          csm_id: projectForm.csm_id || null,
+          project_manager_id: projectForm.project_manager_id || null,
         })
         .select()
         .single();
@@ -196,16 +217,28 @@ export default function ProjectsPage() {
       template_id: '',
       received_date: new Date(),
       expected_delivery_date: undefined,
+      implementer_id: '',
+      csm_id: '',
+      project_manager_id: '',
     });
   };
 
   // Validate if project can be deleted
   const canDeleteProject = (project: any): { allowed: boolean; reason?: string } => {
+    const isCompleted = project.status === 'completed';
+    const isActive = project.status === 'active';
+    const isServiceExecution = project.project_type === 'service_execution';
+
+    // Service execution projects: allow if completed or not started
+    if (isServiceExecution) {
+      if (isCompleted) return { allowed: true };
+      if (isActive && (!project.service_status || project.service_status === 'pending')) return { allowed: true };
+      return { allowed: false, reason: 'لا يمكن حذف خدمة قيد التنفيذ.' };
+    }
+
     const phases = project.project_phases || [];
     const hasStartedPhases = phases.some((p: any) => p.status === 'in_progress' || p.status === 'completed');
     const allCompleted = phases.length > 0 && phases.every((p: any) => p.status === 'completed');
-    const isCompleted = project.status === 'completed';
-    const isActive = project.status === 'active';
 
     // Allow: completed project with all phases done
     if (isCompleted && (allCompleted || phases.length === 0)) return { allowed: true };
@@ -710,6 +743,55 @@ export default function ProjectsPage() {
                     />
                   </PopoverContent>
                 </Popover>
+              </div>
+            </div>
+
+            {/* Team Assignment */}
+            <div className="space-y-2">
+              <Label className="font-semibold">فريق العمل</Label>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">مسؤول التنفيذ</Label>
+                  <Select value={projectForm.implementer_id} onValueChange={(v) => setProjectForm(f => ({ ...f, implementer_id: v === '__none__' ? '' : v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">غير محدد</SelectItem>
+                      {staffMembers.map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">نجاح العميل</Label>
+                  <Select value={projectForm.csm_id} onValueChange={(v) => setProjectForm(f => ({ ...f, csm_id: v === '__none__' ? '' : v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">غير محدد</SelectItem>
+                      {staffMembers.map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">مدير المشروع</Label>
+                  <Select value={projectForm.project_manager_id} onValueChange={(v) => setProjectForm(f => ({ ...f, project_manager_id: v === '__none__' ? '' : v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">غير محدد</SelectItem>
+                      {staffMembers.map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
