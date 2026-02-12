@@ -13,7 +13,8 @@ type NotificationType =
   | 'chat_assigned'
   | 'chat_message'
   | 'task_completed'
-  | 'project_update';
+  | 'project_update'
+  | 'demo_request';
 
 interface NotificationConfig {
   icon: string;
@@ -71,6 +72,11 @@ const notificationConfigs: Record<NotificationType, NotificationConfig> = {
     icon: '📋',
     title: 'تحديث على مشروع',
     soundType: 'chime',
+  },
+  demo_request: {
+    icon: '🌐',
+    title: 'طلب عرض توضيحي من الموقع',
+    soundType: 'alert',
   },
 };
 
@@ -616,6 +622,37 @@ export function useStaffNotifications() {
       supabase.removeChannel(channel);
     };
   }, [isStaff, permissions.staffId, showNotification]);
+
+  // Subscribe to new demo requests from website
+  useEffect(() => {
+    if (!isStaff || !permissions.canManageContent) return;
+
+    const channel = supabase
+      .channel('admin-demo-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'website_form_submissions',
+          filter: 'form_type=eq.demo_request',
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          showNotification(
+            'demo_request',
+            `${newData.organization_name || 'جهة جديدة'}`,
+            `${newData.contact_name || ''} • ${newData.phone || ''} • رقم الطلب: ${newData.submission_number || ''}`,
+            () => window.location.href = `/admin/website-requests`
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isStaff, permissions.canManageContent, showNotification]);
 
   return {
     soundEnabled,

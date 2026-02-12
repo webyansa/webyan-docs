@@ -324,22 +324,28 @@ function buildCustomerEmail(body: DemoRequestPayload, submissionNumber: string):
 }
 
 function buildAdminEmail(body: DemoRequestPayload, submissionNumber: string, isNewLead: boolean): string {
-  const rows = [
+  const dateStr = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const leadBadge = isNewLead 
+    ? '<span style="display:inline-block;background:#dcfce7;color:#166534;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">⭐ عميل محتمل جديد</span>'
+    : '<span style="display:inline-block;background:#dbeafe;color:#1e40af;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">🔄 عميل محتمل موجود</span>';
+
+  const infoRows = [
     { label: 'اسم الجهة', value: body.organization_name, icon: '🏢' },
-    { label: 'اسم الشخص', value: body.contact_name, icon: '👤' },
-    { label: 'البريد الإلكتروني', value: body.email, icon: '✉️' },
-    { label: 'رقم الجوال', value: body.phone || 'لم يُحدد', icon: '📱' },
-    { label: 'المنطقة', value: body.city || 'لم تُحدد', icon: '📍' },
+    { label: 'الشخص المسؤول', value: body.contact_name, icon: '👤' },
+    { label: 'البريد الإلكتروني', value: `<a href="mailto:${body.email}" style="color:#0284c7;text-decoration:none;">${body.email}</a>`, icon: '✉️' },
+    { label: 'رقم الجوال', value: body.phone ? `<a href="tel:${body.phone}" style="color:#0284c7;text-decoration:none;" dir="ltr">${body.phone}</a>` : '<span style="color:#94a3b8;">لم يُحدد</span>', icon: '📱' },
+    { label: 'واتساب', value: body.phone ? `<a href="https://wa.me/${body.phone.replace(/[^0-9+]/g,'').replace('+','')}" style="color:#0284c7;text-decoration:none;" dir="ltr">${body.phone}</a>` : '<span style="color:#94a3b8;">لم يُحدد</span>', icon: '💬' },
+    { label: 'المنطقة', value: body.city || '<span style="color:#94a3b8;">لم تُحدد</span>', icon: '📍' },
     { label: 'نوع الاهتمام', value: interestTypeLabels[body.interest_type || ''] || 'غير محدد', icon: '🎯' },
-    { label: 'حجم الجهة', value: body.organization_size ? orgSizeLabels[body.organization_size] || body.organization_size : 'لم يُحدد', icon: '📊' },
+    { label: 'حجم الجهة', value: body.organization_size ? orgSizeLabels[body.organization_size] || body.organization_size : '<span style="color:#94a3b8;">لم يُحدد</span>', icon: '📊' },
   ];
 
-  const dataRows = rows.map(r => `
-    <tr>
-      <td style="padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 13px; white-space: nowrap; width: 130px;">
-        <span style="margin-left: 6px;">${r.icon}</span> ${r.label}
+  const dataRows = infoRows.map((r, i) => `
+    <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;white-space:nowrap;width:140px;vertical-align:top;">
+        <span style="margin-left:6px;">${r.icon}</span> ${r.label}
       </td>
-      <td style="padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #1e293b; font-size: 13px; font-weight: 500;">
+      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;color:#1e293b;font-size:14px;font-weight:500;">
         ${r.value}
       </td>
     </tr>
@@ -348,35 +354,58 @@ function buildAdminEmail(body: DemoRequestPayload, submissionNumber: string, isN
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px;">
-<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-  <tr><td style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 24px 30px;">
+<body style="font-family:'Segoe UI',Tahoma,Arial,sans-serif;background-color:#f1f5f9;margin:0;padding:24px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#0ea5e9 0%,#0369a1 100%);padding:28px 30px;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td><h1 style="color: #fff; margin: 0; font-size: 18px;">🔔 طلب عرض توضيحي جديد</h1>
-        <p style="color: #fed7aa; margin: 6px 0 0 0; font-size: 13px;">${isNewLead ? '⭐ عميل محتمل جديد' : '🔄 عميل محتمل موجود'} • رقم الطلب: ${submissionNumber}</p>
+      <td>
+        <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">طلب عرض توضيحي جديد</h1>
+        <p style="color:#bae6fd;margin:8px 0 0 0;font-size:13px;">وصلك طلب جديد عبر الموقع الإلكتروني الرسمي لويبيان</p>
+      </td>
+      <td style="text-align:left;vertical-align:top;">
+        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:10px 14px;text-align:center;">
+          <p style="color:#e0f2fe;margin:0;font-size:10px;">رقم الطلب</p>
+          <p style="color:#fff;margin:4px 0 0 0;font-size:16px;font-weight:700;letter-spacing:1px;">${submissionNumber}</p>
+        </div>
       </td>
     </tr></table>
   </td></tr>
-  <tr><td style="padding: 28px 30px;">
-    <p style="color: #475569; font-size: 14px; line-height: 1.7; margin: 0 0 20px 0;">
-      تم استلام طلب عرض توضيحي جديد من الموقع الإلكتروني. فيما يلي بيانات العميل:
-    </p>
-    <table width="100%" style="border: 1px solid #e2e8f0; border-radius: 10px; border-collapse: separate; overflow: hidden;" cellpadding="0" cellspacing="0">
+
+  <!-- Status Badge -->
+  <tr><td style="padding:20px 30px 0 30px;">
+    <table cellpadding="0" cellspacing="0"><tr><td>${leadBadge}</td><td style="padding-right:10px;color:#94a3b8;font-size:12px;">${dateStr}</td></tr></table>
+  </td></tr>
+
+  <!-- Client Data -->
+  <tr><td style="padding:20px 30px 28px 30px;">
+    <p style="color:#334155;font-size:15px;font-weight:600;margin:0 0 14px 0;border-right:3px solid #0ea5e9;padding-right:10px;">بيانات العميل</p>
+    <table width="100%" style="border:1px solid #e2e8f0;border-radius:12px;border-collapse:separate;overflow:hidden;" cellpadding="0" cellspacing="0">
       ${dataRows}
     </table>
     ${body.notes ? `
-    <div style="margin-top: 20px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 14px 16px;">
-      <p style="color: #92400e; font-weight: 600; margin: 0 0 6px 0; font-size: 13px;">📝 ملاحظات العميل:</p>
-      <p style="color: #78350f; margin: 0; font-size: 13px; line-height: 1.7;">${body.notes}</p>
+    <div style="margin-top:20px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 18px;">
+      <p style="color:#92400e;font-weight:600;margin:0 0 8px 0;font-size:13px;">📝 ملاحظات العميل:</p>
+      <p style="color:#78350f;margin:0;font-size:13px;line-height:1.8;">${body.notes}</p>
     </div>` : ''}
-    ${body.source_page ? `
-    <p style="color: #94a3b8; font-size: 11px; margin: 20px 0 0 0;">
-      📄 الصفحة المصدر: <span dir="ltr" style="color: #64748b;">${body.source_page}</span>
-    </p>` : ''}
-    ${body.utm_source ? `<p style="color: #94a3b8; font-size: 11px; margin: 4px 0 0 0;">📊 UTM Source: ${body.utm_source}${body.utm_campaign ? ' | Campaign: ' + body.utm_campaign : ''}</p>` : ''}
+
+    <!-- Quick Actions -->
+    <div style="margin-top:24px;background:#f0f9ff;border-radius:12px;padding:16px 18px;border:1px solid #bae6fd;">
+      <p style="color:#0369a1;font-weight:600;margin:0 0 10px 0;font-size:13px;">⚡ إجراءات سريعة</p>
+      <table cellpadding="0" cellspacing="0"><tr>
+        ${body.phone ? `<td style="padding-left:8px;"><a href="https://wa.me/${body.phone.replace(/[^0-9+]/g,'').replace('+','')}" style="display:inline-block;background:#25d366;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600;">💬 واتساب</a></td>` : ''}
+        <td style="padding-left:8px;"><a href="mailto:${body.email}" style="display:inline-block;background:#0284c7;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600;">✉️ إرسال بريد</a></td>
+        ${body.phone ? `<td style="padding-left:8px;"><a href="tel:${body.phone}" style="display:inline-block;background:#6366f1;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600;">📞 اتصال</a></td>` : ''}
+      </tr></table>
+    </div>
+
+    ${body.source_page ? `<p style="color:#94a3b8;font-size:11px;margin:16px 0 0 0;">📄 الصفحة المصدر: <span dir="ltr" style="color:#64748b;">${body.source_page}</span></p>` : ''}
+    ${body.utm_source ? `<p style="color:#94a3b8;font-size:11px;margin:4px 0 0 0;">📊 UTM: ${body.utm_source}${body.utm_campaign ? ' | ' + body.utm_campaign : ''}</p>` : ''}
   </td></tr>
-  <tr><td style="background-color: #f8fafc; padding: 16px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
-    <p style="color: #94a3b8; margin: 0; font-size: 11px;">هذه رسالة آلية من نظام ويبيان • ${new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+  <!-- Footer -->
+  <tr><td style="background-color:#f8fafc;padding:16px 30px;text-align:center;border-top:1px solid #e2e8f0;">
+    <p style="color:#94a3b8;margin:0;font-size:11px;">رسالة آلية من نظام ويبيان • ${new Date().getFullYear()}</p>
   </td></tr>
 </table>
 </body></html>`;
