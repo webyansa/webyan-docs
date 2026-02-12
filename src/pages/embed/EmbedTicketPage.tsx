@@ -143,8 +143,37 @@ const EmbedTicketPage = () => {
 
       setOrganization(data.organization);
       
-      // Auto-fill email from organization data
-      if (data.organization?.contact_email) {
+      // Auto-fill contact info from organization data
+      const orgId = data.organization?.id;
+      if (orgId) {
+        // Fetch primary contact name and email
+        const { data: primaryContact } = await supabase
+          .from('client_accounts')
+          .select('full_name, email')
+          .eq('organization_id', orgId)
+          .eq('is_primary_contact', true)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        let contact = primaryContact;
+        if (!contact) {
+          const { data: anyContact } = await supabase
+            .from('client_accounts')
+            .select('full_name, email')
+            .eq('organization_id', orgId)
+            .eq('is_active', true)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          contact = anyContact;
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          contactName: contact?.full_name || '',
+          contactEmail: contact?.email || data.organization?.contact_email || ''
+        }));
+      } else if (data.organization?.contact_email) {
         setFormData(prev => ({
           ...prev,
           contactEmail: data.organization.contact_email
@@ -409,45 +438,72 @@ const EmbedTicketPage = () => {
   if (mode === 'compact') {
     return (
       <div className={cn(
-        "min-h-screen p-4",
+        "min-h-screen",
         theme === 'dark' ? 'bg-slate-900' : 'bg-white'
       )} dir="rtl">
         <div className="max-w-md mx-auto">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
-              <Headphones className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className={cn("font-bold", theme === 'dark' ? 'text-white' : 'text-gray-900')}>
-                الدعم الفني
-              </h1>
-              <p className={cn("text-xs", theme === 'dark' ? 'text-slate-400' : 'text-gray-500')}>
-                {organization?.name}
-              </p>
+          {/* Header with gradient */}
+          <div 
+            className="p-5 text-white relative overflow-hidden"
+            style={{ background: `linear-gradient(135deg, #263c84 0%, #24c2ec 100%)` }}
+          >
+            <div className="absolute -top-10 -left-10 w-32 h-32 bg-white/10 rounded-full" />
+            <div className="absolute -bottom-8 -right-8 w-24 h-24 bg-white/10 rounded-full" />
+            <div className="relative flex items-center gap-3">
+              <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                <Headphones className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-bold text-lg">الدعم الفني</h1>
+                <p className="text-xs text-white/80">{organization?.name}</p>
+              </div>
+              <button
+                onClick={() => window.parent.postMessage({ type: 'WEBYAN_TICKET_CREATED' }, '*')}
+                className="mr-auto p-2 rounded-xl hover:bg-white/20 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {/* Progress */}
-          <div className="flex items-center gap-2 mb-6">
-            {[1, 2, 3].map((s) => (
+          {/* Progress bar */}
+          <div className="flex items-center gap-1.5 px-5 pt-4 pb-2">
+            {[1, 2].map((s) => (
               <div 
                 key={s}
                 className={cn(
-                  "h-1.5 flex-1 rounded-full transition-all duration-300",
+                  "h-1 flex-1 rounded-full transition-all duration-500",
                   s <= step 
-                    ? 'bg-primary' 
-                    : theme === 'dark' ? 'bg-slate-700' : 'bg-gray-200'
+                    ? 'bg-gradient-to-r from-[#263c84] to-[#24c2ec]' 
+                    : theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
                 )}
               />
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Contact info banner (when auto-filled) */}
+          {formData.contactName && (
+            <div className={cn(
+              "mx-5 mt-2 px-4 py-2.5 rounded-xl flex items-center gap-3 text-sm border",
+              theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-blue-50/60 border-blue-100 text-slate-600'
+            )}>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#263c84] to-[#24c2ec] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {formData.contactName.charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <p className={cn("font-medium text-sm truncate", theme === 'dark' ? 'text-white' : 'text-slate-800')}>{formData.contactName}</p>
+                {formData.contactEmail && (
+                  <p className="text-xs truncate opacity-70">{formData.contactEmail}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
             {step === 1 && (
               <div className="space-y-4 animate-in slide-in-from-right-4">
                 <div className="space-y-2">
-                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
+                  <Label className={cn("text-sm font-semibold", theme === 'dark' ? 'text-white' : 'text-slate-700')}>
                     ما نوع المشكلة؟
                   </Label>
                   <div className="grid grid-cols-2 gap-2">
@@ -457,24 +513,51 @@ const EmbedTicketPage = () => {
                         type="button"
                         onClick={() => setFormData({ ...formData, category: cat.value })}
                         className={cn(
-                          "flex items-center gap-2 p-3 rounded-xl border-2 transition-all",
+                          "flex items-center gap-2.5 p-3.5 rounded-xl border-2 transition-all duration-200",
                           formData.category === cat.value
-                            ? 'border-primary bg-primary/5 text-primary'
+                            ? 'border-[#263c84] bg-[#263c84]/5 text-[#263c84] shadow-sm'
                             : theme === 'dark' 
                               ? 'border-slate-700 text-slate-300 hover:border-slate-600' 
-                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                              : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                         )}
                       >
-                        <cat.icon className="w-4 h-4" />
+                        <cat.icon className="w-4.5 h-4.5" />
                         <span className="text-sm font-medium">{cat.label}</span>
                       </button>
                     ))}
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label className={cn("text-sm font-semibold", theme === 'dark' ? 'text-white' : 'text-slate-700')}>
+                    الأولوية
+                  </Label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {priorities.map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, priority: p.value })}
+                        className={cn(
+                          "flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all duration-200 text-center",
+                          formData.priority === p.value
+                            ? p.color + " border-current ring-1 ring-current/20"
+                            : theme === 'dark' 
+                              ? 'border-slate-700 text-slate-400 hover:border-slate-600' 
+                              : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                        )}
+                      >
+                        <p.icon className="w-4 h-4" />
+                        <span className="text-[10px] font-medium">{p.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <Button 
                   type="button" 
                   onClick={() => setStep(2)} 
-                  className="w-full"
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-[#263c84] to-[#24c2ec] hover:opacity-90 text-white shadow-lg"
                 >
                   التالي
                 </Button>
@@ -484,20 +567,20 @@ const EmbedTicketPage = () => {
             {step === 2 && (
               <div className="space-y-4 animate-in slide-in-from-right-4">
                 <div className="space-y-2">
-                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
-                    عنوان المشكلة
+                  <Label className={cn("text-sm font-semibold", theme === 'dark' ? 'text-white' : 'text-slate-700')}>
+                    عنوان المشكلة <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     placeholder="صف المشكلة بجملة واحدة..."
                     value={formData.subject}
                     onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                     required
-                    className="h-12"
+                    className={cn("h-11 rounded-xl", theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'border-slate-200')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
-                    التفاصيل
+                  <Label className={cn("text-sm font-semibold", theme === 'dark' ? 'text-white' : 'text-slate-700')}>
+                    التفاصيل <span className="text-red-500">*</span>
                   </Label>
                   <Textarea
                     placeholder="اشرح المشكلة بالتفصيل..."
@@ -505,73 +588,60 @@ const EmbedTicketPage = () => {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={4}
                     required
+                    className={cn("rounded-xl resize-none", theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'border-slate-200')}
                   />
                 </div>
+
+                {/* Screenshot upload */}
+                <div className={cn(
+                  "border-2 border-dashed rounded-xl p-3 transition-all",
+                  theme === 'dark' ? 'border-slate-700' : 'border-slate-200',
+                  imagePreview && 'border-[#263c84]/40'
+                )}>
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img src={imagePreview} alt="معاينة" className="max-h-32 mx-auto rounded-lg object-contain" />
+                      <Button type="button" variant="destructive" size="icon" className="absolute top-1 left-1 h-7 w-7" onClick={removeImage}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 cursor-pointer py-2">
+                      <Upload className={cn("w-4 h-4", theme === 'dark' ? 'text-slate-400' : 'text-slate-500')} />
+                      <span className={cn("text-xs", theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+                        إرفاق صورة (اختياري)
+                      </span>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
                 <div className="flex gap-2">
                   <Button 
                     type="button" 
                     variant="outline" 
                     onClick={() => setStep(1)} 
-                    className="flex-1"
-                  >
-                    السابق
-                  </Button>
-                  <Button 
-                    type="button" 
-                    onClick={() => setStep(3)} 
-                    className="flex-1"
-                    disabled={!formData.subject || !formData.description}
-                  >
-                    التالي
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="space-y-4 animate-in slide-in-from-right-4">
-                <div className="space-y-2">
-                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
-                    الاسم (اختياري)
-                  </Label>
-                  <Input
-                    placeholder="اسمك الكريم"
-                    value={formData.contactName}
-                    onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>
-                    البريد الإلكتروني (اختياري)
-                  </Label>
-                  <Input
-                    type="email"
-                    placeholder="email@example.com"
-                    value={formData.contactEmail}
-                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                    dir="ltr"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setStep(2)} 
-                    className="flex-1"
+                    className="flex-1 h-11 rounded-xl"
                   >
                     السابق
                   </Button>
                   <Button 
                     type="submit" 
-                    className="flex-1"
-                    disabled={submitting}
+                    className="flex-1 h-11 rounded-xl bg-gradient-to-r from-[#263c84] to-[#24c2ec] hover:opacity-90 text-white shadow-lg"
+                    disabled={submitting || !formData.subject || !formData.description}
                   >
                     {submitting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <>
                         <Send className="w-4 h-4 ml-2" />
-                        إرسال
+                        إرسال التذكرة
                       </>
                     )}
                   </Button>
@@ -579,6 +649,11 @@ const EmbedTicketPage = () => {
               </div>
             )}
           </form>
+
+          {/* Footer */}
+          <div className={cn("text-center pb-4 text-[10px]", theme === 'dark' ? 'text-slate-600' : 'text-slate-400')}>
+            🔒 بياناتك آمنة ومحمية
+          </div>
         </div>
       </div>
     );
