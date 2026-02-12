@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useBrowserNotification } from '@/hooks/useBrowserNotification';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffNotifications } from '@/hooks/useStaffNotifications';
 import { useAuth } from '@/hooks/useAuth';
@@ -195,6 +196,10 @@ export default function AdminLayout() {
 
   // Activate staff notifications (realtime + save to DB)
   useStaffNotifications();
+
+  // Request browser notification permission early
+  const { requestPermission } = useBrowserNotification();
+  useEffect(() => { requestPermission(); }, [requestPermission]);
 
   useEffect(() => {
     // Never redirect based on partial/unknown state.

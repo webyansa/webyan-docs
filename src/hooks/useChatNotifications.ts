@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useBrowserNotification } from './useBrowserNotification';
 
 interface ChatNotification {
   id: string;
@@ -29,6 +30,7 @@ export function useChatNotifications(options: UseChatNotificationsOptions) {
   } = options;
   
   const { toast } = useToast();
+  const { showBrowserNotification } = useBrowserNotification();
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentMessages, setRecentMessages] = useState<ChatNotification[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -190,6 +192,18 @@ export function useChatNotifications(options: UseChatNotificationsOptions) {
       newMessage.sender_name || 'مستخدم',
       newMessage.body,
       newMessage.conversation_id
+    );
+
+    // Browser push notification
+    showBrowserNotification(
+      `💬 رسالة جديدة من ${newMessage.sender_name || 'مستخدم'}`,
+      newMessage.body?.substring(0, 100) || '',
+      {
+        tag: `chat-${newMessage.id}`,
+        onClick: () => {
+          window.focus();
+        }
+      }
     );
 
     // Update counts

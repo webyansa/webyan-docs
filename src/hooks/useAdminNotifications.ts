@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNotificationSound } from './useNotificationSound';
+import { useBrowserNotification } from './useBrowserNotification';
 
 export interface AdminNotification {
   id: string;
@@ -35,6 +36,7 @@ export function useAdminNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const { playNotificationSound } = useNotificationSound();
+  const { showBrowserNotification } = useBrowserNotification();
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -72,6 +74,21 @@ export function useAdminNotifications() {
           setNotifications(prev => [newNotification, ...prev].slice(0, 50));
           setUnreadCount(prev => prev + 1);
           playNotificationSound();
+          
+          // Browser push notification
+          const icon = getNotificationIcon(newNotification.type);
+          showBrowserNotification(
+            `${icon} ${newNotification.title}`,
+            newNotification.message || '',
+            {
+              tag: `admin-${newNotification.id}`,
+              onClick: () => {
+                if (newNotification.link) {
+                  window.location.href = newNotification.link;
+                }
+              }
+            }
+          );
         }
       )
       .on(
