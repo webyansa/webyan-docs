@@ -304,7 +304,7 @@ Deno.serve(async (req: Request) => {
                       </table>
                       
                       <p style="color: #475569; line-height: 1.8; margin: 20px 0 0 0;">
-                        إذا كان لديكم أي استفسار، يمكنكم التواصل معنا عبر البريد الإلكتروني: <a href="mailto:support@webyan.sa" style="color: #0ea5e9;">support@webyan.sa</a>
+                        إذا كان لديكم أي استفسار، يمكنكم التواصل معنا عبر البريد الإلكتروني: <a href="mailto:hala@webyan.sa" style="color: #0ea5e9;">hala@webyan.sa</a> أو عبر الجوال أو الواتساب: <a href="tel:+966538553400" style="color: #0ea5e9;">+966 53 855 3400</a>
                       </p>
                     </td>
                   </tr>

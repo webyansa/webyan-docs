@@ -35,10 +35,12 @@ import {
 } from '@/components/ui/form';
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogPortal,
+  DialogOverlay,
 } from '@/components/ui/dialog';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -213,9 +215,11 @@ export default function EmbedDemoRequestPopup() {
   };
 
   return (
-    <div className="min-h-screen" dir="rtl">
+    <div className="min-h-screen bg-transparent" dir="rtl">
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
+        <DialogPortal>
+          <DialogOverlay className="bg-black/30 backdrop-blur-sm" />
+          <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] max-h-[90vh] p-0 gap-0 overflow-hidden border-0 shadow-2xl rounded-2xl bg-white duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]">
           <DialogHeader className="p-6 pb-4 border-b bg-gradient-to-r from-sky-500 to-sky-600">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -507,7 +511,8 @@ export default function EmbedDemoRequestPopup() {
               )}
             </div>
           </ScrollArea>
-        </DialogContent>
+        </DialogPrimitive.Content>
+        </DialogPortal>
       </Dialog>
 
       {/* Trigger Button for standalone testing */}
