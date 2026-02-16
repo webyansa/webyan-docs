@@ -3069,14 +3069,18 @@ export type Database = {
       }
       pricing_plans: {
         Row: {
+          comparison_features: Json | null
           created_at: string | null
           description: string | null
+          display_badge: string | null
           features: Json | null
           id: string
           is_active: boolean | null
+          is_public: boolean | null
           monthly_price: number
           name: string
           name_en: string | null
+          optional_addons: Json | null
           plan_type: string | null
           sort_order: number | null
           updated_at: string | null
@@ -3084,14 +3088,18 @@ export type Database = {
           yearly_price: number
         }
         Insert: {
+          comparison_features?: Json | null
           created_at?: string | null
           description?: string | null
+          display_badge?: string | null
           features?: Json | null
           id?: string
           is_active?: boolean | null
+          is_public?: boolean | null
           monthly_price?: number
           name: string
           name_en?: string | null
+          optional_addons?: Json | null
           plan_type?: string | null
           sort_order?: number | null
           updated_at?: string | null
@@ -3099,14 +3107,18 @@ export type Database = {
           yearly_price?: number
         }
         Update: {
+          comparison_features?: Json | null
           created_at?: string | null
           description?: string | null
+          display_badge?: string | null
           features?: Json | null
           id?: string
           is_active?: boolean | null
+          is_public?: boolean | null
           monthly_price?: number
           name?: string
           name_en?: string | null
+          optional_addons?: Json | null
           plan_type?: string | null
           sort_order?: number | null
           updated_at?: string | null
@@ -4361,6 +4373,159 @@ export type Database = {
             columns: ["opportunity_id"]
             isOneToOne: false
             referencedRelation: "crm_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_subscription_request_timeline: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          performed_by: string | null
+          request_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          performed_by?: string | null
+          request_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          performed_by?: string | null
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_subscription_request_timeline_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "website_subscription_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_subscription_requests: {
+        Row: {
+          address: string | null
+          assigned_at: string | null
+          assigned_to: string | null
+          contact_name: string
+          converted_organization_id: string | null
+          created_at: string | null
+          email: string
+          entity_category: string | null
+          entity_type: string | null
+          id: string
+          notes: string | null
+          organization_name: string
+          page_source: string | null
+          phone: string | null
+          plan_id: string | null
+          plan_name: string | null
+          plan_price: number | null
+          region: string | null
+          request_number: string | null
+          selected_addons: Json | null
+          source: string | null
+          status: string | null
+          total_amount: number | null
+          updated_at: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          address?: string | null
+          assigned_at?: string | null
+          assigned_to?: string | null
+          contact_name: string
+          converted_organization_id?: string | null
+          created_at?: string | null
+          email: string
+          entity_category?: string | null
+          entity_type?: string | null
+          id?: string
+          notes?: string | null
+          organization_name: string
+          page_source?: string | null
+          phone?: string | null
+          plan_id?: string | null
+          plan_name?: string | null
+          plan_price?: number | null
+          region?: string | null
+          request_number?: string | null
+          selected_addons?: Json | null
+          source?: string | null
+          status?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          address?: string | null
+          assigned_at?: string | null
+          assigned_to?: string | null
+          contact_name?: string
+          converted_organization_id?: string | null
+          created_at?: string | null
+          email?: string
+          entity_category?: string | null
+          entity_type?: string | null
+          id?: string
+          notes?: string | null
+          organization_name?: string
+          page_source?: string | null
+          phone?: string | null
+          plan_id?: string | null
+          plan_name?: string | null
+          plan_price?: number | null
+          region?: string | null
+          request_number?: string | null
+          selected_addons?: Json | null
+          source?: string | null
+          status?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_subscription_requests_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_subscription_requests_converted_organization_id_fkey"
+            columns: ["converted_organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_subscription_requests_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_plans"
             referencedColumns: ["id"]
           },
         ]

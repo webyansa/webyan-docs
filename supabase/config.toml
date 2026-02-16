@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.unsubscribe-marketing]
 verify_jwt = false
+
+[functions.get-public-plans]
+verify_jwt = false
+
+[functions.submit-subscription-request]
+verify_jwt = false

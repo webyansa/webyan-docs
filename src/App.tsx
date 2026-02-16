@@ -70,6 +70,10 @@ import ActivityLogPage from "./pages/admin/ActivityLogPage";
 import SmtpSettingsPage from "./pages/admin/SmtpSettingsPage";
 import EmailLogsPage from "./pages/admin/EmailLogsPage";
 import WebsiteRequestsPage from "./pages/admin/WebsiteRequestsPage";
+import PricingPage from "./pages/PricingPage";
+import SubscribePage from "./pages/SubscribePage";
+import SubscriptionRequestsPage from "./pages/admin/SubscriptionRequestsPage";
+import SubscriptionRequestDetailsPage from "./pages/admin/SubscriptionRequestDetailsPage";
 
 // Operations pages
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
@@ -148,6 +152,8 @@ const App = () => (
               <Route path="/embed/demo-request" element={<EmbedDemoRequestPage />} />
               <Route path="/embed/demo-request-popup" element={<EmbedDemoRequestPopup />} />
               <Route path="/invoice-confirm/:requestId" element={<InvoiceConfirmPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/subscribe" element={<SubscribePage />} />
               <Route path="/docs/:moduleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug" element={<ModulePage />} />
               <Route path="/docs/:moduleSlug/:subModuleSlug/:articleSlug" element={<ArticlePage />} />
@@ -244,6 +250,8 @@ const App = () => (
                 <Route path="marketing/campaigns/new" element={<CampaignEditorPage />} />
                 <Route path="marketing/campaigns/:id" element={<CampaignDetailsPage />} />
                 <Route path="marketing/templates" element={<EmailTemplatesPage />} />
+                <Route path="subscription-requests" element={<SubscriptionRequestsPage />} />
+                <Route path="subscription-requests/:id" element={<SubscriptionRequestDetailsPage />} />
               </Route>
               
               {/* Unauthorized Page */}
