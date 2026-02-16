@@ -102,7 +102,8 @@
   document.body.appendChild(popup);
 
   if (config.showButton) {
-    var button = document.createElement('button');
+    var button = document.createElement('a');
+    button.href = 'javascript:void(0)';
     var isInline = config.mode === 'inline';
     button.className = 'webyan-demo-button ' + (isInline ? 'inline-mode' : config.buttonPosition);
     button.innerHTML = '\
