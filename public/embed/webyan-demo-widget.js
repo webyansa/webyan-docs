@@ -73,37 +73,30 @@
     }\
     .webyan-demo-button {\
       position: fixed; z-index: 999990;\
-      padding: 12px; border-radius: 50px; border: none;\
-      background: linear-gradient(135deg, ' + config.buttonColor + ', ' + adjustColor(config.buttonColor, -20) + ');\
-      color: white; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;\
-      font-size: 13px; font-weight: 600; cursor: pointer;\
-      box-shadow: 0 4px 14px rgba(14,165,233,0.4);\
-      transition: all 0.3s ease; display: flex; align-items: center; gap: 6px;\
+      padding: 10px 56px; border-radius: 50px; border: 2px solid ' + config.buttonColor + ';\
+      background: transparent;\
+      color: ' + config.buttonColor + '; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;\
+      font-size: 15px; font-weight: 600; cursor: pointer;\
+      transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px;\
+      text-decoration: none; overflow: hidden; position: relative;\
     }\
-    .webyan-demo-button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14,165,233,0.5); }\
-    .webyan-demo-button.bottom-left { bottom: 20px; left: 20px; }\
-    .webyan-demo-button.bottom-right { bottom: 20px; right: 20px; }\
-    .webyan-demo-button.inline-mode {\
-      position: static; z-index: auto; display: inline-flex;\
+    .webyan-demo-button .button__flair {\
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;\
+      background: ' + config.buttonColor + ';\
+      transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);\
+      border-radius: 50px; z-index: 0;\
     }\
-    .webyan-demo-button .btn-icon { width: 20px; height: 20px; flex-shrink: 0; }\
-    .webyan-demo-button .btn-text {\
-      white-space: nowrap; overflow: hidden; max-width: 200px;\
-      transition: max-width 0.3s ease, opacity 0.3s ease, padding 0.3s ease;\
-    }\
-    .webyan-demo-button.collapsed .btn-text { max-width: 0; opacity: 0; padding: 0; }\
-    .webyan-demo-button .btn-collapse {\
-      width: 16px; height: 16px; padding: 2px;\
-      margin-right: -4px; margin-left: 2px;\
-      border-radius: 50%; background: rgba(255,255,255,0.2);\
-      cursor: pointer; transition: background 0.2s ease, transform 0.3s ease; flex-shrink: 0;\
-    }\
-    .webyan-demo-button .btn-collapse:hover { background: rgba(255,255,255,0.4); }\
-    .webyan-demo-button.collapsed .btn-collapse { transform: rotate(45deg); margin-right: 0; margin-left: 0; }\
+    .webyan-demo-button:hover .button__flair { transform: translateY(0); }\
+    .webyan-demo-button:hover { color: white; transform: translateY(-2px); }\
+    .webyan-demo-button:active { transform: translateY(0) scale(0.97); }\
+    .webyan-demo-button .button__label { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; }\
+    .webyan-demo-button.bottom-left { bottom: 20px; left: 20px; position: fixed; }\
+    .webyan-demo-button.bottom-right { bottom: 20px; right: 20px; position: fixed; }\
+    .webyan-demo-button.inline-mode { position: static; z-index: auto; }\
     @media (max-width: 640px) {\
       .webyan-demo-popup { width: 95vw; max-height: 92vh; border-radius: 16px; }\
       .webyan-demo-popup iframe { height: 88vh; max-height: none; }\
-      .webyan-demo-button { padding: 10px; font-size: 12px; }\
+      .webyan-demo-button { padding: 8px 32px; font-size: 13px; }\
     }\
   ';
   document.head.appendChild(styles);
@@ -123,16 +116,10 @@
     var isInline = config.mode === 'inline';
     button.className = 'webyan-demo-button ' + (isInline ? 'inline-mode' : config.buttonPosition);
     button.innerHTML = '\
-      <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">\
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />\
-      </svg>\
-      <span class="btn-text">' + config.buttonText + '</span>\
-      <svg class="btn-collapse" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">\
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />\
-      </svg>\
+      <span class="button__flair"></span>\
+      <span class="button__label">' + config.buttonText + '</span>\
     ';
-    button.onclick = function(e) {
-      if (e.target.closest('.btn-collapse')) { e.stopPropagation(); button.classList.toggle('collapsed'); return; }
+    button.onclick = function() {
       window.WebyanDemo.open();
     };
     if (isInline && currentScript && currentScript.parentNode) {
