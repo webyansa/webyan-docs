@@ -1,190 +1,201 @@
 
 
-# نظام إدارة الحملات التسويقية البريدية - خطة التنفيذ
+# نظام الاشتراك بالباقات - خطة التنفيذ
 
 ## ملخص المشروع
 
-بناء نظام حملات تسويقية بريدية متكامل داخل لوحة تحكم ويبيان، يعتمد بالكامل على بيانات المنظمات الموجودة (client_organizations) دون تكرار أي بيانات.
+بناء نظام اشتراك متكامل يربط الموقع الرسمي بنظام دليل الاستخدام (Backoffice)، حيث تكون الباقات والأسعار مصدرها الوحيد هو جداول `pricing_plans` و `pricing_services` الموجودة مسبقا، والموقع يعرضها فقط عبر API دون تخزين محلي.
 
 ---
 
 ## المرحلة الأولى: قاعدة البيانات
 
-### الجداول المطلوبة (7 جداول)
+### جدول جديد واحد: `subscription_requests` (طلبات الاشتراك)
 
-**1. marketing_email_templates** - قوالب البريد
-- id, name, subject, html_body, category, variables_used (jsonb), is_active, created_by, created_at, updated_at
+| العمود | النوع | ملاحظة |
+|--------|-------|--------|
+| id | uuid PK | |
+| request_number | text UNIQUE | رقم تسلسلي تلقائي (SUB-XXXX) |
+| plan_id | uuid FK -> pricing_plans | الباقة المختارة |
+| plan_name | text | للتوثيق |
+| plan_price | numeric | السعر السنوي وقت الطلب |
+| selected_addons | jsonb | قائمة الإضافات المختارة [{id, name, price}] |
+| total_amount | numeric | الإجمالي النهائي |
+| organization_name | text NOT NULL | |
+| contact_name | text NOT NULL | |
+| phone | text | |
+| email | text NOT NULL | |
+| entity_type | text | نوع الكيان |
+| entity_category | text | تصنيف الكيان |
+| region | text | المنطقة |
+| address | text | العنوان |
+| status | text DEFAULT 'new' | new/reviewing/contacted/pending_payment/activated/cancelled |
+| source | text DEFAULT 'website' | |
+| page_source | text | PricingPage / HomeSection |
+| utm_source | text | |
+| utm_campaign | text | |
+| utm_medium | text | |
+| assigned_to | uuid FK -> staff_members | المسؤول |
+| assigned_at | timestamptz | |
+| converted_organization_id | uuid FK -> client_organizations | عند التحويل لمنظمة |
+| notes | text | ملاحظات داخلية |
+| created_at | timestamptz DEFAULT now() | |
+| updated_at | timestamptz DEFAULT now() | |
 
-**2. marketing_campaigns** - الحملات
-- id, name, goal (enum: renewal/incentive/education/upgrade/alert), template_id (FK), audience_type (enum: segment/manual), audience_filters (jsonb), status (enum: draft/scheduled/sending/completed/paused/cancelled), scheduled_at, started_at, completed_at, total_recipients, sent_count, success_count, failed_count, created_by, updated_by, created_at, updated_at, batch_size (default 50), batch_delay_ms (default 2000)
+### جدول: `subscription_request_timeline` (سجل النشاط)
 
-**3. campaign_recipients** - مستلمو الحملة (OrganizationId فقط)
-- id, campaign_id (FK), organization_id (FK to client_organizations), email_status (enum: pending/sent/delivered/failed/bounced), sent_at, error_message, open_count, last_opened_at, click_count, last_clicked_at, created_at
+| العمود | النوع |
+|--------|-------|
+| id | uuid PK |
+| request_id | uuid FK -> subscription_requests |
+| action | text (created/status_changed/assigned/note_added/converted/email_sent) |
+| performed_by | uuid |
+| old_value | text |
+| new_value | text |
+| details | jsonb |
+| created_at | timestamptz |
 
-**4. email_engagement_events** - أحداث التفاعل
-- id, campaign_id (FK), organization_id (FK), event_type (enum: open/click/bounce/unsubscribe), link_url, ip_address, user_agent, created_at
+### إضافة أعمدة لجدول `pricing_plans` الموجود
 
-**5. marketing_unsubscribes** - إلغاء الاشتراك
-- id, organization_id (FK, unique), reason, unsubscribed_at
-
-**6. campaign_audit_log** - سجل التدقيق
-- id, campaign_id (FK), action (text), performed_by (uuid), details (jsonb), created_at
-
-**7. campaign_links** - تتبع الروابط
-- id, campaign_id (FK), original_url, tracking_code (unique), click_count, created_at
+- `comparison_features` (jsonb) - بيانات جدول المقارنة [{name, included: true/false}]
+- `optional_addons` (jsonb) - الخدمات الإضافية [{id, name, price, description}]
+- `display_badge` (text) - شارة مثل "الأكثر طلبا"
+- `is_public` (boolean DEFAULT true) - إظهار في الموقع العام
 
 ### سياسات الأمان (RLS)
-- جميع الجداول تتطلب صلاحية admin او editor للقراءة والكتابة
-- تعتمد على دالة `is_admin_or_editor()` الموجودة
 
-### Realtime
-- تفعيل realtime على جدول `campaign_recipients` لتحديث الإحصائيات مباشرة أثناء الإرسال
+- `subscription_requests`: قراءة/كتابة لـ admin/editor فقط
+- `subscription_request_timeline`: قراءة/كتابة لـ admin/editor فقط
+- `pricing_plans`: إضافة سياسة SELECT عامة للباقات المفعلة والعامة (للـ API العام)
 
 ---
 
-## المرحلة الثانية: Backend Functions (Edge Functions)
+## المرحلة الثانية: Backend (Edge Functions)
 
-### 1. send-campaign (دالة الإرسال الرئيسية)
-- تستقبل campaign_id
-- تجلب بيانات المنظمات المستهدفة من client_organizations مباشرة
-- تستبدل المتغيرات الديناميكية ({{OrganizationName}}, {{PlanName}}, etc.)
-- ترسل على دفعات (batch) مع تأخير (throttling)
-- تحدث حالة كل مستلم في campaign_recipients
-- تستخدم نظام SMTP الموجود (smtp-sender.ts)
-- تدعم إعادة المحاولة للرسائل الفاشلة
-- تتحقق من قائمة إلغاء الاشتراك قبل الإرسال
-- تلف الروابط بروابط تتبع
-- تضيف Tracking Pixel للفتح
-- تضيف رابط إلغاء الاشتراك تلقائيا
+### 1. `get-public-plans` (جلب الباقات للموقع)
 
-### 2. track-email-event (تتبع الفتح والنقر)
 - verify_jwt = false (عام)
-- تستقبل tracking pixel requests (للفتح)
-- تستقبل link clicks (للنقر) وتعيد التوجيه للرابط الأصلي
-- تسجل الأحداث في email_engagement_events
-- تحدث إحصائيات campaign_recipients
+- يُرجع الباقات المفعلة مع: الاسم، السعر، المزايا، جدول المقارنة، الإضافات الاختيارية، ترتيب العرض
+- يُرجع بيانات ضريبة VAT من system_settings
+- لا يتطلب مصادقة
 
-### 3. unsubscribe-marketing (إلغاء الاشتراك)
-- verify_jwt = false
-- تضيف المنظمة لقائمة إلغاء الاشتراك
-- تعرض صفحة تأكيد
+### 2. `submit-subscription-request` (إرسال طلب اشتراك)
 
----
-
-## المرحلة الثالثة: واجهات المستخدم
-
-### هيكل الصفحات (4 صفحات رئيسية)
-
-```text
-/admin/marketing               --> لوحة التسويق الرئيسية (قائمة الحملات + إحصائيات)
-/admin/marketing/campaigns/new --> إنشاء/تعديل حملة
-/admin/marketing/campaigns/:id --> تفاصيل وتحليلات حملة
-/admin/marketing/templates     --> إدارة القوالب البريدية
-```
-
-### 1. صفحة الحملات الرئيسية (MarketingDashboardPage)
-- بطاقات إحصائية: إجمالي الحملات، معدل التسليم، معدل الفتح، معدل النقر
-- قائمة الحملات مع الحالة والإحصائيات
-- فلتر حسب الحالة والهدف
-- زر إنشاء حملة جديدة
-
-### 2. صفحة إنشاء/تعديل حملة (CampaignEditorPage)
-- **الخطوة 1**: معلومات أساسية (الاسم، الهدف)
-- **الخطوة 2**: منشئ الجمهور الذكي
-  - اختيار نوع الاستهداف (تلقائي بشروط / يدوي)
-  - فلاتر: حالة الاشتراك، نوع الباقة، المدينة، الأيام المتبقية، آخر تفاعل
-  - شروط مركبة AND/OR
-  - معاينة فورية لعدد المنظمات المطابقة
-  - أو اختيار يدوي من قائمة المنظمات
-- **الخطوة 3**: اختيار/إنشاء القالب
-- **الخطوة 4**: معاينة واختبار
-  - معاينة مع بيانات منظمة حقيقية
-  - إرسال تجريبي لبريد محدد
-- **الخطوة 5**: جدولة أو إرسال فوري
-
-### 3. صفحة تفاصيل الحملة (CampaignDetailsPage)
-- إحصائيات مفصلة بالرسوم البيانية (recharts)
-- قائمة المستلمين مع حالة كل منهم
-- أحداث التفاعل (فتح، نقر، إلغاء)
-- سجل التدقيق
-- أزرار: إيقاف / إعادة الإرسال للفاشلة
-
-### 4. صفحة القوالب (EmailTemplatesPage)
-- قائمة القوالب
-- محرر HTML مع معاينة مباشرة
-- إدراج متغيرات ديناميكية بنقرة
-- اختبار إرسال تجريبي
-
-### تحديث القائمة الجانبية
-- إضافة قسم "التسويق" في AdminLayout مع:
-  - الحملات البريدية
-  - القوالب البريدية
+- verify_jwt = false (عام)
+- التحقق من المدخلات (validation)
+- التحقق من وجود الباقة وصحة الأسعار (server-side price validation)
+- إعادة حساب الإجمالي في السيرفر
+- إنشاء سجل في `subscription_requests`
+- إنشاء سجل في `subscription_request_timeline`
+- إرسال إشعار داخلي للمسؤولين (user_notifications)
+- إرسال بريد تأكيد للعميل (اختياري عبر SMTP/Resend)
+- إرسال بريد إشعار للمسؤول
+- Rate limiting بسيط (فحص IP + وقت)
 
 ---
 
-## المرحلة الرابعة: المتغيرات الديناميكية
+## المرحلة الثالثة: صفحات الموقع الرسمي (Public)
 
-المتغيرات المدعومة (تُجلب مباشرة من client_organizations):
+### 1. صفحة الباقات `/pricing` (PricingPage.tsx)
 
-| المتغير | المصدر |
-|---|---|
-| {{OrganizationName}} | name |
-| {{PlanName}} | subscription_plan |
-| {{SubscriptionStatus}} | subscription_status |
-| {{SubscriptionEndDate}} | subscription_end_date |
-| {{RemainingDays}} | حساب من subscription_end_date |
-| {{City}} | city |
-| {{ContactName}} | primary_contact_name |
-| {{ContactEmail}} | contact_email |
-| {{LoginUrl}} | ثابت (رابط بوابة العملاء) |
-| {{UnsubscribeUrl}} | رابط إلغاء الاشتراك الديناميكي |
+- تجلب البيانات من `get-public-plans`
+- قسم البطاقات: 4 بطاقات (بيسك/بلس/برو/الترا) مع السعر السنوي وزر "اشترك الآن"
+- جدول مقارنة المزايا أسفل البطاقات (صفوف للمزايا، أعمدة للباقات، علامات صح/خطأ)
+- تصميم RTL متجاوب، ألوان هوية ويبيان
+- تستخدم DocsLayout الموجود
+
+### 2. قسم الباقات في الصفحة الرئيسية `/` (تحديث HomePage.tsx)
+
+- إضافة قسم جديد يعرض 4 بطاقات مختصرة للباقات
+- زر "اشترك الآن" ينقل إلى `/subscribe?planId=XXX`
+- زر "عرض جميع الباقات" ينقل إلى `/pricing`
+
+### 3. صفحة طلب الاشتراك `/subscribe` (SubscribePage.tsx)
+
+- تستقبل `planId` من QueryString
+- تتحقق من صحة المعرف وتجلب بيانات الباقة
+- تصميم عمودين:
+  - **العمود الأيمن**: نموذج بيانات المنظمة (اسم الكيان، المسؤول، الجوال، البريد، نوع الكيان، التصنيف، المنطقة، العنوان، إقرار الموافقة)
+  - **العمود الأيسر**: ملخص الباقة (اسم، سعر، إضافات اختيارية كـ checkboxes، الإجمالي الديناميكي، زر "إكمال الطلب")
+- Validation فوري لكل حقل باستخدام zod
+- زر الإرسال يُقفل أثناء المعالجة مع Loading
+- عند النجاح: صفحة تأكيد احترافية برقم الطلب
+- عند فشل: رسالة خطأ واضحة
+
+### قوائم منسدلة ثابتة (بناء على بيانات النظام الحالي)
+
+**نوع الكيان**: جمعية خيرية، منظمة غير ربحية، مؤسسة، جمعية تعاونية، أخرى
+**المنطقة**: الرياض، مكة المكرمة، المدينة المنورة، القصيم، المنطقة الشرقية، عسير، تبوك، حائل، الحدود الشمالية، جازان، نجران، الباحة، الجوف
 
 ---
 
-## المرحلة الخامسة: الامتثال
+## المرحلة الرابعة: وحدة "طلبات الاشتراك" في لوحة التحكم
 
-- إضافة رابط إلغاء اشتراك تلقائي في ذيل كل رسالة
-- فحص قائمة marketing_unsubscribes قبل كل إرسال
-- تسجيل كل عملية إلغاء في email_engagement_events
+### 1. صفحة قائمة الطلبات (SubscriptionRequestsPage.tsx)
+
+- بطاقات إحصائية: إجمالي، جديد، قيد المراجعة، تم التفعيل
+- جدول الطلبات مع: رقم الطلب، اسم المنظمة، الباقة، الإجمالي، الحالة، التاريخ
+- فلاتر: الحالة، الباقة، المنطقة، التاريخ
+- بحث بالاسم/البريد/رقم الطلب
+
+### 2. صفحة تفاصيل الطلب (SubscriptionRequestDetailsPage.tsx)
+
+- عرض كامل بيانات المنظمة والباقة والإضافات
+- سجل النشاط (Timeline)
+- تعيين مسؤول متابعة
+- ملاحظات داخلية
+- تغيير الحالة مع تسجيل في Timeline
+- أزرار إجراءات:
+  - **تحويل إلى منظمة**: ينشئ سجل في `client_organizations` ويربطه
+  - **إنشاء تذكرة دعم**: ينشئ تذكرة مرتبطة
+  - **إرسال بريد للعميل**: عبر SMTP الموجود
+
+### تحديث القائمة الجانبية (AdminLayout.tsx)
+
+- إضافة "طلبات الاشتراك" ضمن قسم "إدارة العملاء" مع أيقونة مناسبة
+
+---
+
+## المرحلة الخامسة: تحديث إعدادات التسعير
+
+### تحديث صفحة PricingSettingsPage.tsx
+
+- إضافة حقول جديدة في نموذج تعديل الخطة:
+  - `comparison_features`: محرر مزايا المقارنة (اسم الميزة + متاح/غير متاح)
+  - `optional_addons`: محرر الإضافات الاختيارية (اسم + سعر + وصف)
+  - `display_badge`: شارة العرض (مثل "الأكثر طلبا")
+  - `is_public`: إظهار في الموقع العام
 
 ---
 
 ## التفاصيل التقنية
 
-### الملفات الجديدة المتوقعة
+### الملفات الجديدة
 
 ```text
-src/pages/admin/marketing/
-  MarketingDashboardPage.tsx
-  CampaignEditorPage.tsx
-  CampaignDetailsPage.tsx
-  EmailTemplatesPage.tsx
-
-src/components/marketing/
-  AudienceBuilder.tsx          -- منشئ الجمهور الذكي
-  CampaignStatsCards.tsx       -- بطاقات الإحصائيات
-  CampaignsList.tsx            -- قائمة الحملات
-  TemplateEditor.tsx           -- محرر القوالب
-  TemplatePreview.tsx          -- معاينة القالب
-  RecipientsList.tsx           -- قائمة المستلمين
-  CampaignAnalytics.tsx        -- رسوم بيانية للتحليلات
-  VariableInserter.tsx         -- أداة إدراج المتغيرات
-
-supabase/functions/
-  send-campaign/index.ts       -- محرك الإرسال
-  track-email-event/index.ts   -- تتبع الفتح والنقر
-  unsubscribe-marketing/index.ts -- إلغاء الاشتراك
+src/pages/PricingPage.tsx                              -- صفحة الباقات العامة
+src/pages/SubscribePage.tsx                             -- صفحة طلب الاشتراك
+src/pages/admin/SubscriptionRequestsPage.tsx            -- قائمة طلبات الاشتراك
+src/pages/admin/SubscriptionRequestDetailsPage.tsx      -- تفاصيل طلب اشتراك
+supabase/functions/get-public-plans/index.ts            -- API جلب الباقات
+supabase/functions/submit-subscription-request/index.ts -- API إرسال طلب
 ```
 
-### تعديل ملفات موجودة
-- `src/App.tsx` - إضافة المسارات الجديدة
-- `src/pages/admin/AdminLayout.tsx` - إضافة قسم التسويق في القائمة الجانبية
-- `supabase/config.toml` - إعداد verify_jwt = false للدوال العامة
+### الملفات المعدلة
 
-### نهج التنفيذ
-- استخدام نظام SMTP الموجود (smtp-sender.ts) كمحرك إرسال
-- استخدام recharts الموجود للرسوم البيانية
-- استخدام مكونات UI الموجودة (shadcn/ui)
-- الاستعلام عن client_organizations مباشرة دون تكرار البيانات
-- تخزين فقط organization_id في campaign_recipients
+```text
+src/App.tsx                          -- إضافة المسارات الجديدة (/pricing, /subscribe, /admin/subscription-requests/*)
+src/pages/HomePage.tsx               -- إضافة قسم الباقات
+src/pages/admin/AdminLayout.tsx      -- إضافة "طلبات الاشتراك" في القائمة الجانبية
+src/pages/admin/PricingSettingsPage.tsx -- إضافة حقول المقارنة والإضافات
+supabase/config.toml                 -- إعداد verify_jwt = false للدوال العامة
+```
+
+### ملاحظات الأمان
+
+- الأسعار لا تُرسل من الواجهة؛ يتم جلبها والتحقق منها في السيرفر
+- Rate limiting على دالة submit-subscription-request
+- Sanitization لجميع المدخلات
+- RLS على جميع الجداول الجديدة
+- لا يتم استخدام reCAPTCHA فعليا (غير مدعوم في البيئة الحالية) لكن يمكن إضافته لاحقا عبر مفتاح خارجي
 
