@@ -1,132 +1,190 @@
 
 
-# اعادة هيكلة نظام التضمين: نظام API Key موحد
+# نظام إدارة الحملات التسويقية البريدية - خطة التنفيذ
 
-## المشكلة الحالية
+## ملخص المشروع
 
-1. كل عميل يحتاج رمز تضمين منفصل وكود تضمين مختلف -- ادارة عشرات الاكواد
-2. نموذج التذاكر ونموذج المراسلات يستخدمان نفس البنية لكن غير منفصلين تماما في التضمين
-3. لا يوجد نظام API Key مركزي -- كل token فريد لكل عميل
-
-## الحل: كود تضمين واحد + API Key لكل عميل
-
-```text
-كود تضمين واحد (تذاكر)     +     API Key العميل     =     تعرف تلقائي
-كود تضمين واحد (مراسلات)    +     API Key العميل     =     تعرف تلقائي
-```
+بناء نظام حملات تسويقية بريدية متكامل داخل لوحة تحكم ويبيان، يعتمد بالكامل على بيانات المنظمات الموجودة (client_organizations) دون تكرار أي بيانات.
 
 ---
 
-## خطة التنفيذ
+## المرحلة الأولى: قاعدة البيانات
 
-### 1. جدول جديد: `client_api_keys`
+### الجداول المطلوبة (7 جداول)
 
-| العمود | النوع | الوصف |
-|--------|-------|-------|
-| id | UUID | المعرف |
-| organization_id | UUID (FK) | ربط بالعميل |
-| api_key | TEXT (UNIQUE) | المفتاح الفريد `wbyn_xxxxxxxxxxxx` |
-| name | TEXT | اسم وصفي |
-| is_active | BOOLEAN | مفعل/معطل |
-| usage_count | INT | عدد الاستخدامات |
-| last_used_at | TIMESTAMP | اخر استخدام |
-| allowed_domains | TEXT[] | النطاقات المسموحة (اختياري) |
-| created_at | TIMESTAMP | تاريخ الانشاء |
+**1. marketing_email_templates** - قوالب البريد
+- id, name, subject, html_body, category, variables_used (jsonb), is_active, created_by, created_at, updated_at
 
-مع سياسات RLS للادمن فقط.
+**2. marketing_campaigns** - الحملات
+- id, name, goal (enum: renewal/incentive/education/upgrade/alert), template_id (FK), audience_type (enum: segment/manual), audience_filters (jsonb), status (enum: draft/scheduled/sending/completed/paused/cancelled), scheduled_at, started_at, completed_at, total_recipients, sent_count, success_count, failed_count, created_by, updated_by, created_at, updated_at, batch_size (default 50), batch_delay_ms (default 2000)
 
-### 2. سكريبتان منفصلان للتضمين
+**3. campaign_recipients** - مستلمو الحملة (OrganizationId فقط)
+- id, campaign_id (FK), organization_id (FK to client_organizations), email_status (enum: pending/sent/delivered/failed/bounced), sent_at, error_message, open_count, last_opened_at, click_count, last_clicked_at, created_at
 
-**`public/embed/webyan-ticket-widget.js`** -- سكريبت موحد لتذاكر الدعم
+**4. email_engagement_events** - أحداث التفاعل
+- id, campaign_id (FK), organization_id (FK), event_type (enum: open/click/bounce/unsubscribe), link_url, ip_address, user_agent, created_at
 
-**`public/embed/webyan-chat-widget.js`** -- سكريبت موحد للمراسلات
+**5. marketing_unsubscribes** - إلغاء الاشتراك
+- id, organization_id (FK, unique), reason, unsubscribed_at
 
-كل سكريبت:
-- يقرا `data-api-key` من عنصر الـ script
-- ينشئ زر عائم احترافي (مثل Intercom)
-- عند الضغط يفتح popup يحتوي iframe
-- يمرر الـ API Key كـ parameter: `/embed/ticket?key=API_KEY` او `/embed/chat?key=API_KEY`
+**6. campaign_audit_log** - سجل التدقيق
+- id, campaign_id (FK), action (text), performed_by (uuid), details (jsonb), created_at
 
-مثال الاستخدام النهائي لتذاكر الدعم:
+**7. campaign_links** - تتبع الروابط
+- id, campaign_id (FK), original_url, tracking_code (unique), click_count, created_at
+
+### سياسات الأمان (RLS)
+- جميع الجداول تتطلب صلاحية admin او editor للقراءة والكتابة
+- تعتمد على دالة `is_admin_or_editor()` الموجودة
+
+### Realtime
+- تفعيل realtime على جدول `campaign_recipients` لتحديث الإحصائيات مباشرة أثناء الإرسال
+
+---
+
+## المرحلة الثانية: Backend Functions (Edge Functions)
+
+### 1. send-campaign (دالة الإرسال الرئيسية)
+- تستقبل campaign_id
+- تجلب بيانات المنظمات المستهدفة من client_organizations مباشرة
+- تستبدل المتغيرات الديناميكية ({{OrganizationName}}, {{PlanName}}, etc.)
+- ترسل على دفعات (batch) مع تأخير (throttling)
+- تحدث حالة كل مستلم في campaign_recipients
+- تستخدم نظام SMTP الموجود (smtp-sender.ts)
+- تدعم إعادة المحاولة للرسائل الفاشلة
+- تتحقق من قائمة إلغاء الاشتراك قبل الإرسال
+- تلف الروابط بروابط تتبع
+- تضيف Tracking Pixel للفتح
+- تضيف رابط إلغاء الاشتراك تلقائيا
+
+### 2. track-email-event (تتبع الفتح والنقر)
+- verify_jwt = false (عام)
+- تستقبل tracking pixel requests (للفتح)
+- تستقبل link clicks (للنقر) وتعيد التوجيه للرابط الأصلي
+- تسجل الأحداث في email_engagement_events
+- تحدث إحصائيات campaign_recipients
+
+### 3. unsubscribe-marketing (إلغاء الاشتراك)
+- verify_jwt = false
+- تضيف المنظمة لقائمة إلغاء الاشتراك
+- تعرض صفحة تأكيد
+
+---
+
+## المرحلة الثالثة: واجهات المستخدم
+
+### هيكل الصفحات (4 صفحات رئيسية)
+
 ```text
-<script 
-  src="https://yoursite.com/embed/webyan-ticket-widget.js"
-  data-api-key="wbyn_xxxxxxxxxxxxxxxxx"
-  data-position="bottom-right"
-  data-color="#3b82f6">
-</script>
+/admin/marketing               --> لوحة التسويق الرئيسية (قائمة الحملات + إحصائيات)
+/admin/marketing/campaigns/new --> إنشاء/تعديل حملة
+/admin/marketing/campaigns/:id --> تفاصيل وتحليلات حملة
+/admin/marketing/templates     --> إدارة القوالب البريدية
 ```
 
-مثال الاستخدام النهائي للمراسلات:
-```text
-<script 
-  src="https://yoursite.com/embed/webyan-chat-widget.js"
-  data-api-key="wbyn_xxxxxxxxxxxxxxxxx"
-  data-position="bottom-left"
-  data-color="#10b981">
-</script>
-```
+### 1. صفحة الحملات الرئيسية (MarketingDashboardPage)
+- بطاقات إحصائية: إجمالي الحملات، معدل التسليم، معدل الفتح، معدل النقر
+- قائمة الحملات مع الحالة والإحصائيات
+- فلتر حسب الحالة والهدف
+- زر إنشاء حملة جديدة
 
-### 3. تحديث صفحات التضمين
+### 2. صفحة إنشاء/تعديل حملة (CampaignEditorPage)
+- **الخطوة 1**: معلومات أساسية (الاسم، الهدف)
+- **الخطوة 2**: منشئ الجمهور الذكي
+  - اختيار نوع الاستهداف (تلقائي بشروط / يدوي)
+  - فلاتر: حالة الاشتراك، نوع الباقة، المدينة، الأيام المتبقية، آخر تفاعل
+  - شروط مركبة AND/OR
+  - معاينة فورية لعدد المنظمات المطابقة
+  - أو اختيار يدوي من قائمة المنظمات
+- **الخطوة 3**: اختيار/إنشاء القالب
+- **الخطوة 4**: معاينة واختبار
+  - معاينة مع بيانات منظمة حقيقية
+  - إرسال تجريبي لبريد محدد
+- **الخطوة 5**: جدولة أو إرسال فوري
 
-**`EmbedTicketPage.tsx`** -- يقبل `key` (API Key جديد) بالاضافة الى `token` (للتوافق القديم):
-- اذا وجد `key` يبحث في `client_api_keys` ويحدد المنظمة
-- اذا وجد `token` يعمل بالطريقة القديمة (توافق)
+### 3. صفحة تفاصيل الحملة (CampaignDetailsPage)
+- إحصائيات مفصلة بالرسوم البيانية (recharts)
+- قائمة المستلمين مع حالة كل منهم
+- أحداث التفاعل (فتح، نقر، إلغاء)
+- سجل التدقيق
+- أزرار: إيقاف / إعادة الإرسال للفاشلة
 
-**`EmbedChatPage.tsx`** -- نفس المنطق
+### 4. صفحة القوالب (EmailTemplatesPage)
+- قائمة القوالب
+- محرر HTML مع معاينة مباشرة
+- إدراج متغيرات ديناميكية بنقرة
+- اختبار إرسال تجريبي
 
-**`verify-embed-token` (Edge Function)** -- يدعم التحقق من النوعين:
-- اذا بدا بـ `wbyn_` يبحث في `client_api_keys`
-- غير ذلك يبحث في `embed_tokens` (توافق)
+### تحديث القائمة الجانبية
+- إضافة قسم "التسويق" في AdminLayout مع:
+  - الحملات البريدية
+  - القوالب البريدية
 
-### 4. اعادة هيكلة صفحات الادارة
+---
 
-**`EmbedSettingsPage.tsx` (تضمين تذاكر الدعم):**
-- قسم علوي: **كود التضمين الموحد** مع شرح وزر نسخ
-- قسم سفلي: **قائمة API Keys العملاء** مع ازرار انشاء/تعطيل/حذف
-- كل key يعرض: اسم العميل، المفتاح، الحالة، عدد الاستخدام
+## المرحلة الرابعة: المتغيرات الديناميكية
 
-**`ChatEmbedSettingsPage.tsx` (تضمين المراسلات):**
-- نفس الهيكل لكن بكود مراسلات مختلف
-- اعدادات اضافية للمراسلات (رسالة ترحيب، الوان) تبقى مرتبطة بـ embed_tokens
+المتغيرات المدعومة (تُجلب مباشرة من client_organizations):
 
-### 5. تحديث ملف العميل
+| المتغير | المصدر |
+|---|---|
+| {{OrganizationName}} | name |
+| {{PlanName}} | subscription_plan |
+| {{SubscriptionStatus}} | subscription_status |
+| {{SubscriptionEndDate}} | subscription_end_date |
+| {{RemainingDays}} | حساب من subscription_end_date |
+| {{City}} | city |
+| {{ContactName}} | primary_contact_name |
+| {{ContactEmail}} | contact_email |
+| {{LoginUrl}} | ثابت (رابط بوابة العملاء) |
+| {{UnsubscribeUrl}} | رابط إلغاء الاشتراك الديناميكي |
 
-**`EmbedTokensTab.tsx`** يعرض:
-- API Key العميل مع زر نسخ
-- الرموز القديمة (embed_tokens) للتوافق
-- امكانية انشاء API Key جديد
-- نسخ كود التضمين الجاهز (مع المفتاح مضمن تلقائيا)
+---
+
+## المرحلة الخامسة: الامتثال
+
+- إضافة رابط إلغاء اشتراك تلقائي في ذيل كل رسالة
+- فحص قائمة marketing_unsubscribes قبل كل إرسال
+- تسجيل كل عملية إلغاء في email_engagement_events
 
 ---
 
 ## التفاصيل التقنية
 
-### الملفات المتاثرة
+### الملفات الجديدة المتوقعة
 
-| الملف | التغيير |
-|-------|---------|
-| **قاعدة البيانات** | انشاء جدول `client_api_keys` مع RLS |
-| `public/embed/webyan-ticket-widget.js` | **جديد** -- سكريبت تضمين تذاكر موحد |
-| `public/embed/webyan-chat-widget.js` | **جديد** -- سكريبت تضمين مراسلات موحد |
-| `src/pages/admin/EmbedSettingsPage.tsx` | اعادة هيكلة -- كود موحد + ادارة API Keys |
-| `src/pages/admin/ChatEmbedSettingsPage.tsx` | اعادة هيكلة -- كود موحد + ادارة API Keys |
-| `src/pages/embed/EmbedTicketPage.tsx` | دعم `key` parameter |
-| `src/pages/embed/EmbedChatPage.tsx` | دعم `key` parameter |
-| `supabase/functions/verify-embed-token/index.ts` | دعم التحقق من API Key |
-| `src/components/crm/tabs/EmbedTokensTab.tsx` | تحديث لعرض API Keys |
+```text
+src/pages/admin/marketing/
+  MarketingDashboardPage.tsx
+  CampaignEditorPage.tsx
+  CampaignDetailsPage.tsx
+  EmailTemplatesPage.tsx
 
-### تصميم API Key
+src/components/marketing/
+  AudienceBuilder.tsx          -- منشئ الجمهور الذكي
+  CampaignStatsCards.tsx       -- بطاقات الإحصائيات
+  CampaignsList.tsx            -- قائمة الحملات
+  TemplateEditor.tsx           -- محرر القوالب
+  TemplatePreview.tsx          -- معاينة القالب
+  RecipientsList.tsx           -- قائمة المستلمين
+  CampaignAnalytics.tsx        -- رسوم بيانية للتحليلات
+  VariableInserter.tsx         -- أداة إدراج المتغيرات
 
-- الصيغة: `wbyn_` + 32 حرف عشوائي (حروف وارقام)
-- مثال: `wbyn_a7Bk9mP2xR4qW8nY1sT6uV3jL5hF0`
-- فريد على مستوى الجدول (UNIQUE constraint)
+supabase/functions/
+  send-campaign/index.ts       -- محرك الإرسال
+  track-email-event/index.ts   -- تتبع الفتح والنقر
+  unsubscribe-marketing/index.ts -- إلغاء الاشتراك
+```
 
-### امان
+### تعديل ملفات موجودة
+- `src/App.tsx` - إضافة المسارات الجديدة
+- `src/pages/admin/AdminLayout.tsx` - إضافة قسم التسويق في القائمة الجانبية
+- `supabase/config.toml` - إعداد verify_jwt = false للدوال العامة
 
-- RLS: فقط المستخدمون بدور admin يمكنهم ادارة API Keys
-- التحقق من النطاق المسموح (اختياري)
-- تسجيل كل استخدام (usage_count + last_used_at)
-- امكانية تعطيل المفتاح فوريا
-- Edge Function يتحقق من الصلاحية قبل عرض النموذج
+### نهج التنفيذ
+- استخدام نظام SMTP الموجود (smtp-sender.ts) كمحرك إرسال
+- استخدام recharts الموجود للرسوم البيانية
+- استخدام مكونات UI الموجودة (shadcn/ui)
+- الاستعلام عن client_organizations مباشرة دون تكرار البيانات
+- تخزين فقط organization_id في campaign_recipients
 
