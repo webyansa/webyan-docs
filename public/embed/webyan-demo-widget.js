@@ -16,7 +16,8 @@
     buttonColor: '#0ea5e9',
     buttonPosition: 'bottom-left',
     showButton: true,
-    mode: 'floating'
+    mode: 'floating',
+    buttonClass: ''
   };
 
   var scripts = document.getElementsByTagName('script');
@@ -31,6 +32,7 @@
     if (currentScript.getAttribute('data-button-position')) config.buttonPosition = currentScript.getAttribute('data-button-position');
     if (currentScript.getAttribute('data-show-button') === 'false') config.showButton = false;
     if (currentScript.getAttribute('data-mode') === 'inline') config.mode = 'inline';
+    if (currentScript.getAttribute('data-button-class')) config.buttonClass = currentScript.getAttribute('data-button-class');
   }
 
   var styles = document.createElement('style');
@@ -105,7 +107,7 @@
     var button = document.createElement('a');
     button.href = 'javascript:void(0)';
     var isInline = config.mode === 'inline';
-    button.className = 'webyan-demo-button ' + (isInline ? 'inline-mode' : config.buttonPosition);
+    button.className = 'webyan-demo-button ' + (isInline ? 'inline-mode' : config.buttonPosition) + (config.buttonClass ? ' ' + config.buttonClass : '');
     button.innerHTML = '\
       <span class="button__flair"></span>\
       <span class="button__label">' + config.buttonText + '</span>\
