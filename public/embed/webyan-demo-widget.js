@@ -33,16 +33,6 @@
     if (currentScript.getAttribute('data-mode') === 'inline') config.mode = 'inline';
   }
 
-  function adjustColor(color, amount) {
-    var usePound = false;
-    if (color[0] === '#') { color = color.slice(1); usePound = true; }
-    var num = parseInt(color, 16);
-    var r = Math.min(255, Math.max(0, (num >> 16) + amount));
-    var g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
-    var b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
-    return (usePound ? '#' : '') + (g | (b << 8) | (r << 16)).toString(16).padStart(6, '0');
-  }
-
   var styles = document.createElement('style');
   styles.textContent = '\
     .webyan-demo-overlay {\
@@ -74,7 +64,7 @@
     .webyan-demo-button {\
       position: fixed; z-index: 999990;\
       padding: 10px 56px; border-radius: 50px; border: 2px solid ' + config.buttonColor + ';\
-      background: transparent;\
+      background: white;\
       color: ' + config.buttonColor + '; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;\
       font-size: 15px; font-weight: 600; cursor: pointer;\
       transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px;\
@@ -87,7 +77,7 @@
       border-radius: 50px; z-index: 0;\
     }\
     .webyan-demo-button:hover .button__flair { transform: translateY(0); }\
-    .webyan-demo-button:hover { color: white; transform: translateY(-2px); }\
+    .webyan-demo-button:hover { color: white; transform: translateY(-2px); border-color: ' + config.buttonColor + '; }\
     .webyan-demo-button:active { transform: translateY(0) scale(0.97); }\
     .webyan-demo-button .button__label { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; }\
     .webyan-demo-button.bottom-left { bottom: 20px; left: 20px; position: fixed; }\
