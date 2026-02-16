@@ -77,6 +77,12 @@ import ProjectsPage from "./pages/admin/operations/ProjectsPage";
 import ProjectDetailsPage from "./pages/admin/operations/ProjectDetailsPage";
 import ProjectStagesPage from "./pages/admin/operations/ProjectStagesPage";
 
+// Marketing pages
+import MarketingDashboardPage from "./pages/admin/marketing/MarketingDashboardPage";
+import CampaignEditorPage from "./pages/admin/marketing/CampaignEditorPage";
+import CampaignDetailsPage from "./pages/admin/marketing/CampaignDetailsPage";
+import EmailTemplatesPage from "./pages/admin/marketing/EmailTemplatesPage";
+
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
 import PortalLoginPage from "./pages/portal/PortalLoginPage";
@@ -234,6 +240,10 @@ const App = () => (
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:id" element={<ProjectDetailsPage />} />
                 <Route path="project-stages" element={<ProjectStagesPage />} />
+                <Route path="marketing" element={<MarketingDashboardPage />} />
+                <Route path="marketing/campaigns/new" element={<CampaignEditorPage />} />
+                <Route path="marketing/campaigns/:id" element={<CampaignDetailsPage />} />
+                <Route path="marketing/templates" element={<EmailTemplatesPage />} />
               </Route>
               
               {/* Unauthorized Page */}

@@ -152,6 +152,16 @@ const operationsSection: NavSection = {
   ]
 };
 
+// Marketing Section
+const marketingSection: NavSection = {
+  title: 'التسويق',
+  sectionPermission: 'canManageClients',
+  items: [
+    { title: 'الحملات البريدية', href: '/admin/marketing', icon: Mail, permission: 'canManageClients' },
+    { title: 'القوالب البريدية', href: '/admin/marketing/templates', icon: FileText, permission: 'canManageClients' },
+  ]
+};
+
 // Clients Section (legacy - redirect to CRM)
 const clientsSection: NavSection = {
   title: 'العملاء (قديم)',
@@ -287,6 +297,7 @@ export default function AdminLayout() {
     dashboardSection,
     crmSection,
     operationsSection,
+    marketingSection,
     contentSection,
     chatSection,
     ticketsSection,
