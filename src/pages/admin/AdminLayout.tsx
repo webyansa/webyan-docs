@@ -137,6 +137,7 @@ const crmSection: NavSection = {
     { title: 'الفرص', href: '/admin/crm/deals', icon: Target, permission: 'canManageClients' },
     { title: 'عروض الأسعار', href: '/admin/crm/quotes', icon: FileText, permission: 'canManageClients' },
     { title: 'العملاء', href: '/admin/clients', icon: Building2, permission: 'canManageClients' },
+    { title: 'طلبات الاشتراك', href: '/admin/subscription-requests', icon: FileText, permission: 'canManageClients' },
   ]
 };
 
