@@ -15,7 +15,8 @@
     buttonText: 'طلب عرض توضيحي',
     buttonColor: '#0ea5e9',
     buttonPosition: 'bottom-left',
-    showButton: true
+    showButton: true,
+    mode: 'floating'
   };
 
   var scripts = document.getElementsByTagName('script');
@@ -29,6 +30,7 @@
     if (currentScript.getAttribute('data-button-color')) config.buttonColor = currentScript.getAttribute('data-button-color');
     if (currentScript.getAttribute('data-button-position')) config.buttonPosition = currentScript.getAttribute('data-button-position');
     if (currentScript.getAttribute('data-show-button') === 'false') config.showButton = false;
+    if (currentScript.getAttribute('data-mode') === 'inline') config.mode = 'inline';
   }
 
   function adjustColor(color, amount) {
@@ -81,6 +83,9 @@
     .webyan-demo-button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14,165,233,0.5); }\
     .webyan-demo-button.bottom-left { bottom: 20px; left: 20px; }\
     .webyan-demo-button.bottom-right { bottom: 20px; right: 20px; }\
+    .webyan-demo-button.inline-mode {\
+      position: static; z-index: auto; display: inline-flex;\
+    }\
     .webyan-demo-button .btn-icon { width: 20px; height: 20px; flex-shrink: 0; }\
     .webyan-demo-button .btn-text {\
       white-space: nowrap; overflow: hidden; max-width: 200px;\
@@ -115,7 +120,8 @@
 
   if (config.showButton) {
     var button = document.createElement('button');
-    button.className = 'webyan-demo-button ' + config.buttonPosition;
+    var isInline = config.mode === 'inline';
+    button.className = 'webyan-demo-button ' + (isInline ? 'inline-mode' : config.buttonPosition);
     button.innerHTML = '\
       <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">\
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />\
@@ -129,7 +135,11 @@
       if (e.target.closest('.btn-collapse')) { e.stopPropagation(); button.classList.toggle('collapsed'); return; }
       window.WebyanDemo.open();
     };
-    document.body.appendChild(button);
+    if (isInline && currentScript && currentScript.parentNode) {
+      currentScript.parentNode.insertBefore(button, currentScript.nextSibling);
+    } else {
+      document.body.appendChild(button);
+    }
   }
 
   window.addEventListener('message', function(event) {
