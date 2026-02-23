@@ -5,7 +5,7 @@ import {
   MessageSquare, User, UserPlus, Send, Building2, 
   RefreshCw, Calendar, Inbox, ChevronRight, 
   Filter, X, ArrowUpRight, Hash, Mail, Phone,
-  MoreVertical, Eye, ExternalLink
+  MoreVertical, Eye, ExternalLink, Trash2, Edit, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,6 +27,7 @@ import { format, formatDistanceToNow, isToday, isYesterday } from "date-fns";
 import { ar } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CreateTicketModal } from "@/components/admin/CreateTicketModal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface SupportTicket {
   id: string;
@@ -136,6 +138,22 @@ export default function AdminTicketsPage() {
   const [adminNote, setAdminNote] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [createTicketOpen, setCreateTicketOpen] = useState(false);
+
+  // Selection & bulk actions
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [ticketToDelete, setTicketToDelete] = useState<SupportTicket | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Edit ticket
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [ticketToEdit, setTicketToEdit] = useState<SupportTicket | null>(null);
+  const [editSubject, setEditSubject] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editPriority, setEditPriority] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!isAdminOrEditor) {
@@ -266,6 +284,7 @@ export default function AdminTicketsPage() {
         });
       }
 
+      await logTicketActivity(ticketId, 'status_changed', ticket.status, newStatus, `تغيير الحالة إلى ${statusLabels[newStatus] || newStatus}`);
       toast({ title: "تم التحديث", description: "تم تغيير حالة التذكرة بنجاح" });
       
       if (selectedTicket?.id === ticketId) {
@@ -368,6 +387,139 @@ export default function AdminTicketsPage() {
       toast({ title: "خطأ", description: error.message, variant: "destructive" });
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const logTicketActivity = async (ticketId: string, actionType: string, oldValue?: string, newValue?: string, note?: string) => {
+    try {
+      const { data: staffData } = await supabase.from('staff_members').select('id, full_name').eq('user_id', user?.id || '').single();
+      await supabase.from('ticket_activity_log').insert({
+        ticket_id: ticketId,
+        action_type: actionType,
+        old_value: oldValue || null,
+        new_value: newValue || null,
+        note: note || null,
+        performed_by: staffData?.id || null,
+        performed_by_name: staffData?.full_name || user?.email || 'مسؤول',
+        is_staff_action: true,
+      });
+    } catch (e) { console.error('Activity log error:', e); }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(filteredTickets.map(t => t.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleDeleteTicket = async (ticket: SupportTicket) => {
+    setDeleting(true);
+    try {
+      await supabase.from('ticket_replies').delete().eq('ticket_id', ticket.id);
+      await supabase.from('ticket_activity_log').delete().eq('ticket_id', ticket.id);
+      
+      await supabase.from('admin_notifications').insert({
+        title: 'حذف تذكرة',
+        message: `تم حذف التذكرة #${ticket.ticket_number} "${ticket.subject}" بواسطة ${user?.email}`,
+        type: 'ticket_deleted',
+        link: '/admin/tickets',
+      });
+
+      const { error } = await supabase.from('support_tickets').delete().eq('id', ticket.id);
+      if (error) throw error;
+
+      toast({ title: "تم الحذف", description: `تم حذف التذكرة #${ticket.ticket_number} نهائياً` });
+      setDeleteConfirmOpen(false);
+      setTicketToDelete(null);
+      fetchTickets(true);
+    } catch (error: any) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const deletedTickets = tickets.filter(t => selectedIds.has(t.id));
+      const ticketNumbers = deletedTickets.map(t => t.ticket_number).join(', ');
+      
+      for (const id of ids) {
+        await supabase.from('ticket_replies').delete().eq('ticket_id', id);
+        await supabase.from('ticket_activity_log').delete().eq('ticket_id', id);
+      }
+      
+      const { error } = await supabase.from('support_tickets').delete().in('id', ids);
+      if (error) throw error;
+
+      await supabase.from('admin_notifications').insert({
+        title: 'حذف تذاكر جماعي',
+        message: `تم حذف ${ids.length} تذكرة (${ticketNumbers}) بواسطة ${user?.email}`,
+        type: 'tickets_bulk_deleted',
+        link: '/admin/tickets',
+      });
+
+      toast({ title: "تم الحذف", description: `تم حذف ${ids.length} تذكرة نهائياً` });
+      setSelectedIds(new Set());
+      setBulkDeleteConfirmOpen(false);
+      fetchTickets(true);
+    } catch (error: any) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleOpenEdit = (ticket: SupportTicket) => {
+    setTicketToEdit(ticket);
+    setEditSubject(ticket.subject);
+    setEditDescription(ticket.description);
+    setEditCategory(ticket.category);
+    setEditPriority(ticket.priority);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!ticketToEdit || !editSubject.trim()) return;
+    setSaving(true);
+    try {
+      const changes: string[] = [];
+      if (editSubject !== ticketToEdit.subject) changes.push('الموضوع');
+      if (editDescription !== ticketToEdit.description) changes.push('الوصف');
+      if (editCategory !== ticketToEdit.category) changes.push('التصنيف');
+      if (editPriority !== ticketToEdit.priority) changes.push('الأولوية');
+
+      const { error } = await supabase.from('support_tickets').update({
+        subject: editSubject,
+        description: editDescription,
+        category: editCategory,
+        priority: editPriority,
+      }).eq('id', ticketToEdit.id);
+      if (error) throw error;
+
+      if (changes.length > 0) {
+        await logTicketActivity(ticketToEdit.id, 'edited', undefined, undefined, `تم تعديل: ${changes.join('، ')}`);
+      }
+
+      toast({ title: "تم التحديث", description: "تم تعديل التذكرة بنجاح" });
+      setEditDialogOpen(false);
+      fetchTickets(true);
+    } catch (error: any) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -571,6 +723,38 @@ export default function AdminTicketsPage() {
           </CardContent>
         </Card>
 
+        {/* Bulk Action Bar */}
+        {selectedIds.size > 0 && (
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardContent className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={selectedIds.size === filteredTickets.length && filteredTickets.length > 0}
+                  onCheckedChange={(c) => handleSelectAll(!!c)}
+                />
+                <span className="text-sm font-medium">
+                  تم تحديد <strong>{selectedIds.size}</strong> تذكرة
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())} className="gap-1">
+                  <X className="h-3.5 w-3.5" />
+                  إلغاء التحديد
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={() => setBulkDeleteConfirmOpen(true)}
+                  className="gap-1"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  حذف المحدد ({selectedIds.size})
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tickets List */}
         {filteredTickets.length === 0 ? (
           <Card>
@@ -588,7 +772,13 @@ export default function AdminTicketsPage() {
           <Card>
             <CardContent className="p-0">
               {/* Table Header */}
-              <div className="hidden md:grid grid-cols-[80px_1fr_150px_100px_110px_180px_100px_60px] gap-3 p-4 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+              <div className="hidden md:grid grid-cols-[40px_80px_1fr_150px_100px_110px_180px_100px_60px] gap-3 p-4 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+                <div className="flex items-center justify-center">
+                  <Checkbox
+                    checked={selectedIds.size === filteredTickets.length && filteredTickets.length > 0}
+                    onCheckedChange={(c) => handleSelectAll(!!c)}
+                  />
+                </div>
                 <div>الرقم</div>
                 <div>الموضوع والعميل</div>
                 <div>الأولوية</div>
@@ -608,8 +798,19 @@ export default function AdminTicketsPage() {
                   return (
                     <div
                       key={ticket.id}
-                      className="grid grid-cols-1 md:grid-cols-[80px_1fr_150px_100px_110px_180px_100px_60px] gap-3 p-4 hover:bg-muted/30 transition-colors items-center"
+                      className={cn(
+                        "grid grid-cols-1 md:grid-cols-[40px_80px_1fr_150px_100px_110px_180px_100px_60px] gap-3 p-4 hover:bg-muted/30 transition-colors items-center",
+                        selectedIds.has(ticket.id) && "bg-primary/5"
+                      )}
                     >
+                      {/* Checkbox */}
+                      <div className="flex items-center justify-center">
+                        <Checkbox
+                          checked={selectedIds.has(ticket.id)}
+                          onCheckedChange={() => handleToggleSelect(ticket.id)}
+                        />
+                      </div>
+
                       {/* Ticket Number */}
                       <div>
                         <span className="inline-flex items-center gap-1 text-xs font-mono bg-muted px-2 py-1 rounded">
@@ -734,6 +935,10 @@ export default function AdminTicketsPage() {
                               <Eye className="h-4 w-4 ml-2" />
                               عرض التفاصيل
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenEdit(ticket)}>
+                              <Edit className="h-4 w-4 ml-2" />
+                              تعديل التذكرة
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenAssignDialog(ticket)}>
                               <UserPlus className="h-4 w-4 ml-2" />
                               توجيه لموظف
@@ -742,6 +947,14 @@ export default function AdminTicketsPage() {
                             <DropdownMenuItem onClick={() => handleStatusChange(ticket.id, 'resolved')}>
                               <CheckCircle className="h-4 w-4 ml-2" />
                               تعيين كمحلولة
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => { setTicketToDelete(ticket); setDeleteConfirmOpen(true); }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 ml-2" />
+                              حذف التذكرة
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1004,6 +1217,116 @@ export default function AdminTicketsPage() {
         onOpenChange={setCreateTicketOpen}
         onCreated={() => fetchTickets(true)}
       />
+
+      {/* Single Delete Confirmation */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              تأكيد حذف التذكرة
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              سيتم حذف التذكرة <strong>#{ticketToDelete?.ticket_number}</strong> "{ticketToDelete?.subject}" نهائياً مع جميع الردود والمرفقات المرتبطة بها. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => ticketToDelete && handleDeleteTicket(ticketToDelete)}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <RefreshCw className="h-4 w-4 animate-spin ml-2" /> : <Trash2 className="h-4 w-4 ml-2" />}
+              حذف نهائي
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              تأكيد الحذف الجماعي
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              سيتم حذف <strong>{selectedIds.size}</strong> تذكرة نهائياً مع جميع الردود والمرفقات المرتبطة بها. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <RefreshCw className="h-4 w-4 animate-spin ml-2" /> : <Trash2 className="h-4 w-4 ml-2" />}
+              حذف {selectedIds.size} تذكرة نهائياً
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Ticket Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-primary" />
+              تعديل التذكرة #{ticketToEdit?.ticket_number}
+            </DialogTitle>
+            <DialogDescription>تعديل بيانات التذكرة الأساسية</DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>الموضوع</Label>
+              <Input value={editSubject} onChange={e => setEditSubject(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>الوصف</Label>
+              <Textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} className="min-h-[100px]" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>التصنيف</Label>
+                <Select value={editCategory} onValueChange={setEditCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="technical">تقنية</SelectItem>
+                    <SelectItem value="question">استفسار</SelectItem>
+                    <SelectItem value="suggestion">اقتراح</SelectItem>
+                    <SelectItem value="complaint">شكوى</SelectItem>
+                    <SelectItem value="general">عام</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>الأولوية</Label>
+                <Select value={editPriority} onValueChange={setEditPriority}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">عادية</SelectItem>
+                    <SelectItem value="medium">متوسطة</SelectItem>
+                    <SelectItem value="high">عاجلة</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>إلغاء</Button>
+            <Button onClick={handleSaveEdit} disabled={!editSubject.trim() || saving}>
+              {saving ? <RefreshCw className="h-4 w-4 animate-spin ml-2" /> : <CheckCircle className="h-4 w-4 ml-2" />}
+              حفظ التعديلات
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
