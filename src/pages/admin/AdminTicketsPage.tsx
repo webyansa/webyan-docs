@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow, isToday, isYesterday } from "date-fns";
 import { ar } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { CreateTicketModal } from "@/components/admin/CreateTicketModal";
 
 interface SupportTicket {
   id: string;
@@ -134,6 +135,7 @@ export default function AdminTicketsPage() {
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [adminNote, setAdminNote] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [createTicketOpen, setCreateTicketOpen] = useState(false);
 
   useEffect(() => {
     if (!isAdminOrEditor) {
@@ -415,16 +417,26 @@ export default function AdminTicketsPage() {
             <h1 className="text-2xl font-bold text-foreground">إدارة التذاكر</h1>
             <p className="text-muted-foreground text-sm mt-1">عرض ومتابعة جميع تذاكر الدعم الفني</p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => fetchTickets(true)} 
-            disabled={refreshing}
-            className="gap-2"
-          >
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-            تحديث
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => fetchTickets(true)} 
+              disabled={refreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+              تحديث
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => setCreateTicketOpen(true)}
+              className="gap-2"
+            >
+              <Ticket className="h-4 w-4" />
+              فتح تذكرة
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -986,6 +998,12 @@ export default function AdminTicketsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CreateTicketModal
+        open={createTicketOpen}
+        onOpenChange={setCreateTicketOpen}
+        onCreated={() => fetchTickets(true)}
+      />
     </TooltipProvider>
   );
 }
