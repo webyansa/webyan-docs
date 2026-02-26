@@ -1407,264 +1407,299 @@ export default function AdminTicketsPage() {
       {/* Edit Ticket Dialog — Full Premium Design */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
-          {ticketToEdit && (() => {
-            const sourceLabels: Record<string, string> = { portal: 'بوابة العميل', admin: 'لوحة التحكم', embed: 'ويدجت', guest: 'زائر' };
-            const hasChanges = editSubject !== ticketToEdit.subject || editDescription !== ticketToEdit.description || editCategory !== ticketToEdit.category || editPriority !== ticketToEdit.priority || editStatus !== ticketToEdit.status || editStaffId !== (ticketToEdit.assigned_to_staff || '') || editAdminNote !== (ticketToEdit.admin_note || '');
-            return (
-            <>
-              {/* Header with gradient */}
-              <div className="border-b bg-gradient-to-l from-primary/5 via-card to-card px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-primary/10 shrink-0">
-                    <Edit className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <DialogTitle className="text-base font-bold">تعديل التذكرة</DialogTitle>
-                    <DialogDescription className="text-xs flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">#{ticketToEdit.ticket_number}</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="font-semibold">{ticketToEdit.organization?.name || ticketToEdit.guest_name || 'عميل'}</span>
-                      {ticketToEdit.source && (
-                        <>
-                          <span className="text-muted-foreground">•</span>
-                          <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{sourceLabels[ticketToEdit.source] || ticketToEdit.source}</span>
-                        </>
-                      )}
-                    </DialogDescription>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <div className={cn(
-                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold",
-                      statusConfig[ticketToEdit.status]?.bg, statusConfig[ticketToEdit.status]?.text
-                    )}>
-                      <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", statusConfig[ticketToEdit.status]?.dot)} />
-                      {statusConfig[ticketToEdit.status]?.label}
-                    </div>
-                    <div className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", priorityConfig[ticketToEdit.priority]?.bg, priorityConfig[ticketToEdit.priority]?.color)}>
-                      {priorityConfig[ticketToEdit.priority]?.label}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <ScrollArea className="flex-1">
-                <div className="p-6 space-y-6">
-
-                  {/* Info Summary Bar */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-muted/30 rounded-lg p-3 border">
-                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> العميل</p>
-                      <p className="text-xs font-bold truncate">{ticketToEdit.organization?.name || ticketToEdit.guest_name || '—'}</p>
-                      {ticketToEdit.organization?.contact_email && <p className="text-[10px] text-muted-foreground truncate">{ticketToEdit.organization.contact_email}</p>}
-                    </div>
-                    <div className="bg-muted/30 rounded-lg p-3 border">
-                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Calendar className="h-3 w-3" /> تاريخ الإنشاء</p>
-                      <p className="text-xs font-bold">{format(new Date(ticketToEdit.created_at), 'dd/MM/yyyy', { locale: ar })}</p>
-                      <p className="text-[10px] text-muted-foreground">{format(new Date(ticketToEdit.created_at), 'hh:mm a', { locale: ar })}</p>
-                    </div>
-                    <div className="bg-muted/30 rounded-lg p-3 border">
-                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> الموقع</p>
-                      {ticketToEdit.website_url || ticketToEdit.organization?.website_url ? (
-                        <a href={ticketToEdit.website_url || ticketToEdit.organization?.website_url || ''} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline truncate block">{(ticketToEdit.website_url || ticketToEdit.organization?.website_url || '').replace(/^https?:\/\//, '')}</a>
-                      ) : <p className="text-xs text-muted-foreground">—</p>}
-                    </div>
-                    <div className="bg-muted/30 rounded-lg p-3 border">
-                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Clock className="h-3 w-3" /> آخر تحديث</p>
-                      <p className="text-xs font-bold">{formatDistanceToNow(new Date(ticketToEdit.updated_at), { locale: ar, addSuffix: true })}</p>
-                    </div>
-                  </div>
-
-                  {/* Basic Info */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      المعلومات الأساسية
-                    </p>
-                    <div className="space-y-4 bg-muted/20 rounded-xl p-4 border">
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold">الموضوع</Label>
-                        <Input value={editSubject} onChange={e => setEditSubject(e.target.value)} className="bg-background h-9" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold">الوصف</Label>
-                        <Textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} className="min-h-[100px] bg-background resize-none" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Classification & Priority */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <Tag className="h-3.5 w-3.5 text-primary" />
-                      التصنيف والأولوية
-                    </p>
-                    <div className="space-y-4 bg-muted/20 rounded-xl p-4 border">
-                      <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold">التصنيف</Label>
-                        <div className="grid grid-cols-5 gap-2">
-                          {[
-                            { value: 'technical', label: 'تقنية', icon: '🔧' },
-                            { value: 'question', label: 'استفسار', icon: '❓' },
-                            { value: 'suggestion', label: 'اقتراح', icon: '💡' },
-                            { value: 'complaint', label: 'شكوى', icon: '⚠️' },
-                            { value: 'general', label: 'عام', icon: '📋' },
-                          ].map(cat => (
-                            <button
-                              key={cat.value}
-                              onClick={() => setEditCategory(cat.value)}
-                              className={cn(
-                                "flex flex-col items-center gap-1 py-3 px-2 rounded-lg border text-[11px] font-semibold transition-all",
-                                editCategory === cat.value
-                                  ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20 shadow-sm"
-                                  : "border-transparent bg-background hover:border-muted-foreground/20 hover:bg-muted/50"
-                              )}
-                            >
-                              <span className="text-lg">{cat.icon}</span>
-                              {cat.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold">الأولوية</Label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
-                            { value: 'low', label: 'عادية', emoji: '⚪', color: 'border-slate-300 bg-slate-50 text-slate-700', active: 'ring-slate-400 border-slate-400' },
-                            { value: 'medium', label: 'متوسطة', emoji: '🟡', color: 'border-amber-300 bg-amber-50 text-amber-700', active: 'ring-amber-400 border-amber-400' },
-                            { value: 'high', label: 'عاجلة', emoji: '🔴', color: 'border-rose-300 bg-rose-50 text-rose-700', active: 'ring-rose-400 border-rose-400' },
-                          ].map(p => (
-                            <button
-                              key={p.value}
-                              onClick={() => setEditPriority(p.value)}
-                              className={cn(
-                                "py-2.5 px-3 rounded-lg border text-xs font-bold transition-all text-center",
-                                p.color,
-                                editPriority === p.value ? `ring-2 ${p.active} shadow-sm` : "opacity-50 hover:opacity-80"
-                              )}
-                            >
-                              {p.emoji} {p.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status & Assignment — Editable */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <Shield className="h-3.5 w-3.5 text-primary" />
-                      الحالة والتوجيه
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/20 rounded-xl p-4 border">
-                      <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold">الحالة</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {Object.entries(statusConfig).map(([key, cfg]) => (
-                            <button
-                              key={key}
-                              onClick={() => setEditStatus(key)}
-                              className={cn(
-                                "flex items-center gap-2 py-2.5 px-3 rounded-lg border text-xs font-bold transition-all",
-                                editStatus === key
-                                  ? `${cfg.bg} ${cfg.text} ring-2 ring-current/20 shadow-sm border-current/30`
-                                  : "bg-background border-transparent opacity-50 hover:opacity-80"
-                              )}
-                            >
-                              <span className={cn("w-2 h-2 rounded-full shrink-0", cfg.dot)} />
-                              {cfg.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold">الموظف المسؤول</Label>
-                        <Select value={editStaffId} onValueChange={setEditStaffId}>
-                          <SelectTrigger className="bg-background h-9">
-                            <SelectValue placeholder="اختر الموظف..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">بدون تعيين</SelectItem>
-                            {staffMembers.filter(s => s.is_active && s.can_reply_tickets).map(s => (
-                              <SelectItem key={s.id} value={s.id}>
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-5 w-5">
-                                    <AvatarFallback className="text-[9px] bg-primary/10 text-primary font-bold">{s.full_name[0]}</AvatarFallback>
-                                  </Avatar>
-                                  <span>{s.full_name}</span>
-                                  {s.job_title && <span className="text-[10px] text-muted-foreground">— {s.job_title}</span>}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {ticketToEdit.staff && (
-                          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            الموظف الحالي: <strong>{ticketToEdit.staff.full_name}</strong>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Admin Notes */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <MessageSquare className="h-3.5 w-3.5 text-primary" />
-                      ملاحظات الإدارة
-                    </p>
-                    <div className="bg-muted/20 rounded-xl p-4 border">
-                      <Textarea
-                        value={editAdminNote}
-                        onChange={e => setEditAdminNote(e.target.value)}
-                        placeholder="ملاحظات داخلية للموظفين (لا تظهر للعميل)..."
-                        className="min-h-[70px] bg-background resize-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Tasks */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <Layers className="h-3.5 w-3.5 text-primary" />
-                      إدارة المهام
-                    </p>
-                    <div className="bg-muted/20 rounded-xl p-4 border">
-                      <TicketTasksManager
-                        ticketId={ticketToEdit.id}
-                        mode="admin"
-                        taskMode={(ticketToEdit as any).task_mode || 'multiple'}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </ScrollArea>
-
-              {/* Sticky Footer */}
-              <div className="p-4 border-t bg-card flex items-center justify-between shrink-0">
-                <div className="text-[11px] text-muted-foreground">
-                  {hasChanges && (
-                    <span className="text-amber-600 font-bold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                      تغييرات غير محفوظة
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(false)}>إلغاء</Button>
-                  <Button size="sm" onClick={handleSaveEdit} disabled={!editSubject.trim() || saving} className="gap-2 px-5">
-                    {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    حفظ التعديلات
-                  </Button>
-                </div>
-              </div>
-            </>
-          );
-          })()}
+          {ticketToEdit && <EditDialogContent
+            ticketToEdit={ticketToEdit}
+            editSubject={editSubject} setEditSubject={setEditSubject}
+            editDescription={editDescription} setEditDescription={setEditDescription}
+            editCategory={editCategory} setEditCategory={setEditCategory}
+            editPriority={editPriority} setEditPriority={setEditPriority}
+            editStatus={editStatus} setEditStatus={setEditStatus}
+            editStaffId={editStaffId} setEditStaffId={setEditStaffId}
+            editAdminNote={editAdminNote} setEditAdminNote={setEditAdminNote}
+            staffMembers={staffMembers}
+            saving={saving}
+            handleSaveEdit={handleSaveEdit}
+            setEditDialogOpen={setEditDialogOpen}
+          />}
         </DialogContent>
       </Dialog>
     </TooltipProvider>
+  );
+}
+
+// Extracted Edit Dialog Content to avoid IIFE pattern that crashes React
+function EditDialogContent({
+  ticketToEdit, editSubject, setEditSubject, editDescription, setEditDescription,
+  editCategory, setEditCategory, editPriority, setEditPriority, editStatus, setEditStatus,
+  editStaffId, setEditStaffId, editAdminNote, setEditAdminNote, staffMembers, saving,
+  handleSaveEdit, setEditDialogOpen,
+}: {
+  ticketToEdit: SupportTicket;
+  editSubject: string; setEditSubject: (v: string) => void;
+  editDescription: string; setEditDescription: (v: string) => void;
+  editCategory: string; setEditCategory: (v: string) => void;
+  editPriority: string; setEditPriority: (v: string) => void;
+  editStatus: string; setEditStatus: (v: string) => void;
+  editStaffId: string; setEditStaffId: (v: string) => void;
+  editAdminNote: string; setEditAdminNote: (v: string) => void;
+  staffMembers: StaffMember[];
+  saving: boolean;
+  handleSaveEdit: () => void;
+  setEditDialogOpen: (v: boolean) => void;
+}) {
+  const sourceLabels: Record<string, string> = { portal: 'بوابة العميل', admin: 'لوحة التحكم', embed: 'ويدجت', guest: 'زائر' };
+  const hasChanges = editSubject !== ticketToEdit.subject || editDescription !== ticketToEdit.description || editCategory !== ticketToEdit.category || editPriority !== ticketToEdit.priority || editStatus !== ticketToEdit.status || editStaffId !== (ticketToEdit.assigned_to_staff || '') || editAdminNote !== (ticketToEdit.admin_note || '');
+
+  return (
+    <>
+      {/* Header with gradient */}
+      <div className="border-b bg-gradient-to-l from-primary/5 via-card to-card px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-primary/10 shrink-0">
+            <Edit className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <DialogTitle className="text-base font-bold">تعديل التذكرة</DialogTitle>
+            <DialogDescription className="text-xs flex items-center gap-2 mt-0.5 flex-wrap">
+              <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">#{ticketToEdit.ticket_number}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="font-semibold">{ticketToEdit.organization?.name || ticketToEdit.guest_name || 'عميل'}</span>
+              {ticketToEdit.source && (
+                <>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{sourceLabels[ticketToEdit.source] || ticketToEdit.source}</span>
+                </>
+              )}
+            </DialogDescription>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={cn(
+              "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold",
+              statusConfig[ticketToEdit.status]?.bg, statusConfig[ticketToEdit.status]?.text
+            )}>
+              <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", statusConfig[ticketToEdit.status]?.dot)} />
+              {statusConfig[ticketToEdit.status]?.label}
+            </div>
+            <div className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", priorityConfig[ticketToEdit.priority]?.bg, priorityConfig[ticketToEdit.priority]?.color)}>
+              {priorityConfig[ticketToEdit.priority]?.label}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-6 space-y-6">
+
+          {/* Info Summary Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-muted/30 rounded-lg p-3 border">
+              <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> العميل</p>
+              <p className="text-xs font-bold truncate">{ticketToEdit.organization?.name || ticketToEdit.guest_name || '—'}</p>
+              {ticketToEdit.organization?.contact_email && <p className="text-[10px] text-muted-foreground truncate">{ticketToEdit.organization.contact_email}</p>}
+            </div>
+            <div className="bg-muted/30 rounded-lg p-3 border">
+              <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Calendar className="h-3 w-3" /> تاريخ الإنشاء</p>
+              <p className="text-xs font-bold">{format(new Date(ticketToEdit.created_at), 'dd/MM/yyyy', { locale: ar })}</p>
+              <p className="text-[10px] text-muted-foreground">{format(new Date(ticketToEdit.created_at), 'hh:mm a', { locale: ar })}</p>
+            </div>
+            <div className="bg-muted/30 rounded-lg p-3 border">
+              <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> الموقع</p>
+              {ticketToEdit.website_url || ticketToEdit.organization?.website_url ? (
+                <a href={ticketToEdit.website_url || ticketToEdit.organization?.website_url || ''} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline truncate block">{(ticketToEdit.website_url || ticketToEdit.organization?.website_url || '').replace(/^https?:\/\//, '')}</a>
+              ) : <p className="text-xs text-muted-foreground">—</p>}
+            </div>
+            <div className="bg-muted/30 rounded-lg p-3 border">
+              <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Clock className="h-3 w-3" /> آخر تحديث</p>
+              <p className="text-xs font-bold">{formatDistanceToNow(new Date(ticketToEdit.updated_at), { locale: ar, addSuffix: true })}</p>
+            </div>
+          </div>
+
+          {/* Basic Info */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-foreground flex items-center gap-2">
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              المعلومات الأساسية
+            </p>
+            <div className="space-y-4 bg-muted/20 rounded-xl p-4 border">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold">الموضوع</Label>
+                <Input value={editSubject} onChange={e => setEditSubject(e.target.value)} className="bg-background h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold">الوصف</Label>
+                <Textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} className="min-h-[100px] bg-background resize-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* Classification & Priority */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-foreground flex items-center gap-2">
+              <Tag className="h-3.5 w-3.5 text-primary" />
+              التصنيف والأولوية
+            </p>
+            <div className="space-y-4 bg-muted/20 rounded-xl p-4 border">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-semibold">التصنيف</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    { value: 'technical', label: 'تقنية', icon: '🔧' },
+                    { value: 'question', label: 'استفسار', icon: '❓' },
+                    { value: 'suggestion', label: 'اقتراح', icon: '💡' },
+                    { value: 'complaint', label: 'شكوى', icon: '⚠️' },
+                    { value: 'general', label: 'عام', icon: '📋' },
+                  ].map(cat => (
+                    <button
+                      key={cat.value}
+                      onClick={() => setEditCategory(cat.value)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 py-3 px-2 rounded-lg border text-[11px] font-semibold transition-all",
+                        editCategory === cat.value
+                          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20 shadow-sm"
+                          : "border-transparent bg-background hover:border-muted-foreground/20 hover:bg-muted/50"
+                      )}
+                    >
+                      <span className="text-lg">{cat.icon}</span>
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[11px] font-semibold">الأولوية</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'low', label: 'عادية', emoji: '⚪', color: 'border-slate-300 bg-slate-50 text-slate-700', active: 'ring-slate-400 border-slate-400' },
+                    { value: 'medium', label: 'متوسطة', emoji: '🟡', color: 'border-amber-300 bg-amber-50 text-amber-700', active: 'ring-amber-400 border-amber-400' },
+                    { value: 'high', label: 'عاجلة', emoji: '🔴', color: 'border-rose-300 bg-rose-50 text-rose-700', active: 'ring-rose-400 border-rose-400' },
+                  ].map(p => (
+                    <button
+                      key={p.value}
+                      onClick={() => setEditPriority(p.value)}
+                      className={cn(
+                        "py-2.5 px-3 rounded-lg border text-xs font-bold transition-all text-center",
+                        p.color,
+                        editPriority === p.value ? `ring-2 ${p.active} shadow-sm` : "opacity-50 hover:opacity-80"
+                      )}
+                    >
+                      {p.emoji} {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Status & Assignment */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-foreground flex items-center gap-2">
+              <Shield className="h-3.5 w-3.5 text-primary" />
+              الحالة والتوجيه
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/20 rounded-xl p-4 border">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-semibold">الحالة</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(statusConfig).map(([key, cfg]) => (
+                    <button
+                      key={key}
+                      onClick={() => setEditStatus(key)}
+                      className={cn(
+                        "flex items-center gap-2 py-2.5 px-3 rounded-lg border text-xs font-bold transition-all",
+                        editStatus === key
+                          ? `${cfg.bg} ${cfg.text} ring-2 ring-current/20 shadow-sm border-current/30`
+                          : "bg-background border-transparent opacity-50 hover:opacity-80"
+                      )}
+                    >
+                      <span className={cn("w-2 h-2 rounded-full shrink-0", cfg.dot)} />
+                      {cfg.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-semibold">الموظف المسؤول</Label>
+                <Select value={editStaffId || '__none__'} onValueChange={(v) => setEditStaffId(v === '__none__' ? '' : v)}>
+                  <SelectTrigger className="bg-background h-9">
+                    <SelectValue placeholder="اختر الموظف..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">بدون تعيين</SelectItem>
+                    {staffMembers.filter(s => s.is_active && s.can_reply_tickets).map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-5 w-5">
+                            <AvatarFallback className="text-[9px] bg-primary/10 text-primary font-bold">{s.full_name[0]}</AvatarFallback>
+                          </Avatar>
+                          <span>{s.full_name}</span>
+                          {s.job_title && <span className="text-[10px] text-muted-foreground">— {s.job_title}</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {ticketToEdit.staff && (
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    الموظف الحالي: <strong>{ticketToEdit.staff.full_name}</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Admin Notes */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-foreground flex items-center gap-2">
+              <MessageSquare className="h-3.5 w-3.5 text-primary" />
+              ملاحظات الإدارة
+            </p>
+            <div className="bg-muted/20 rounded-xl p-4 border">
+              <Textarea
+                value={editAdminNote}
+                onChange={e => setEditAdminNote(e.target.value)}
+                placeholder="ملاحظات داخلية للموظفين (لا تظهر للعميل)..."
+                className="min-h-[70px] bg-background resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Tasks */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-foreground flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 text-primary" />
+              إدارة المهام
+            </p>
+            <div className="bg-muted/20 rounded-xl p-4 border">
+              <TicketTasksManager
+                ticketId={ticketToEdit.id}
+                mode="admin"
+                taskMode={(ticketToEdit as any).task_mode || 'multiple'}
+              />
+            </div>
+          </div>
+        </div>
+      </ScrollArea>
+
+      {/* Sticky Footer */}
+      <div className="p-4 border-t bg-card flex items-center justify-between shrink-0">
+        <div className="text-[11px] text-muted-foreground">
+          {hasChanges && (
+            <span className="text-amber-600 font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              تغييرات غير محفوظة
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(false)}>إلغاء</Button>
+          <Button size="sm" onClick={handleSaveEdit} disabled={!editSubject.trim() || saving} className="gap-2 px-5">
+            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+            حفظ التعديلات
+          </Button>
+        </div>
+      </div>
+    </>
   );
 }
