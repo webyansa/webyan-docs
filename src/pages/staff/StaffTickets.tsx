@@ -18,7 +18,11 @@ import {
   Hash,
   Calendar,
   MoreVertical,
-  X
+  X,
+  Building2,
+  User,
+  Globe,
+  ListChecks
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,8 +54,10 @@ interface SupportTicket {
   guest_name: string | null;
   guest_email: string | null;
   user_id: string | null;
+  task_mode: string | null;
   organization?: {
     name: string;
+    website_url: string | null;
   } | null;
 }
 
@@ -137,7 +143,7 @@ export default function StaffTickets() {
 
       const { data, error } = await supabase
         .from('support_tickets')
-        .select('*, organization:client_organizations(name)')
+        .select('*, organization:client_organizations(name, website_url)')
         .eq('assigned_to_staff', permissions.staffId)
         .order('created_at', { ascending: false });
 
@@ -603,37 +609,38 @@ export default function StaffTickets() {
         )}
       </div>
 
-      {/* View/Reply Dialog */}
+      {/* View/Reply Dialog — Professional Planner-style */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="pb-4 border-b">
-            <div className="flex items-start justify-between">
-              <div>
-                <DialogTitle className="flex items-center gap-2 text-lg">
-                  <Ticket className="h-5 w-5 text-primary" />
+        <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+          {/* Ticket Header Bar */}
+          <div className="bg-gradient-to-l from-primary/10 via-primary/5 to-transparent border-b px-6 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2 flex-1 min-w-0">
+                <DialogTitle className="text-lg font-bold text-foreground leading-tight">
                   {selectedTicket?.subject}
                 </DialogTitle>
-                <DialogDescription className="mt-2">
+                <DialogDescription asChild>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                    <span className="font-mono text-xs bg-background/80 border px-2 py-0.5 rounded-md">
                       #{selectedTicket?.ticket_number}
                     </span>
                     {selectedTicket && (
                       <>
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={cn(
-                            "text-xs",
+                            "text-xs font-semibold",
                             statusConfig[selectedTicket.status]?.bg,
                             statusConfig[selectedTicket.status]?.text
                           )}
                         >
+                          <span className={cn("w-1.5 h-1.5 rounded-full mr-1.5", statusConfig[selectedTicket.status]?.dot)} />
                           {statusConfig[selectedTicket.status]?.label}
                         </Badge>
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={cn(
-                            "text-xs",
+                            "text-xs font-semibold",
                             priorityConfig[selectedTicket.priority]?.bg,
                             priorityConfig[selectedTicket.priority]?.color
                           )}
@@ -646,84 +653,130 @@ export default function StaffTickets() {
                 </DialogDescription>
               </div>
             </div>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-auto space-y-4 py-4">
-            {/* Admin Note */}
-            {selectedTicket?.admin_note && (
-              <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
-                <div className="flex items-center gap-2 text-orange-700 font-medium mb-1">
-                  <AlertCircle className="h-4 w-4" />
-                  ملاحظة من الإدارة
-                </div>
-                <p className="text-sm text-orange-600">{selectedTicket.admin_note}</p>
-              </div>
-            )}
 
-            {/* Description */}
-            <div className="p-4 rounded-lg bg-muted/50 border">
-              <Label className="text-sm font-medium text-muted-foreground">وصف المشكلة</Label>
-              <p className="text-sm mt-2">{selectedTicket?.description}</p>
-            </div>
-
-            {/* Tasks Manager */}
+            {/* Client & Site Info Bar */}
             {selectedTicket && (
-              <TicketTasksManager
-                ticketId={selectedTicket.id}
-                mode="staff"
-                taskMode={(selectedTicket as any).task_mode || 'multiple'}
-              />
-            )}
-
-            {/* Replies */}
-            <div>
-              <Label className="text-sm font-medium mb-2 block">المحادثة</Label>
-              <ScrollArea className="h-[200px] border rounded-lg p-3">
-                {replies.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-8">
-                    <Send className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">لا توجد ردود حتى الآن</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {replies.map((reply) => (
-                      <div
-                        key={reply.id}
-                        className={cn(
-                          "p-3 rounded-lg",
-                          reply.is_staff_reply
-                            ? 'bg-primary/10 mr-4 border-r-2 border-primary'
-                            : 'bg-muted ml-4 border-r-2 border-muted-foreground/30'
-                        )}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarFallback className={cn(
-                              "text-xs",
-                              reply.is_staff_reply ? "bg-primary/20 text-primary" : "bg-muted-foreground/20"
-                            )}>
-                              {reply.is_staff_reply ? 'م' : 'ع'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs font-medium">
-                            {reply.is_staff_reply ? 'أنت' : 'العميل'}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatSmartDate(reply.created_at)}
-                          </span>
-                        </div>
-                        <p className="text-sm">{reply.message}</p>
-                      </div>
-                    ))}
+              <div className="mt-3 flex items-center gap-4 flex-wrap text-sm">
+                {(selectedTicket.organization?.name || selectedTicket.guest_name) && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span className="font-medium text-foreground">
+                      {selectedTicket.organization?.name || selectedTicket.guest_name}
+                    </span>
                   </div>
                 )}
-              </ScrollArea>
-            </div>
+                {selectedTicket.organization?.website_url && (
+                  <a
+                    href={selectedTicket.organization.website_url.startsWith('http') ? selectedTicket.organization.website_url : `https://${selectedTicket.organization.website_url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-primary hover:underline text-xs"
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    {selectedTicket.organization.website_url}
+                  </a>
+                )}
+                <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                  <Calendar className="h-3.5 w-3.5" />
+                  {formatSmartDate(selectedTicket.created_at)}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Reply Form */}
+          {/* Scrollable Content */}
+          <ScrollArea className="flex-1 overflow-auto">
+            <div className="p-6 space-y-5">
+              {/* Admin Note */}
+              {selectedTicket?.admin_note && (
+                <div className="p-3 rounded-lg bg-orange-50 border border-orange-200 dark:bg-orange-900/10 dark:border-orange-800/40">
+                  <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-semibold text-sm mb-1">
+                    <AlertCircle className="h-4 w-4" />
+                    ملاحظة من الإدارة
+                  </div>
+                  <p className="text-sm text-orange-600 dark:text-orange-300">{selectedTicket.admin_note}</p>
+                </div>
+              )}
+
+              {/* Description */}
+              <div className="p-4 rounded-xl bg-muted/40 border">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">وصف المشكلة</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{selectedTicket?.description}</p>
+              </div>
+
+              {/* Tasks Section — Planner-style */}
+              {selectedTicket && (
+                <div className="rounded-xl border-2 border-primary/20 bg-primary/[0.02] overflow-hidden">
+                  <div className="bg-primary/5 border-b border-primary/10 px-4 py-3 flex items-center gap-2">
+                    <ListChecks className="h-5 w-5 text-primary" />
+                    <span className="font-bold text-sm text-foreground">قائمة المهام</span>
+                  </div>
+                  <div className="p-4">
+                    <TicketTasksManager
+                      ticketId={selectedTicket.id}
+                      mode="staff"
+                      taskMode={selectedTicket.task_mode || 'multiple'}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Replies / Conversation */}
+              <div className="rounded-xl border overflow-hidden">
+                <div className="bg-muted/50 border-b px-4 py-3 flex items-center gap-2">
+                  <Send className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-bold text-sm">المحادثة</span>
+                  {replies.length > 0 && (
+                    <Badge variant="secondary" className="text-xs h-5 px-1.5">{replies.length}</Badge>
+                  )}
+                </div>
+                <div className="p-4">
+                  {replies.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8">
+                      <Send className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">لا توجد ردود حتى الآن</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                      {replies.map((reply) => (
+                        <div
+                          key={reply.id}
+                          className={cn(
+                            "p-3 rounded-lg",
+                            reply.is_staff_reply
+                              ? 'bg-primary/5 border-r-3 border-primary mr-2'
+                              : 'bg-muted/60 border-r-3 border-muted-foreground/30 ml-2'
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Avatar className="h-5 w-5">
+                              <AvatarFallback className={cn(
+                                "text-[9px]",
+                                reply.is_staff_reply ? "bg-primary/20 text-primary" : "bg-muted-foreground/20"
+                              )}>
+                                {reply.is_staff_reply ? 'م' : 'ع'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs font-semibold">
+                              {reply.is_staff_reply ? 'أنت' : 'العميل'}
+                            </span>
+                            <span className="text-xs text-muted-foreground mr-auto">
+                              {formatSmartDate(reply.created_at)}
+                            </span>
+                          </div>
+                          <p className="text-sm leading-relaxed">{reply.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+
+          {/* Sticky Reply Form Footer */}
           {selectedTicket && (selectedTicket.status === 'open' || selectedTicket.status === 'in_progress') && (
-            <div className="pt-4 border-t space-y-3">
+            <div className="border-t bg-background px-6 py-4 space-y-3">
               <Textarea
                 placeholder="اكتب ردك هنا... (Ctrl+Enter للإرسال)"
                 value={newReply}
@@ -733,13 +786,13 @@ export default function StaffTickets() {
                     handleSendReply();
                   }
                 }}
-                className="min-h-[80px]"
+                className="min-h-[70px] resize-none"
               />
               <div className="flex justify-between items-center">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => handleOpenCloseDialog(selectedTicket)}
-                  className="gap-2 text-emerald-600 hover:text-emerald-700"
+                  className="gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
                 >
                   <CheckCircle className="h-4 w-4" />
                   إغلاق التذكرة
