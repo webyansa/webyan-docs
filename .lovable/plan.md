@@ -1,201 +1,154 @@
 
 
-# نظام الاشتراك بالباقات - خطة التنفيذ
+# خطة تطوير نظام المهام الداخلية للتذاكر
 
 ## ملخص المشروع
-
-بناء نظام اشتراك متكامل يربط الموقع الرسمي بنظام دليل الاستخدام (Backoffice)، حيث تكون الباقات والأسعار مصدرها الوحيد هو جداول `pricing_plans` و `pricing_services` الموجودة مسبقا، والموقع يعرضها فقط عبر API دون تخزين محلي.
-
----
-
-## المرحلة الأولى: قاعدة البيانات
-
-### جدول جديد واحد: `subscription_requests` (طلبات الاشتراك)
-
-| العمود | النوع | ملاحظة |
-|--------|-------|--------|
-| id | uuid PK | |
-| request_number | text UNIQUE | رقم تسلسلي تلقائي (SUB-XXXX) |
-| plan_id | uuid FK -> pricing_plans | الباقة المختارة |
-| plan_name | text | للتوثيق |
-| plan_price | numeric | السعر السنوي وقت الطلب |
-| selected_addons | jsonb | قائمة الإضافات المختارة [{id, name, price}] |
-| total_amount | numeric | الإجمالي النهائي |
-| organization_name | text NOT NULL | |
-| contact_name | text NOT NULL | |
-| phone | text | |
-| email | text NOT NULL | |
-| entity_type | text | نوع الكيان |
-| entity_category | text | تصنيف الكيان |
-| region | text | المنطقة |
-| address | text | العنوان |
-| status | text DEFAULT 'new' | new/reviewing/contacted/pending_payment/activated/cancelled |
-| source | text DEFAULT 'website' | |
-| page_source | text | PricingPage / HomeSection |
-| utm_source | text | |
-| utm_campaign | text | |
-| utm_medium | text | |
-| assigned_to | uuid FK -> staff_members | المسؤول |
-| assigned_at | timestamptz | |
-| converted_organization_id | uuid FK -> client_organizations | عند التحويل لمنظمة |
-| notes | text | ملاحظات داخلية |
-| created_at | timestamptz DEFAULT now() | |
-| updated_at | timestamptz DEFAULT now() | |
-
-### جدول: `subscription_request_timeline` (سجل النشاط)
-
-| العمود | النوع |
-|--------|-------|
-| id | uuid PK |
-| request_id | uuid FK -> subscription_requests |
-| action | text (created/status_changed/assigned/note_added/converted/email_sent) |
-| performed_by | uuid |
-| old_value | text |
-| new_value | text |
-| details | jsonb |
-| created_at | timestamptz |
-
-### إضافة أعمدة لجدول `pricing_plans` الموجود
-
-- `comparison_features` (jsonb) - بيانات جدول المقارنة [{name, included: true/false}]
-- `optional_addons` (jsonb) - الخدمات الإضافية [{id, name, price, description}]
-- `display_badge` (text) - شارة مثل "الأكثر طلبا"
-- `is_public` (boolean DEFAULT true) - إظهار في الموقع العام
-
-### سياسات الأمان (RLS)
-
-- `subscription_requests`: قراءة/كتابة لـ admin/editor فقط
-- `subscription_request_timeline`: قراءة/كتابة لـ admin/editor فقط
-- `pricing_plans`: إضافة سياسة SELECT عامة للباقات المفعلة والعامة (للـ API العام)
+إضافة نظام مهام فرعية (Sub-tasks / Checklist) داخل كل تذكرة دعم، بحيث يمكن تحديد مهمة واحدة أو مهام متعددة لكل تذكرة، مع تتبع حالة الإنجاز والملاحظات لكل مهمة، وعرضها في البوابات الثلاث (لوحة التحكم، بوابة الموظف، بوابة العميل).
 
 ---
 
-## المرحلة الثانية: Backend (Edge Functions)
+## الجزء الأول: قاعدة البيانات
 
-### 1. `get-public-plans` (جلب الباقات للموقع)
-
-- verify_jwt = false (عام)
-- يُرجع الباقات المفعلة مع: الاسم، السعر، المزايا، جدول المقارنة، الإضافات الاختيارية، ترتيب العرض
-- يُرجع بيانات ضريبة VAT من system_settings
-- لا يتطلب مصادقة
-
-### 2. `submit-subscription-request` (إرسال طلب اشتراك)
-
-- verify_jwt = false (عام)
-- التحقق من المدخلات (validation)
-- التحقق من وجود الباقة وصحة الأسعار (server-side price validation)
-- إعادة حساب الإجمالي في السيرفر
-- إنشاء سجل في `subscription_requests`
-- إنشاء سجل في `subscription_request_timeline`
-- إرسال إشعار داخلي للمسؤولين (user_notifications)
-- إرسال بريد تأكيد للعميل (اختياري عبر SMTP/Resend)
-- إرسال بريد إشعار للمسؤول
-- Rate limiting بسيط (فحص IP + وقت)
-
----
-
-## المرحلة الثالثة: صفحات الموقع الرسمي (Public)
-
-### 1. صفحة الباقات `/pricing` (PricingPage.tsx)
-
-- تجلب البيانات من `get-public-plans`
-- قسم البطاقات: 4 بطاقات (بيسك/بلس/برو/الترا) مع السعر السنوي وزر "اشترك الآن"
-- جدول مقارنة المزايا أسفل البطاقات (صفوف للمزايا، أعمدة للباقات، علامات صح/خطأ)
-- تصميم RTL متجاوب، ألوان هوية ويبيان
-- تستخدم DocsLayout الموجود
-
-### 2. قسم الباقات في الصفحة الرئيسية `/` (تحديث HomePage.tsx)
-
-- إضافة قسم جديد يعرض 4 بطاقات مختصرة للباقات
-- زر "اشترك الآن" ينقل إلى `/subscribe?planId=XXX`
-- زر "عرض جميع الباقات" ينقل إلى `/pricing`
-
-### 3. صفحة طلب الاشتراك `/subscribe` (SubscribePage.tsx)
-
-- تستقبل `planId` من QueryString
-- تتحقق من صحة المعرف وتجلب بيانات الباقة
-- تصميم عمودين:
-  - **العمود الأيمن**: نموذج بيانات المنظمة (اسم الكيان، المسؤول، الجوال، البريد، نوع الكيان، التصنيف، المنطقة، العنوان، إقرار الموافقة)
-  - **العمود الأيسر**: ملخص الباقة (اسم، سعر، إضافات اختيارية كـ checkboxes، الإجمالي الديناميكي، زر "إكمال الطلب")
-- Validation فوري لكل حقل باستخدام zod
-- زر الإرسال يُقفل أثناء المعالجة مع Loading
-- عند النجاح: صفحة تأكيد احترافية برقم الطلب
-- عند فشل: رسالة خطأ واضحة
-
-### قوائم منسدلة ثابتة (بناء على بيانات النظام الحالي)
-
-**نوع الكيان**: جمعية خيرية، منظمة غير ربحية، مؤسسة، جمعية تعاونية، أخرى
-**المنطقة**: الرياض، مكة المكرمة، المدينة المنورة، القصيم، المنطقة الشرقية، عسير، تبوك، حائل، الحدود الشمالية، جازان، نجران، الباحة، الجوف
-
----
-
-## المرحلة الرابعة: وحدة "طلبات الاشتراك" في لوحة التحكم
-
-### 1. صفحة قائمة الطلبات (SubscriptionRequestsPage.tsx)
-
-- بطاقات إحصائية: إجمالي، جديد، قيد المراجعة، تم التفعيل
-- جدول الطلبات مع: رقم الطلب، اسم المنظمة، الباقة، الإجمالي، الحالة، التاريخ
-- فلاتر: الحالة، الباقة، المنطقة، التاريخ
-- بحث بالاسم/البريد/رقم الطلب
-
-### 2. صفحة تفاصيل الطلب (SubscriptionRequestDetailsPage.tsx)
-
-- عرض كامل بيانات المنظمة والباقة والإضافات
-- سجل النشاط (Timeline)
-- تعيين مسؤول متابعة
-- ملاحظات داخلية
-- تغيير الحالة مع تسجيل في Timeline
-- أزرار إجراءات:
-  - **تحويل إلى منظمة**: ينشئ سجل في `client_organizations` ويربطه
-  - **إنشاء تذكرة دعم**: ينشئ تذكرة مرتبطة
-  - **إرسال بريد للعميل**: عبر SMTP الموجود
-
-### تحديث القائمة الجانبية (AdminLayout.tsx)
-
-- إضافة "طلبات الاشتراك" ضمن قسم "إدارة العملاء" مع أيقونة مناسبة
-
----
-
-## المرحلة الخامسة: تحديث إعدادات التسعير
-
-### تحديث صفحة PricingSettingsPage.tsx
-
-- إضافة حقول جديدة في نموذج تعديل الخطة:
-  - `comparison_features`: محرر مزايا المقارنة (اسم الميزة + متاح/غير متاح)
-  - `optional_addons`: محرر الإضافات الاختيارية (اسم + سعر + وصف)
-  - `display_badge`: شارة العرض (مثل "الأكثر طلبا")
-  - `is_public`: إظهار في الموقع العام
-
----
-
-## التفاصيل التقنية
-
-### الملفات الجديدة
+### جدول جديد: `ticket_tasks`
 
 ```text
-src/pages/PricingPage.tsx                              -- صفحة الباقات العامة
-src/pages/SubscribePage.tsx                             -- صفحة طلب الاشتراك
-src/pages/admin/SubscriptionRequestsPage.tsx            -- قائمة طلبات الاشتراك
-src/pages/admin/SubscriptionRequestDetailsPage.tsx      -- تفاصيل طلب اشتراك
-supabase/functions/get-public-plans/index.ts            -- API جلب الباقات
-supabase/functions/submit-subscription-request/index.ts -- API إرسال طلب
+ticket_tasks
+├── id (uuid, PK)
+├── ticket_id (uuid, FK → support_tickets.id, ON DELETE CASCADE)
+├── title (text, NOT NULL) — عنوان المهمة
+├── is_completed (boolean, DEFAULT false)
+├── completed_by (uuid, FK → staff_members.id, nullable)
+├── completed_by_name (text, nullable)
+├── completed_at (timestamptz, nullable)
+├── note (text, nullable) — ملاحظة الموظف المنجز
+├── sort_order (integer, DEFAULT 0)
+├── created_by (uuid, nullable) — من أنشأ المهمة
+├── created_at (timestamptz, DEFAULT now())
+├── updated_at (timestamptz, DEFAULT now())
 ```
 
-### الملفات المعدلة
+### عمود جديد في `support_tickets`:
+- `task_mode` (text, DEFAULT 'none') — القيم: `'none'` | `'single'` | `'multiple'`
+
+### سياسات RLS:
+- **SELECT**: المسؤولون والمحررون يرون الكل، الموظفون يرون مهام تذاكرهم، العملاء يرون مهام تذاكر منظمتهم
+- **INSERT/UPDATE/DELETE**: المسؤولون والمحررون + الموظف المسند إليه التذكرة
+
+### Realtime:
+- تفعيل `ticket_tasks` في `supabase_realtime` للتحديث اللحظي
+
+### Trigger:
+- `update_updated_at_column` على `ticket_tasks` لتحديث `updated_at` تلقائياً
+
+---
+
+## الجزء الثاني: التغييرات في الكود
+
+### 1. مكون مهام التذكرة المشترك (جديد)
+**ملف**: `src/components/tickets/TicketTasksManager.tsx`
+
+مكون قابل لإعادة الاستخدام في البوابات الثلاث يعرض:
+- قائمة المهام مع Checkbox لكل مهمة
+- شريط تقدم بصري (Progress Bar) يوضح نسبة الإنجاز
+- زر إضافة مهمة جديدة (للمسؤول والموظف فقط)
+- حقل ملاحظة اختياري عند تحديد المهمة كمنجزة
+- اسم الموظف المنجز وتاريخ الإنجاز
+- إمكانية حذف مهمة (للمسؤول فقط)
+- ترتيب المهام بالسحب والإفلات (اختياري، باستخدام dnd-kit الموجود)
+
+**الخصائص (Props)**:
+```text
+ticketId: string
+mode: 'admin' | 'staff' | 'client'  // يتحكم بالصلاحيات المعروضة
+taskMode: 'none' | 'single' | 'multiple'
+onTaskModeChange?: (mode) => void  // فقط في admin
+```
+
+**سلوك العرض حسب البوابة**:
+- **Admin**: إضافة/تعديل/حذف مهام + تغيير نوع المهام + إنجاز
+- **Staff**: إنجاز المهام + إضافة ملاحظات
+- **Client**: عرض فقط (قراءة) مع شريط التقدم
+
+### 2. تعديل مودال إنشاء التذكرة
+**ملف**: `src/components/admin/CreateTicketModal.tsx`
+
+في الخطوة الثانية (تفاصيل التذكرة):
+- إضافة حقل "نوع المهام" بثلاث خيارات:
+  - بدون مهام (none)
+  - مهمة واحدة (single)
+  - مهام متعددة (multiple)
+- عند اختيار "مهمة واحدة": يظهر حقل نصي لإدخال عنوان المهمة
+- عند اختيار "مهام متعددة": يظهر حقل إدخال ديناميكي لإضافة عدة مهام مع زر "+"
+- في خطوة المراجعة: عرض المهام المضافة
+- عند الإرسال: إدراج التذكرة ثم إدراج المهام في `ticket_tasks`
+
+### 3. تعديل لوحة التحكم الرئيسية (Admin)
+**ملف**: `src/pages/admin/AdminTicketsPage.tsx`
+
+- في واجهة عرض التذكرة (View Dialog): إضافة مكون `TicketTasksManager` بوضع `admin`
+- عرض مؤشر تقدم المهام في قائمة التذاكر (badge صغير يوضح مثلاً "3/5 مهام")
+
+### 4. تعديل بوابة الموظف
+**ملف**: `src/pages/staff/StaffTickets.tsx`
+
+- في واجهة عرض التذكرة: إضافة `TicketTasksManager` بوضع `staff`
+- الموظف يمكنه إنجاز المهام وإضافة ملاحظات
+
+### 5. تعديل بوابة العميل
+**ملف**: `src/pages/portal/PortalTicketDetail.tsx`
+
+- إضافة `TicketTasksManager` بوضع `client` (عرض فقط)
+- عرض شريط التقدم + قائمة المهام مع حالاتها
+
+### 6. تعديل تاب التذاكر في ملف العميل (CRM)
+**ملف**: `src/components/crm/tabs/TicketsTab.tsx`
+
+- عرض مؤشر تقدم المهام بجانب كل تذكرة
+
+---
+
+## الجزء الثالث: تسجيل النشاط
+
+كل عملية على المهام تُسجل في `ticket_activity_log`:
+- `task_added`: إضافة مهمة
+- `task_completed`: إنجاز مهمة (مع اسم المنجز)
+- `task_uncompleted`: إلغاء إنجاز مهمة
+- `task_deleted`: حذف مهمة
+
+---
+
+## التصميم المرئي
 
 ```text
-src/App.tsx                          -- إضافة المسارات الجديدة (/pricing, /subscribe, /admin/subscription-requests/*)
-src/pages/HomePage.tsx               -- إضافة قسم الباقات
-src/pages/admin/AdminLayout.tsx      -- إضافة "طلبات الاشتراك" في القائمة الجانبية
-src/pages/admin/PricingSettingsPage.tsx -- إضافة حقول المقارنة والإضافات
-supabase/config.toml                 -- إعداد verify_jwt = false للدوال العامة
+┌─────────────────────────────────────────┐
+│  📋 المهام                    3/5 منجز  │
+│  ████████████░░░░░░░  60%               │
+│─────────────────────────────────────────│
+│  ✅ إعداد بيئة التطوير                  │
+│     ↳ أحمد محمد · منذ ساعتين            │
+│  ✅ تثبيت الإضافات المطلوبة              │
+│     ↳ أحمد محمد · منذ ساعة              │
+│     💬 "تم تثبيت جميع الإضافات بنجاح"   │
+│  ✅ رفع الملفات                         │
+│     ↳ سارة أحمد · منذ 30 دقيقة          │
+│  ☐ اختبار الموقع                        │
+│  ☐ التسليم النهائي                      │
+│                                         │
+│  [+ إضافة مهمة]                         │
+└─────────────────────────────────────────┘
 ```
 
-### ملاحظات الأمان
+---
 
-- الأسعار لا تُرسل من الواجهة؛ يتم جلبها والتحقق منها في السيرفر
-- Rate limiting على دالة submit-subscription-request
-- Sanitization لجميع المدخلات
-- RLS على جميع الجداول الجديدة
-- لا يتم استخدام reCAPTCHA فعليا (غير مدعوم في البيئة الحالية) لكن يمكن إضافته لاحقا عبر مفتاح خارجي
+## ملخص الملفات المتأثرة
+
+| الملف | الإجراء |
+|---|---|
+| Migration SQL | إنشاء جدول `ticket_tasks` + عمود `task_mode` + RLS + Realtime |
+| `src/components/tickets/TicketTasksManager.tsx` | **إنشاء** — مكون مشترك |
+| `src/components/admin/CreateTicketModal.tsx` | **تعديل** — إضافة حقل نوع المهام وإدخال المهام |
+| `src/pages/admin/AdminTicketsPage.tsx` | **تعديل** — عرض المهام داخل تفاصيل التذكرة |
+| `src/pages/staff/StaffTickets.tsx` | **تعديل** — عرض وإنجاز المهام |
+| `src/pages/portal/PortalTicketDetail.tsx` | **تعديل** — عرض المهام للعميل |
+| `src/components/crm/tabs/TicketsTab.tsx` | **تعديل** — مؤشر تقدم |
 
