@@ -61,6 +61,7 @@ interface SupportTicket {
     id: string;
     name: string;
     contact_email: string | null;
+    website_url: string | null;
   } | null;
 }
 
@@ -174,7 +175,7 @@ export default function AdminTicketsPage() {
       
       const { data: ticketsData, error } = await supabase
         .from('support_tickets')
-        .select(`*, organization:client_organizations(id, name, contact_email)`)
+        .select(`*, organization:client_organizations(id, name, contact_email, website_url)`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -1009,18 +1010,39 @@ export default function AdminTicketsPage() {
 
           {selectedTicket && (
             <>
+              {/* Client & Organization Info */}
+              {selectedTicket.organization && (
+                <div className="flex items-center gap-4 py-3 px-4 rounded-lg bg-primary/5 border border-primary/10 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">{selectedTicket.organization.name}</span>
+                  </div>
+                  {selectedTicket.organization.website_url && (
+                    <a
+                      href={selectedTicket.organization.website_url.startsWith('http') ? selectedTicket.organization.website_url : `https://${selectedTicket.organization.website_url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {selectedTicket.organization.website_url}
+                    </a>
+                  )}
+                </div>
+              )}
+
               {/* Info Cards */}
-              <div className="grid grid-cols-2 gap-3 py-4">
+              <div className="grid grid-cols-2 gap-3 py-3">
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-[10px] text-muted-foreground mb-1">المرسل</p>
                   <div className="flex items-center gap-2">
                     <Avatar className="h-6 w-6">
                       <AvatarFallback className="text-[10px]">
-                        {(selectedTicket.guest_name || 'م')[0]}
+                        {(selectedTicket.guest_name || selectedTicket.organization?.name || 'م')[0]}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="text-sm font-medium">{selectedTicket.guest_name || 'مستخدم'}</p>
+                      <p className="text-sm font-medium">{selectedTicket.guest_name || selectedTicket.organization?.name || 'مستخدم'}</p>
                       {selectedTicket.guest_email && (
                         <p className="text-[10px] text-muted-foreground">{selectedTicket.guest_email}</p>
                       )}
@@ -1119,13 +1141,13 @@ export default function AdminTicketsPage() {
                 </div>
               </ScrollArea>
 
-              {/* Tasks Manager */}
-              {selectedTicket && (selectedTicket as any).task_mode && (selectedTicket as any).task_mode !== 'none' && (
-                <div className="px-6 py-4 border-t">
+              {/* Tasks Manager — always show */}
+              {selectedTicket && (
+                <div className="border-t pt-4 mt-2">
                   <TicketTasksManager
                     ticketId={selectedTicket.id}
                     mode="admin"
-                    taskMode={(selectedTicket as any).task_mode || 'none'}
+                    taskMode={(selectedTicket as any).task_mode || 'multiple'}
                   />
                 </div>
               )}

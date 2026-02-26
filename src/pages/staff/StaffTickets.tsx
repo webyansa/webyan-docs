@@ -732,6 +732,7 @@ export default function StaffTickets() {
                       ticketId={selectedTicket.id}
                       mode="staff"
                       taskMode={selectedTicket.task_mode || 'multiple'}
+                      staffUser={user ? { id: user.id, email: user.email } : null}
                     />
                   </div>
                 </div>
