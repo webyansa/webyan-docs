@@ -489,9 +489,10 @@ export default function StaffTickets() {
           <Card>
             <CardContent className="p-0">
               {/* Table Header */}
-              <div className="hidden md:grid grid-cols-[80px_1fr_100px_100px_100px_60px] gap-3 p-4 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+              <div className="hidden md:grid grid-cols-[80px_1fr_140px_100px_100px_100px_60px] gap-3 p-4 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
                 <div>الرقم</div>
-                <div>الموضوع والعميل</div>
+                <div>الموضوع</div>
+                <div>العميل / الموقع</div>
                 <div>الأولوية</div>
                 <div>الحالة</div>
                 <div>التاريخ</div>
@@ -507,7 +508,7 @@ export default function StaffTickets() {
                   return (
                     <div
                       key={ticket.id}
-                      className="grid grid-cols-1 md:grid-cols-[80px_1fr_100px_100px_100px_60px] gap-3 p-4 hover:bg-muted/30 transition-colors items-center"
+                      className="grid grid-cols-1 md:grid-cols-[80px_1fr_140px_100px_100px_100px_60px] gap-3 p-4 hover:bg-muted/30 transition-colors items-center"
                     >
                       {/* Ticket Number */}
                       <div>
@@ -517,23 +518,16 @@ export default function StaffTickets() {
                         </span>
                       </div>
 
-                      {/* Subject & Client Combined */}
+                      {/* Subject */}
                       <div>
                         <button
                           onClick={() => handleViewTicket(ticket)}
                           className="text-right hover:text-primary transition-colors w-full"
                         >
                           <p className="font-medium text-sm line-clamp-1">{ticket.subject}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Avatar className="h-5 w-5">
-                              <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
-                                {(ticket.organization?.name || ticket.guest_name || 'م')[0]}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs text-muted-foreground truncate">
-                              {ticket.organization?.name || ticket.guest_name || 'مستخدم'} • {categoryLabels[ticket.category] || ticket.category}
-                            </span>
-                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {categoryLabels[ticket.category] || ticket.category}
+                          </span>
                           {ticket.admin_note && (
                             <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
                               <AlertCircle className="h-3 w-3" />
@@ -541,6 +535,28 @@ export default function StaffTickets() {
                             </div>
                           )}
                         </button>
+                      </div>
+
+                      {/* Client & Website */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-xs font-medium truncate">
+                            {ticket.organization?.name || ticket.guest_name || 'مستخدم'}
+                          </span>
+                        </div>
+                        {ticket.organization?.website_url && (
+                          <a
+                            href={ticket.organization.website_url.startsWith('http') ? ticket.organization.website_url : `https://${ticket.organization.website_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[11px] text-primary hover:underline truncate"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Globe className="h-3 w-3 shrink-0" />
+                            {ticket.organization.website_url.replace(/^https?:\/\//, '')}
+                          </a>
+                        )}
                       </div>
 
                       {/* Priority */}
