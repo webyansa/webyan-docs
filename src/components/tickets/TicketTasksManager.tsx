@@ -56,19 +56,14 @@ export function TicketTasksManager({ ticketId, mode, taskMode, onTaskModeChange 
   const canDelete = mode === 'admin';
 
   useEffect(() => {
-    if (taskMode !== 'none') {
-      fetchTasks();
-      const channel = supabase
-        .channel(`ticket-tasks-${ticketId}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_tasks', filter: `ticket_id=eq.${ticketId}` }, () => {
-          fetchTasks();
-        })
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
-    } else {
-      setTasks([]);
-      setLoading(false);
-    }
+    fetchTasks();
+    const channel = supabase
+      .channel(`ticket-tasks-${ticketId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_tasks', filter: `ticket_id=eq.${ticketId}` }, () => {
+        fetchTasks();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [ticketId, taskMode]);
 
   const fetchTasks = async () => {
@@ -193,7 +188,7 @@ export function TicketTasksManager({ ticketId, mode, taskMode, onTaskModeChange 
     }
   };
 
-  if (taskMode === 'none') return null;
+  if (taskMode === 'none' && mode === 'client') return null;
 
   const completedCount = tasks.filter(t => t.is_completed).length;
   const totalCount = tasks.length;
@@ -306,7 +301,7 @@ export function TicketTasksManager({ ticketId, mode, taskMode, onTaskModeChange 
       )}
 
       {/* Add Task Input */}
-      {canAdd && (taskMode === 'multiple' || (taskMode === 'single' && tasks.length === 0)) && (
+      {canAdd && (
         <div className="flex items-center gap-2">
           <Input
             placeholder="أضف مهمة جديدة..."
