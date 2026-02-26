@@ -625,201 +625,193 @@ export default function StaffTickets() {
         )}
       </div>
 
-      {/* View/Reply Dialog — Professional Planner-style */}
+      {/* View/Reply Dialog — Premium Staff Design */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
-          {/* Ticket Header Bar */}
-          <div className="bg-gradient-to-l from-primary/10 via-primary/5 to-transparent border-b px-6 py-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-2 flex-1 min-w-0">
-                <DialogTitle className="text-lg font-bold text-foreground leading-tight">
-                  {selectedTicket?.subject}
-                </DialogTitle>
-                <DialogDescription asChild>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs bg-background/80 border px-2 py-0.5 rounded-md">
-                      #{selectedTicket?.ticket_number}
-                    </span>
-                    {selectedTicket && (
-                      <>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs font-semibold",
-                            statusConfig[selectedTicket.status]?.bg,
-                            statusConfig[selectedTicket.status]?.text
-                          )}
-                        >
-                          <span className={cn("w-1.5 h-1.5 rounded-full mr-1.5", statusConfig[selectedTicket.status]?.dot)} />
-                          {statusConfig[selectedTicket.status]?.label}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs font-semibold",
-                            priorityConfig[selectedTicket.priority]?.bg,
-                            priorityConfig[selectedTicket.priority]?.color
-                          )}
-                        >
-                          {priorityConfig[selectedTicket.priority]?.label}
-                        </Badge>
-                      </>
-                    )}
+        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+          {selectedTicket && (
+            <>
+              {/* Compact Header */}
+              <div className="border-b bg-card px-6 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-[11px] bg-muted px-2 py-0.5 rounded-md font-semibold text-muted-foreground">
+                        #{selectedTicket.ticket_number}
+                      </span>
+                      <div className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold",
+                        statusConfig[selectedTicket.status]?.bg, statusConfig[selectedTicket.status]?.text
+                      )}>
+                        <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", statusConfig[selectedTicket.status]?.dot)} />
+                        {statusConfig[selectedTicket.status]?.label}
+                      </div>
+                      <div className={cn(
+                        "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border",
+                        priorityConfig[selectedTicket.priority]?.bg, priorityConfig[selectedTicket.priority]?.color
+                      )}>
+                        {priorityConfig[selectedTicket.priority]?.label}
+                      </div>
+                    </div>
+                    <DialogTitle className="text-base font-bold leading-snug">{selectedTicket.subject}</DialogTitle>
+                    <DialogDescription className="sr-only">تفاصيل التذكرة</DialogDescription>
                   </div>
-                </DialogDescription>
-              </div>
-            </div>
+                </div>
 
-            {/* Client & Site Info Bar */}
-            {selectedTicket && (
-              <div className="mt-3 flex items-center gap-4 flex-wrap text-sm">
-                {(selectedTicket.organization?.name || selectedTicket.guest_name) && (
+                {/* Client & Info Bar */}
+                <div className="mt-3 flex items-center gap-4 flex-wrap text-xs">
+                  {(selectedTicket.organization?.name || selectedTicket.guest_name) && (
+                    <div className="flex items-center gap-1.5 bg-muted/50 px-3 py-1.5 rounded-lg">
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="font-semibold">{selectedTicket.organization?.name || selectedTicket.guest_name}</span>
+                    </div>
+                  )}
+                  {selectedTicket.organization?.website_url && (
+                    <a
+                      href={selectedTicket.organization.website_url.startsWith('http') ? selectedTicket.organization.website_url : `https://${selectedTicket.organization.website_url}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-primary hover:underline bg-primary/5 px-3 py-1.5 rounded-lg"
+                    >
+                      <Globe className="h-3.5 w-3.5" />
+                      {selectedTicket.organization.website_url.replace(/^https?:\/\//, '')}
+                    </a>
+                  )}
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Building2 className="h-3.5 w-3.5" />
-                    <span className="font-medium text-foreground">
-                      {selectedTicket.organization?.name || selectedTicket.guest_name}
-                    </span>
+                    <Calendar className="h-3.5 w-3.5" />
+                    {formatSmartDate(selectedTicket.created_at)}
                   </div>
-                )}
-                {selectedTicket.organization?.website_url && (
-                  <a
-                    href={selectedTicket.organization.website_url.startsWith('http') ? selectedTicket.organization.website_url : `https://${selectedTicket.organization.website_url}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-primary hover:underline text-xs"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    {selectedTicket.organization.website_url}
-                  </a>
-                )}
-                <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
-                  <Calendar className="h-3.5 w-3.5" />
-                  {formatSmartDate(selectedTicket.created_at)}
+                  <Badge variant="outline" className="text-[10px]">
+                    {categoryLabels[selectedTicket.category] || selectedTicket.category}
+                  </Badge>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Scrollable Content */}
-          <ScrollArea className="flex-1 overflow-auto">
-            <div className="p-6 space-y-5">
-              {/* Admin Note */}
-              {selectedTicket?.admin_note && (
-                <div className="p-3 rounded-lg bg-orange-50 border border-orange-200 dark:bg-orange-900/10 dark:border-orange-800/40">
-                  <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-semibold text-sm mb-1">
-                    <AlertCircle className="h-4 w-4" />
-                    ملاحظة من الإدارة
-                  </div>
-                  <p className="text-sm text-orange-600 dark:text-orange-300">{selectedTicket.admin_note}</p>
-                </div>
-              )}
-
-              {/* Description */}
-              <div className="p-4 rounded-xl bg-muted/40 border">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">وصف المشكلة</p>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{selectedTicket?.description}</p>
-              </div>
-
-              {/* Tasks Section — Planner-style */}
-              {selectedTicket && (
-                <div className="rounded-xl border-2 border-primary/20 bg-primary/[0.02] overflow-hidden">
-                  <div className="bg-primary/5 border-b border-primary/10 px-4 py-3 flex items-center gap-2">
-                    <ListChecks className="h-5 w-5 text-primary" />
-                    <span className="font-bold text-sm text-foreground">قائمة المهام</span>
-                  </div>
-                  <div className="p-4">
-                    <TicketTasksManager
-                      ticketId={selectedTicket.id}
-                      mode="staff"
-                      taskMode={selectedTicket.task_mode || 'multiple'}
-                      staffUser={user ? { id: user.id, email: user.email } : null}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Replies / Conversation */}
-              <div className="rounded-xl border overflow-hidden">
-                <div className="bg-muted/50 border-b px-4 py-3 flex items-center gap-2">
-                  <Send className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-bold text-sm">المحادثة</span>
-                  {replies.length > 0 && (
-                    <Badge variant="secondary" className="text-xs h-5 px-1.5">{replies.length}</Badge>
-                  )}
-                </div>
-                <div className="p-4">
-                  {replies.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      <Send className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">لا توجد ردود حتى الآن</p>
+              {/* Scrollable Content */}
+              <ScrollArea className="flex-1 overflow-auto">
+                <div className="p-6 space-y-5">
+                  {/* Admin Note */}
+                  {selectedTicket.admin_note && (
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/10 dark:border-amber-800/40">
+                      <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-0.5">ملاحظة إدارية</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-300">{selectedTicket.admin_note}</p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                      {replies.map((reply) => (
-                        <div
-                          key={reply.id}
-                          className={cn(
-                            "p-3 rounded-lg",
-                            reply.is_staff_reply
-                              ? 'bg-primary/5 border-r-3 border-primary mr-2'
-                              : 'bg-muted/60 border-r-3 border-muted-foreground/30 ml-2'
-                          )}
-                        >
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <Avatar className="h-5 w-5">
-                              <AvatarFallback className={cn(
-                                "text-[9px]",
-                                reply.is_staff_reply ? "bg-primary/20 text-primary" : "bg-muted-foreground/20"
-                              )}>
-                                {reply.is_staff_reply ? 'م' : 'ع'}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs font-semibold">
-                              {reply.is_staff_reply ? 'أنت' : 'العميل'}
-                            </span>
-                            <span className="text-xs text-muted-foreground mr-auto">
-                              {formatSmartDate(reply.created_at)}
-                            </span>
+                  )}
+
+                  {/* Description */}
+                  <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                    <div className="px-4 py-2.5 bg-muted/40 border-b flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-semibold">وصف المشكلة</span>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{selectedTicket.description}</p>
+                    </div>
+                  </div>
+
+                  {/* Tasks Section */}
+                  <div className="rounded-xl border-2 border-primary/15 bg-primary/[0.02] overflow-hidden shadow-sm">
+                    <div className="bg-primary/5 border-b border-primary/10 px-4 py-3 flex items-center gap-2">
+                      <ListChecks className="h-4.5 w-4.5 text-primary" />
+                      <span className="font-bold text-sm text-foreground">قائمة المهام</span>
+                    </div>
+                    <div className="p-4">
+                      <TicketTasksManager
+                        ticketId={selectedTicket.id}
+                        mode="staff"
+                        taskMode={selectedTicket.task_mode || 'multiple'}
+                        staffUser={user ? { id: user.id, email: user.email } : null}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Conversation */}
+                  <div className="rounded-xl border overflow-hidden shadow-sm">
+                    <div className="bg-muted/40 border-b px-4 py-3 flex items-center gap-2">
+                      <Send className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-bold text-sm">المحادثة</span>
+                      {replies.length > 0 && (
+                        <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">{replies.length}</span>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      {replies.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-8">
+                          <div className="w-12 h-12 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                            <Send className="h-5 w-5 opacity-30" />
                           </div>
-                          <p className="text-sm leading-relaxed">{reply.message}</p>
+                          <p className="text-sm font-medium">لا توجد ردود حتى الآن</p>
+                          <p className="text-xs mt-1">ابدأ بإرسال أول رد</p>
                         </div>
-                      ))}
+                      ) : (
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                          {replies.map((reply) => (
+                            <div
+                              key={reply.id}
+                              className={cn(
+                                "p-3.5 rounded-xl border shadow-sm",
+                                reply.is_staff_reply
+                                  ? 'bg-primary/[0.03] border-primary/15 mr-4'
+                                  : 'bg-card ml-4'
+                              )}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarFallback className={cn(
+                                    "text-[10px] font-bold",
+                                    reply.is_staff_reply ? "bg-primary/15 text-primary" : "bg-muted"
+                                  )}>
+                                    {reply.is_staff_reply ? 'أ' : 'ع'}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className={cn("text-xs font-semibold", reply.is_staff_reply ? "text-primary" : "text-foreground")}>
+                                  {reply.is_staff_reply ? 'أنت' : 'العميل'}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground mr-auto">
+                                  {formatSmartDate(reply.created_at)}
+                                </span>
+                              </div>
+                              <p className="text-sm leading-relaxed">{reply.message}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          </ScrollArea>
+              </ScrollArea>
 
-          {/* Sticky Reply Form Footer */}
-          {selectedTicket && (selectedTicket.status === 'open' || selectedTicket.status === 'in_progress') && (
-            <div className="border-t bg-background px-6 py-4 space-y-3">
-              <Textarea
-                placeholder="اكتب ردك هنا... (Ctrl+Enter للإرسال)"
-                value={newReply}
-                onChange={(e) => setNewReply(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.ctrlKey) {
-                    handleSendReply();
-                  }
-                }}
-                className="min-h-[70px] resize-none"
-              />
-              <div className="flex justify-between items-center">
-                <Button
-                  variant="outline"
-                  onClick={() => handleOpenCloseDialog(selectedTicket)}
-                  className="gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  إغلاق التذكرة
-                </Button>
-                <Button onClick={handleSendReply} disabled={sending || !newReply.trim()} className="gap-2">
-                  <Send className="h-4 w-4" />
-                  إرسال الرد
-                </Button>
-              </div>
-            </div>
+              {/* Sticky Reply Footer */}
+              {(selectedTicket.status === 'open' || selectedTicket.status === 'in_progress') && (
+                <div className="border-t bg-card px-6 py-4 space-y-3">
+                  <Textarea
+                    placeholder="اكتب ردك هنا... (Ctrl+Enter للإرسال)"
+                    value={newReply}
+                    onChange={(e) => setNewReply(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.ctrlKey) handleSendReply();
+                    }}
+                    className="min-h-[70px] resize-none bg-muted/30 focus:bg-background transition-colors"
+                  />
+                  <div className="flex justify-between items-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleOpenCloseDialog(selectedTicket)}
+                      className="gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                      size="sm"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      إغلاق التذكرة
+                    </Button>
+                    <Button onClick={handleSendReply} disabled={sending || !newReply.trim()} className="gap-2 px-5" size="sm">
+                      <Send className="h-4 w-4" />
+                      إرسال الرد
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>
