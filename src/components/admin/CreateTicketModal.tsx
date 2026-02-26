@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Ticket, Building2, User, Search, Send, Loader2,
-  AlertTriangle, ChevronLeft, ChevronRight, CheckCircle2,
+  AlertTriangle, ChevronLeft, ChevronRight, CheckCircle2, ListChecks, Plus, X, Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -70,6 +71,9 @@ export function CreateTicketModal({ open, onOpenChange, onCreated }: CreateTicke
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('general');
   const [priority, setPriority] = useState('medium');
+  const [taskMode, setTaskMode] = useState<'none' | 'single' | 'multiple'>('none');
+  const [taskTitles, setTaskTitles] = useState<string[]>(['']);
+  const [singleTaskTitle, setSingleTaskTitle] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -88,6 +92,9 @@ export function CreateTicketModal({ open, onOpenChange, onCreated }: CreateTicke
     setPriority('medium');
     setOrgSearch('');
     setStaffSearch('');
+    setTaskMode('none');
+    setTaskTitles(['']);
+    setSingleTaskTitle('');
   };
 
   const fetchData = async () => {
@@ -123,7 +130,7 @@ export function CreateTicketModal({ open, onOpenChange, onCreated }: CreateTicke
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('support_tickets').insert({
+      const { data: ticketData, error } = await supabase.from('support_tickets').insert({
         subject,
         description,
         category,
@@ -132,9 +139,21 @@ export function CreateTicketModal({ open, onOpenChange, onCreated }: CreateTicke
         organization_id: selectedOrg!.id,
         assigned_to_staff: selectedStaff?.id || null,
         source: 'admin',
-      } as any);
+        task_mode: taskMode,
+      } as any).select('id').single();
 
       if (error) throw error;
+
+      // Insert tasks if any
+      if (ticketData?.id && taskMode !== 'none') {
+        const tasksToInsert = taskMode === 'single' 
+          ? (singleTaskTitle.trim() ? [{ ticket_id: ticketData.id, title: singleTaskTitle.trim(), sort_order: 0 }] : [])
+          : taskTitles.filter(t => t.trim()).map((t, i) => ({ ticket_id: ticketData.id, title: t.trim(), sort_order: i }));
+        
+        if (tasksToInsert.length > 0) {
+          await supabase.from('ticket_tasks').insert(tasksToInsert as any);
+        }
+      }
 
       toast({ title: '✅ تم إنشاء التذكرة', description: `تم فتح تذكرة جديدة لـ ${selectedOrg!.name}` });
       onOpenChange(false);
@@ -349,6 +368,74 @@ export function CreateTicketModal({ open, onOpenChange, onCreated }: CreateTicke
                     ))}
                   </div>
                 </div>
+
+                {/* Task Mode */}
+                <div className="space-y-3 pt-2 border-t">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <ListChecks className="h-4 w-4 text-primary" />
+                    المهام الداخلية
+                  </Label>
+                  <RadioGroup value={taskMode} onValueChange={(v: any) => setTaskMode(v)} className="flex gap-3">
+                    {[
+                      { value: 'none', label: 'بدون مهام' },
+                      { value: 'single', label: 'مهمة واحدة' },
+                      { value: 'multiple', label: 'مهام متعددة' },
+                    ].map(opt => (
+                      <label key={opt.value} className={cn(
+                        "flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer text-xs font-medium transition-all flex-1 justify-center",
+                        taskMode === opt.value ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/30"
+                      )}>
+                        <RadioGroupItem value={opt.value} className="sr-only" />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </RadioGroup>
+
+                  {taskMode === 'single' && (
+                    <Input
+                      placeholder="عنوان المهمة..."
+                      value={singleTaskTitle}
+                      onChange={e => setSingleTaskTitle(e.target.value)}
+                    />
+                  )}
+
+                  {taskMode === 'multiple' && (
+                    <div className="space-y-2">
+                      {taskTitles.map((title, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <Input
+                            placeholder={`مهمة ${i + 1}...`}
+                            value={title}
+                            onChange={e => {
+                              const updated = [...taskTitles];
+                              updated[i] = e.target.value;
+                              setTaskTitles(updated);
+                            }}
+                          />
+                          {taskTitles.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-destructive"
+                              onClick={() => setTaskTitles(taskTitles.filter((_, j) => j !== i))}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setTaskTitles([...taskTitles, ''])}
+                        className="gap-1 text-xs"
+                      >
+                        <Plus className="h-3 w-3" />
+                        إضافة مهمة
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -384,6 +471,28 @@ export function CreateTicketModal({ open, onOpenChange, onCreated }: CreateTicke
                       <div>
                         <p className="text-xs text-muted-foreground">موجّهة إلى</p>
                         <p className="font-medium text-sm">{selectedStaff.full_name}</p>
+                      </div>
+                    </div>
+                  )}
+                  {taskMode !== 'none' && (
+                    <div className="flex items-start gap-3">
+                      <ListChecks className="h-4 w-4 text-primary mt-0.5" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">المهام</p>
+                        <div className="space-y-1 mt-1">
+                          {taskMode === 'single' && singleTaskTitle.trim() && (
+                            <p className="text-sm">• {singleTaskTitle.trim()}</p>
+                          )}
+                          {taskMode === 'multiple' && taskTitles.filter(t => t.trim()).map((t, i) => (
+                            <p key={i} className="text-sm">• {t.trim()}</p>
+                          ))}
+                          {taskMode === 'single' && !singleTaskTitle.trim() && (
+                            <p className="text-xs text-muted-foreground">مهمة واحدة (بدون عنوان)</p>
+                          )}
+                          {taskMode === 'multiple' && taskTitles.filter(t => t.trim()).length === 0 && (
+                            <p className="text-xs text-muted-foreground">مهام متعددة (بدون عناوين)</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}

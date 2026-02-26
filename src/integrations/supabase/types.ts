@@ -3850,6 +3850,7 @@ export type Database = {
           staff_status: string | null
           status: string
           subject: string
+          task_mode: string
           ticket_number: string
           updated_at: string
           user_id: string | null
@@ -3880,6 +3881,7 @@ export type Database = {
           staff_status?: string | null
           status?: string
           subject: string
+          task_mode?: string
           ticket_number: string
           updated_at?: string
           user_id?: string | null
@@ -3910,6 +3912,7 @@ export type Database = {
           staff_status?: string | null
           status?: string
           subject?: string
+          task_mode?: string
           ticket_number?: string
           updated_at?: string
           user_id?: string | null
@@ -4086,6 +4089,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ticket_replies_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_tasks: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          completed_by_name: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_completed: boolean
+          note: string | null
+          sort_order: number
+          ticket_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_by_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_completed?: boolean
+          note?: string | null
+          sort_order?: number
+          ticket_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_by_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_completed?: boolean
+          note?: string | null
+          sort_order?: number
+          ticket_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_tasks_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_tasks_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "support_tickets"
