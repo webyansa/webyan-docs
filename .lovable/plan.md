@@ -1,154 +1,44 @@
 
 
-# خطة تطوير نظام المهام الداخلية للتذاكر
+# خطة تحسين عرض وتعديل التذاكر في لوحة التحكم وبوابة الموظف
 
-## ملخص المشروع
-إضافة نظام مهام فرعية (Sub-tasks / Checklist) داخل كل تذكرة دعم، بحيث يمكن تحديد مهمة واحدة أو مهام متعددة لكل تذكرة، مع تتبع حالة الإنجاز والملاحظات لكل مهمة، وعرضها في البوابات الثلاث (لوحة التحكم، بوابة الموظف، بوابة العميل).
+## المشاكل المكتشفة
 
----
-
-## الجزء الأول: قاعدة البيانات
-
-### جدول جديد: `ticket_tasks`
-
-```text
-ticket_tasks
-├── id (uuid, PK)
-├── ticket_id (uuid, FK → support_tickets.id, ON DELETE CASCADE)
-├── title (text, NOT NULL) — عنوان المهمة
-├── is_completed (boolean, DEFAULT false)
-├── completed_by (uuid, FK → staff_members.id, nullable)
-├── completed_by_name (text, nullable)
-├── completed_at (timestamptz, nullable)
-├── note (text, nullable) — ملاحظة الموظف المنجز
-├── sort_order (integer, DEFAULT 0)
-├── created_by (uuid, nullable) — من أنشأ المهمة
-├── created_at (timestamptz, DEFAULT now())
-├── updated_at (timestamptz, DEFAULT now())
-```
-
-### عمود جديد في `support_tickets`:
-- `task_mode` (text, DEFAULT 'none') — القيم: `'none'` | `'single'` | `'multiple'`
-
-### سياسات RLS:
-- **SELECT**: المسؤولون والمحررون يرون الكل، الموظفون يرون مهام تذاكرهم، العملاء يرون مهام تذاكر منظمتهم
-- **INSERT/UPDATE/DELETE**: المسؤولون والمحررون + الموظف المسند إليه التذكرة
-
-### Realtime:
-- تفعيل `ticket_tasks` في `supabase_realtime` للتحديث اللحظي
-
-### Trigger:
-- `update_updated_at_column` على `ticket_tasks` لتحديث `updated_at` تلقائياً
+1. **TicketTasksManager يستخدم `useAuth` فقط** — في بوابة الموظف يُستخدم `useStaffAuth` وليس `useAuth`، لذا `user` يعود `null` من `useAuth` ← `getStaffInfo` لا تعمل ← المهام لا تظهر بسبب فشل الاستعلام
+2. **Admin View Dialog لا يعرض المهام دائماً** — الشرط في السطر 1123 يشترط `task_mode !== 'none'` مما يمنع عرض المهام عند عدم تحديد نوع المهام
+3. **Admin View Dialog لا يعرض معلومات العميل والموقع** — لا يوجد عرض للمنظمة أو رابط الموقع
+4. **Edit Dialog** — يعمل تقنياً لكن ينقصه التصميم الاحترافي
 
 ---
 
-## الجزء الثاني: التغييرات في الكود
+## التغييرات المطلوبة
 
-### 1. مكون مهام التذكرة المشترك (جديد)
-**ملف**: `src/components/tickets/TicketTasksManager.tsx`
+### 1. إصلاح `TicketTasksManager.tsx` — دعم auth مزدوج
+- إضافة prop اختياري `staffUser` لتمرير بيانات المستخدم من بوابة الموظف
+- تعديل `getStaffInfo` للاستفادة من `staffUser` عندما يكون `useAuth().user` فارغاً
+- إزالة شرط `taskMode === 'none'` للعرض — عرض المكون دائماً مع رسالة "لا توجد مهام" إذا كانت فارغة
 
-مكون قابل لإعادة الاستخدام في البوابات الثلاث يعرض:
-- قائمة المهام مع Checkbox لكل مهمة
-- شريط تقدم بصري (Progress Bar) يوضح نسبة الإنجاز
-- زر إضافة مهمة جديدة (للمسؤول والموظف فقط)
-- حقل ملاحظة اختياري عند تحديد المهمة كمنجزة
-- اسم الموظف المنجز وتاريخ الإنجاز
-- إمكانية حذف مهمة (للمسؤول فقط)
-- ترتيب المهام بالسحب والإفلات (اختياري، باستخدام dnd-kit الموجود)
+### 2. تحسين `StaffTickets.tsx` — تمرير بيانات المستخدم
+- تمرير `user` من `useStaffAuth` إلى `TicketTasksManager` عبر prop جديد `staffUser`
+- تحسين تصميم Dialog التذكرة بعرض أوضح للعميل والموقع والمهام
 
-**الخصائص (Props)**:
-```text
-ticketId: string
-mode: 'admin' | 'staff' | 'client'  // يتحكم بالصلاحيات المعروضة
-taskMode: 'none' | 'single' | 'multiple'
-onTaskModeChange?: (mode) => void  // فقط في admin
-```
+### 3. تحسين `AdminTicketsPage.tsx`
+- **View Dialog**: إضافة معلومات المنظمة/العميل والموقع + عرض المهام دائماً (إزالة شرط `task_mode !== 'none'`)
+- **Edit Dialog**: تحسين التصميم مع عرض أفضل ومعلومات أكثر
+- جلب `task_mode` ضمن استعلام التذاكر لضمان توفره
 
-**سلوك العرض حسب البوابة**:
-- **Admin**: إضافة/تعديل/حذف مهام + تغيير نوع المهام + إنجاز
-- **Staff**: إنجاز المهام + إضافة ملاحظات
-- **Client**: عرض فقط (قراءة) مع شريط التقدم
-
-### 2. تعديل مودال إنشاء التذكرة
-**ملف**: `src/components/admin/CreateTicketModal.tsx`
-
-في الخطوة الثانية (تفاصيل التذكرة):
-- إضافة حقل "نوع المهام" بثلاث خيارات:
-  - بدون مهام (none)
-  - مهمة واحدة (single)
-  - مهام متعددة (multiple)
-- عند اختيار "مهمة واحدة": يظهر حقل نصي لإدخال عنوان المهمة
-- عند اختيار "مهام متعددة": يظهر حقل إدخال ديناميكي لإضافة عدة مهام مع زر "+"
-- في خطوة المراجعة: عرض المهام المضافة
-- عند الإرسال: إدراج التذكرة ثم إدراج المهام في `ticket_tasks`
-
-### 3. تعديل لوحة التحكم الرئيسية (Admin)
-**ملف**: `src/pages/admin/AdminTicketsPage.tsx`
-
-- في واجهة عرض التذكرة (View Dialog): إضافة مكون `TicketTasksManager` بوضع `admin`
-- عرض مؤشر تقدم المهام في قائمة التذاكر (badge صغير يوضح مثلاً "3/5 مهام")
-
-### 4. تعديل بوابة الموظف
-**ملف**: `src/pages/staff/StaffTickets.tsx`
-
-- في واجهة عرض التذكرة: إضافة `TicketTasksManager` بوضع `staff`
-- الموظف يمكنه إنجاز المهام وإضافة ملاحظات
-
-### 5. تعديل بوابة العميل
-**ملف**: `src/pages/portal/PortalTicketDetail.tsx`
-
-- إضافة `TicketTasksManager` بوضع `client` (عرض فقط)
-- عرض شريط التقدم + قائمة المهام مع حالاتها
-
-### 6. تعديل تاب التذاكر في ملف العميل (CRM)
-**ملف**: `src/components/crm/tabs/TicketsTab.tsx`
-
-- عرض مؤشر تقدم المهام بجانب كل تذكرة
+### 4. تحسينات التصميم المشتركة
+- Admin View: إضافة بطاقة معلومات العميل (اسم المنظمة + رابط الموقع)
+- تصميم أكثر تنظيماً مع أقسام واضحة (معلومات → مهام → محادثة → رد)
+- Admin Edit: تصميم أكثر احترافية مع عرض الحالة الحالية
 
 ---
 
-## الجزء الثالث: تسجيل النشاط
+## الملفات المتأثرة
 
-كل عملية على المهام تُسجل في `ticket_activity_log`:
-- `task_added`: إضافة مهمة
-- `task_completed`: إنجاز مهمة (مع اسم المنجز)
-- `task_uncompleted`: إلغاء إنجاز مهمة
-- `task_deleted`: حذف مهمة
-
----
-
-## التصميم المرئي
-
-```text
-┌─────────────────────────────────────────┐
-│  📋 المهام                    3/5 منجز  │
-│  ████████████░░░░░░░  60%               │
-│─────────────────────────────────────────│
-│  ✅ إعداد بيئة التطوير                  │
-│     ↳ أحمد محمد · منذ ساعتين            │
-│  ✅ تثبيت الإضافات المطلوبة              │
-│     ↳ أحمد محمد · منذ ساعة              │
-│     💬 "تم تثبيت جميع الإضافات بنجاح"   │
-│  ✅ رفع الملفات                         │
-│     ↳ سارة أحمد · منذ 30 دقيقة          │
-│  ☐ اختبار الموقع                        │
-│  ☐ التسليم النهائي                      │
-│                                         │
-│  [+ إضافة مهمة]                         │
-└─────────────────────────────────────────┘
-```
-
----
-
-## ملخص الملفات المتأثرة
-
-| الملف | الإجراء |
+| الملف | التغيير |
 |---|---|
-| Migration SQL | إنشاء جدول `ticket_tasks` + عمود `task_mode` + RLS + Realtime |
-| `src/components/tickets/TicketTasksManager.tsx` | **إنشاء** — مكون مشترك |
-| `src/components/admin/CreateTicketModal.tsx` | **تعديل** — إضافة حقل نوع المهام وإدخال المهام |
-| `src/pages/admin/AdminTicketsPage.tsx` | **تعديل** — عرض المهام داخل تفاصيل التذكرة |
-| `src/pages/staff/StaffTickets.tsx` | **تعديل** — عرض وإنجاز المهام |
-| `src/pages/portal/PortalTicketDetail.tsx` | **تعديل** — عرض المهام للعميل |
-| `src/components/crm/tabs/TicketsTab.tsx` | **تعديل** — مؤشر تقدم |
+| `src/components/tickets/TicketTasksManager.tsx` | إضافة `staffUser` prop + إصلاح auth |
+| `src/pages/staff/StaffTickets.tsx` | تمرير `staffUser` + تحسين التصميم |
+| `src/pages/admin/AdminTicketsPage.tsx` | إصلاح View/Edit dialogs + عرض المهام دائماً |
 
