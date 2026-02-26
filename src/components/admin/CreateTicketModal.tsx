@@ -439,68 +439,96 @@ export function CreateTicketModal({ open, onOpenChange, onCreated }: CreateTicke
               </div>
             )}
 
-            {/* Step 3: Review */}
             {step === 3 && (
               <div className="space-y-4">
-                <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Building2 className="h-4 w-4 text-primary" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">العميل</p>
-                      <p className="font-medium text-sm">{selectedOrg?.name}</p>
+                {/* Review Cards */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Client Card */}
+                  <div className="rounded-xl border bg-primary/5 border-primary/10 p-4 space-y-1.5">
+                    <div className="flex items-center gap-2 text-primary">
+                      <Building2 className="h-4 w-4" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider">العميل</span>
                     </div>
+                    <p className="font-semibold text-sm">{selectedOrg?.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{selectedOrg?.contact_email}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Ticket className="h-4 w-4 text-primary" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">الموضوع</p>
-                      <p className="font-medium text-sm">{subject}</p>
+                  
+                  {/* Staff Card */}
+                  <div className={cn(
+                    "rounded-xl border p-4 space-y-1.5",
+                    selectedStaff ? "bg-emerald-50 border-emerald-200" : "bg-muted/30"
+                  )}>
+                    <div className={cn("flex items-center gap-2", selectedStaff ? "text-emerald-700" : "text-muted-foreground")}>
+                      <User className="h-4 w-4" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider">الموظف</span>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Badge variant="outline">
-                      {categoryOptions.find(c => c.value === category)?.icon} {categoryOptions.find(c => c.value === category)?.label}
-                    </Badge>
-                    <Badge variant="outline" className={priorityOptions.find(p => p.value === priority)?.color}>
-                      {priorityOptions.find(p => p.value === priority)?.label}
-                    </Badge>
-                  </div>
-                  {selectedStaff && (
-                    <div className="flex items-center gap-3">
-                      <User className="h-4 w-4 text-primary" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">موجّهة إلى</p>
-                        <p className="font-medium text-sm">{selectedStaff.full_name}</p>
-                      </div>
-                    </div>
-                  )}
-                  {taskMode !== 'none' && (
-                    <div className="flex items-start gap-3">
-                      <ListChecks className="h-4 w-4 text-primary mt-0.5" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">المهام</p>
-                        <div className="space-y-1 mt-1">
-                          {taskMode === 'single' && singleTaskTitle.trim() && (
-                            <p className="text-sm">• {singleTaskTitle.trim()}</p>
-                          )}
-                          {taskMode === 'multiple' && taskTitles.filter(t => t.trim()).map((t, i) => (
-                            <p key={i} className="text-sm">• {t.trim()}</p>
-                          ))}
-                          {taskMode === 'single' && !singleTaskTitle.trim() && (
-                            <p className="text-xs text-muted-foreground">مهمة واحدة (بدون عنوان)</p>
-                          )}
-                          {taskMode === 'multiple' && taskTitles.filter(t => t.trim()).length === 0 && (
-                            <p className="text-xs text-muted-foreground">مهام متعددة (بدون عناوين)</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">الوصف</p>
-                    <p className="text-sm whitespace-pre-wrap bg-background rounded-md p-3 border">{description}</p>
+                    <p className="font-semibold text-sm">{selectedStaff?.full_name || 'غير محدد'}</p>
+                    {selectedStaff?.job_title && <p className="text-[10px] text-muted-foreground">{selectedStaff.job_title}</p>}
+                    {!selectedStaff && <p className="text-[10px] text-muted-foreground">سيتم التوجيه لاحقاً</p>}
                   </div>
                 </div>
+
+                {/* Ticket Info Card */}
+                <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Ticket className="h-4 w-4 text-primary" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">تفاصيل التذكرة</span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">الموضوع</p>
+                    <p className="font-semibold text-sm">{subject}</p>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-xs gap-1">
+                      {categoryOptions.find(c => c.value === category)?.icon} {categoryOptions.find(c => c.value === category)?.label}
+                    </Badge>
+                    <Badge variant="outline" className={cn("text-xs", priorityOptions.find(p => p.value === priority)?.color)}>
+                      {priority === 'high' && '🔴 '}{priority === 'medium' && '🟡 '}{priority === 'low' && '⚪ '}
+                      {priorityOptions.find(p => p.value === priority)?.label}
+                    </Badge>
+                    {selectedStaff && (
+                      <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-200">
+                        الحالة: قيد المعالجة
+                      </Badge>
+                    )}
+                    {!selectedStaff && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        الحالة: جديدة
+                      </Badge>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">الوصف</p>
+                    <div className="bg-background rounded-lg p-3 border text-sm leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto">{description}</div>
+                  </div>
+                </div>
+
+                {/* Tasks Card */}
+                {taskMode !== 'none' && (
+                  <div className="rounded-xl border bg-amber-50/50 border-amber-200/50 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-700">
+                      <ListChecks className="h-4 w-4" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider">المهام الداخلية</span>
+                      <Badge variant="secondary" className="text-[10px] h-5">{
+                        taskMode === 'single' ? (singleTaskTitle.trim() ? '1' : '0') : taskTitles.filter(t => t.trim()).length
+                      }</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      {taskMode === 'single' && singleTaskTitle.trim() && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          {singleTaskTitle.trim()}
+                        </div>
+                      )}
+                      {taskMode === 'multiple' && taskTitles.filter(t => t.trim()).map((t, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          {t.trim()}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
