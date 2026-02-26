@@ -1142,9 +1142,9 @@ export default function AdminTicketsPage() {
                     </div>
 
                     {/* Chat Tab */}
-                    <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden m-0">
-                      <ScrollArea className="flex-1 px-6 py-5">
-                        <div className="space-y-4">
+                    <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden mt-0 data-[state=inactive]:hidden">
+                      <ScrollArea className="flex-1">
+                        <div className="px-6 py-5 space-y-4">
                           {/* Original Message */}
                           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
                             <div className="px-4 py-2.5 bg-muted/40 border-b flex items-center gap-2">
@@ -1194,33 +1194,35 @@ export default function AdminTicketsPage() {
                           )}
 
                           {/* Replies */}
-                          {replies.map((reply) => (
-                            <div key={reply.id} className={cn(
-                              "rounded-xl p-4 border shadow-sm",
-                              reply.is_staff_reply ? "bg-primary/[0.03] border-primary/15 mr-6" : "bg-card ml-6"
-                            )}>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2.5">
-                                <Avatar className="h-6 w-6">
-                                  <AvatarFallback className={cn("text-[10px] font-bold", reply.is_staff_reply ? "bg-primary/15 text-primary" : "bg-muted")}>
-                                    {reply.is_staff_reply ? 'د' : 'ع'}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className={cn("font-semibold text-xs", reply.is_staff_reply ? "text-primary" : "text-foreground")}>
-                                  {reply.is_staff_reply ? 'فريق الدعم' : 'العميل'}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground mr-auto flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {format(new Date(reply.created_at), 'dd/MM HH:mm', { locale: ar })}
-                                </span>
-                              </div>
-                              <p className="text-sm leading-relaxed whitespace-pre-wrap">{reply.message}</p>
+                          {replies.length > 0 ? (
+                            <div className="space-y-3">
+                              {replies.map((reply) => (
+                                <div key={reply.id} className={cn(
+                                  "rounded-xl p-4 border shadow-sm",
+                                  reply.is_staff_reply ? "bg-primary/[0.03] border-primary/15 mr-6" : "bg-card ml-6"
+                                )}>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2.5">
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarFallback className={cn("text-[10px] font-bold", reply.is_staff_reply ? "bg-primary/15 text-primary" : "bg-muted")}>
+                                        {reply.is_staff_reply ? 'د' : 'ع'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className={cn("font-semibold text-xs", reply.is_staff_reply ? "text-primary" : "text-foreground")}>
+                                      {reply.is_staff_reply ? 'فريق الدعم' : 'العميل'}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground mr-auto flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      {format(new Date(reply.created_at), 'dd/MM HH:mm', { locale: ar })}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{reply.message}</p>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-
-                          {replies.length === 0 && (
-                            <div className="text-center py-10 text-muted-foreground">
-                              <div className="w-14 h-14 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                                <MessageSquare className="h-6 w-6 opacity-40" />
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <div className="w-12 h-12 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                                <MessageSquare className="h-5 w-5 opacity-40" />
                               </div>
                               <p className="text-sm font-medium">لا توجد ردود بعد</p>
                               <p className="text-xs mt-1">ابدأ المحادثة بإرسال أول رد</p>
@@ -1231,12 +1233,12 @@ export default function AdminTicketsPage() {
 
                       {/* Reply Input */}
                       {selectedTicket.status !== 'closed' && (
-                        <div className="p-4 border-t bg-card">
+                        <div className="p-4 border-t bg-card shrink-0">
                           <Textarea
                             placeholder="اكتب ردك هنا..."
                             value={newReply}
                             onChange={(e) => setNewReply(e.target.value)}
-                            className="min-h-[80px] resize-none mb-3 bg-muted/30 focus:bg-background transition-colors"
+                            className="min-h-[70px] resize-none mb-3 bg-muted/30 focus:bg-background transition-colors"
                             onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleSendReply(); }}
                           />
                           <div className="flex items-center justify-between">
@@ -1251,12 +1253,14 @@ export default function AdminTicketsPage() {
                     </TabsContent>
 
                     {/* Tasks Tab */}
-                    <TabsContent value="tasks" className="flex-1 overflow-auto m-0 p-6">
-                      <TicketTasksManager
-                        ticketId={selectedTicket.id}
-                        mode="admin"
-                        taskMode={(selectedTicket as any).task_mode || 'multiple'}
-                      />
+                    <TabsContent value="tasks" className="mt-0 data-[state=inactive]:hidden overflow-auto">
+                      <div className="p-6">
+                        <TicketTasksManager
+                          ticketId={selectedTicket.id}
+                          mode="admin"
+                          taskMode={(selectedTicket as any).task_mode || 'multiple'}
+                        />
+                      </div>
                     </TabsContent>
                   </Tabs>
                 </div>
