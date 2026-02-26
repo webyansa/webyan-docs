@@ -667,11 +667,11 @@ export default function StaffTickets() {
             </div>
 
             {/* Tasks Manager */}
-            {selectedTicket && (selectedTicket as any).task_mode && (selectedTicket as any).task_mode !== 'none' && (
+            {selectedTicket && (
               <TicketTasksManager
                 ticketId={selectedTicket.id}
                 mode="staff"
-                taskMode={(selectedTicket as any).task_mode || 'none'}
+                taskMode={(selectedTicket as any).task_mode || 'multiple'}
               />
             )}
 
