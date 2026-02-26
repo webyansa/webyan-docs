@@ -164,15 +164,11 @@ export default function AdminTicketsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!isAdminOrEditor) {
-      navigate('/');
-      return;
-    }
     fetchTickets();
     fetchStaffMembers();
     const cleanup = setupRealtimeSubscription();
     return cleanup;
-  }, [isAdminOrEditor, navigate]);
+  }, []);
 
   const fetchTickets = async (silent = false) => {
     try {
