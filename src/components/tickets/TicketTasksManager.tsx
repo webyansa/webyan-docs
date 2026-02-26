@@ -36,10 +36,12 @@ interface TicketTasksManagerProps {
   mode: 'admin' | 'staff' | 'client';
   taskMode: string; // 'none' | 'single' | 'multiple'
   onTaskModeChange?: (mode: string) => void;
+  staffUser?: { id: string; email?: string } | null;
 }
 
-export function TicketTasksManager({ ticketId, mode, taskMode, onTaskModeChange }: TicketTasksManagerProps) {
+export function TicketTasksManager({ ticketId, mode, taskMode, onTaskModeChange, staffUser }: TicketTasksManagerProps) {
   const { user } = useAuth();
+  const effectiveUser = user || staffUser;
   const [tasks, setTasks] = useState<TicketTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -85,9 +87,9 @@ export function TicketTasksManager({ ticketId, mode, taskMode, onTaskModeChange 
   };
 
   const getStaffInfo = async () => {
-    if (!user?.id) return { staffId: null, staffName: 'مستخدم' };
-    const { data } = await supabase.from('staff_members').select('id, full_name').eq('user_id', user.id).single();
-    return { staffId: data?.id || null, staffName: data?.full_name || user.email || 'مستخدم' };
+    if (!effectiveUser?.id) return { staffId: null, staffName: 'مستخدم' };
+    const { data } = await supabase.from('staff_members').select('id, full_name').eq('user_id', effectiveUser.id).single();
+    return { staffId: data?.id || null, staffName: data?.full_name || effectiveUser.email || 'مستخدم' };
   };
 
   const logActivity = async (actionType: string, note?: string) => {
@@ -188,7 +190,7 @@ export function TicketTasksManager({ ticketId, mode, taskMode, onTaskModeChange 
     }
   };
 
-  if (taskMode === 'none' && mode === 'client') return null;
+  if (mode === 'client' && taskMode === 'none') return null;
 
   const completedCount = tasks.filter(t => t.is_completed).length;
   const totalCount = tasks.length;
