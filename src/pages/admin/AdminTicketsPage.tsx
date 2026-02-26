@@ -158,6 +158,9 @@ export default function AdminTicketsPage() {
   const [editDescription, setEditDescription] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editPriority, setEditPriority] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [editStaffId, setEditStaffId] = useState('');
+  const [editAdminNote, setEditAdminNote] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -495,6 +498,9 @@ export default function AdminTicketsPage() {
     setEditDescription(ticket.description);
     setEditCategory(ticket.category);
     setEditPriority(ticket.priority);
+    setEditStatus(ticket.status);
+    setEditStaffId(ticket.assigned_to_staff || '');
+    setEditAdminNote(ticket.admin_note || '');
     setEditDialogOpen(true);
   };
 
@@ -507,13 +513,25 @@ export default function AdminTicketsPage() {
       if (editDescription !== ticketToEdit.description) changes.push('الوصف');
       if (editCategory !== ticketToEdit.category) changes.push('التصنيف');
       if (editPriority !== ticketToEdit.priority) changes.push('الأولوية');
+      if (editStatus !== ticketToEdit.status) changes.push('الحالة');
+      if (editStaffId !== (ticketToEdit.assigned_to_staff || '')) changes.push('الموظف المسؤول');
+      if (editAdminNote !== (ticketToEdit.admin_note || '')) changes.push('ملاحظات الإدارة');
 
-      const { error } = await supabase.from('support_tickets').update({
+      const updateData: any = {
         subject: editSubject,
         description: editDescription,
         category: editCategory,
         priority: editPriority,
-      }).eq('id', ticketToEdit.id);
+        status: editStatus,
+        admin_note: editAdminNote || null,
+        assigned_to_staff: editStaffId || null,
+      };
+
+      if (editStatus === 'resolved' && ticketToEdit.status !== 'resolved') {
+        updateData.resolved_at = new Date().toISOString();
+      }
+
+      const { error } = await supabase.from('support_tickets').update(updateData).eq('id', ticketToEdit.id);
       if (error) throw error;
 
       if (changes.length > 0) {
@@ -1390,32 +1408,44 @@ export default function AdminTicketsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit Ticket Dialog — Premium Design */}
+      {/* Edit Ticket Dialog — Full Premium Design */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
-          {ticketToEdit && (
+        <DialogContent className="max-w-3xl max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
+          {ticketToEdit && (() => {
+            const sourceLabels: Record<string, string> = { portal: 'بوابة العميل', admin: 'لوحة التحكم', embed: 'ويدجت', guest: 'زائر' };
+            const hasChanges = editSubject !== ticketToEdit.subject || editDescription !== ticketToEdit.description || editCategory !== ticketToEdit.category || editPriority !== ticketToEdit.priority || editStatus !== ticketToEdit.status || editStaffId !== (ticketToEdit.assigned_to_staff || '') || editAdminNote !== (ticketToEdit.admin_note || '');
+            return (
             <>
-              {/* Header */}
-              <div className="border-b bg-card px-6 py-4">
+              {/* Header with gradient */}
+              <div className="border-b bg-gradient-to-l from-primary/5 via-card to-card px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-primary/10">
-                    <Edit className="h-4.5 w-4.5 text-primary" />
+                  <div className="p-2.5 rounded-xl bg-primary/10 shrink-0">
+                    <Edit className="h-5 w-5 text-primary" />
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <DialogTitle className="text-base font-bold">تعديل التذكرة</DialogTitle>
-                    <DialogDescription className="text-xs flex items-center gap-2 mt-0.5">
+                    <DialogDescription className="text-xs flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">#{ticketToEdit.ticket_number}</span>
                       <span className="text-muted-foreground">•</span>
-                      <span>{ticketToEdit.organization?.name || 'عميل'}</span>
+                      <span className="font-semibold">{ticketToEdit.organization?.name || ticketToEdit.guest_name || 'عميل'}</span>
+                      {ticketToEdit.source && (
+                        <>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{sourceLabels[ticketToEdit.source] || ticketToEdit.source}</span>
+                        </>
+                      )}
                     </DialogDescription>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <div className={cn(
-                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold",
                       statusConfig[ticketToEdit.status]?.bg, statusConfig[ticketToEdit.status]?.text
                     )}>
-                      <span className={cn("w-1.5 h-1.5 rounded-full", statusConfig[ticketToEdit.status]?.dot)} />
+                      <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", statusConfig[ticketToEdit.status]?.dot)} />
                       {statusConfig[ticketToEdit.status]?.label}
+                    </div>
+                    <div className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", priorityConfig[ticketToEdit.priority]?.bg, priorityConfig[ticketToEdit.priority]?.color)}>
+                      {priorityConfig[ticketToEdit.priority]?.label}
                     </div>
                   </div>
                 </div>
@@ -1423,25 +1453,50 @@ export default function AdminTicketsPage() {
 
               <ScrollArea className="flex-1">
                 <div className="p-6 space-y-6">
+
+                  {/* Info Summary Bar */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-muted/30 rounded-lg p-3 border">
+                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> العميل</p>
+                      <p className="text-xs font-bold truncate">{ticketToEdit.organization?.name || ticketToEdit.guest_name || '—'}</p>
+                      {ticketToEdit.organization?.contact_email && <p className="text-[10px] text-muted-foreground truncate">{ticketToEdit.organization.contact_email}</p>}
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 border">
+                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Calendar className="h-3 w-3" /> تاريخ الإنشاء</p>
+                      <p className="text-xs font-bold">{format(new Date(ticketToEdit.created_at), 'dd/MM/yyyy', { locale: ar })}</p>
+                      <p className="text-[10px] text-muted-foreground">{format(new Date(ticketToEdit.created_at), 'hh:mm a', { locale: ar })}</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 border">
+                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> الموقع</p>
+                      {ticketToEdit.website_url || ticketToEdit.organization?.website_url ? (
+                        <a href={ticketToEdit.website_url || ticketToEdit.organization?.website_url || ''} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline truncate block">{(ticketToEdit.website_url || ticketToEdit.organization?.website_url || '').replace(/^https?:\/\//, '')}</a>
+                      ) : <p className="text-xs text-muted-foreground">—</p>}
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 border">
+                      <p className="text-[10px] text-muted-foreground font-semibold mb-1 flex items-center gap-1"><Clock className="h-3 w-3" /> آخر تحديث</p>
+                      <p className="text-xs font-bold">{formatDistanceToNow(new Date(ticketToEdit.updated_at), { locale: ar, addSuffix: true })}</p>
+                    </div>
+                  </div>
+
                   {/* Basic Info */}
                   <div className="space-y-3">
                     <p className="text-xs font-bold text-foreground flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5 text-primary" />
                       المعلومات الأساسية
                     </p>
-                    <div className="space-y-3 bg-muted/20 rounded-xl p-4 border">
+                    <div className="space-y-4 bg-muted/20 rounded-xl p-4 border">
                       <div className="space-y-1.5">
                         <Label className="text-[11px] font-semibold">الموضوع</Label>
                         <Input value={editSubject} onChange={e => setEditSubject(e.target.value)} className="bg-background h-9" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[11px] font-semibold">الوصف</Label>
-                        <Textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} className="min-h-[80px] bg-background resize-none" />
+                        <Textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} className="min-h-[100px] bg-background resize-none" />
                       </div>
                     </div>
                   </div>
 
-                  {/* Classification */}
+                  {/* Classification & Priority */}
                   <div className="space-y-3">
                     <p className="text-xs font-bold text-foreground flex items-center gap-2">
                       <Tag className="h-3.5 w-3.5 text-primary" />
@@ -1450,7 +1505,7 @@ export default function AdminTicketsPage() {
                     <div className="space-y-4 bg-muted/20 rounded-xl p-4 border">
                       <div className="space-y-2">
                         <Label className="text-[11px] font-semibold">التصنيف</Label>
-                        <div className="grid grid-cols-5 gap-1.5">
+                        <div className="grid grid-cols-5 gap-2">
                           {[
                             { value: 'technical', label: 'تقنية', icon: '🔧' },
                             { value: 'question', label: 'استفسار', icon: '❓' },
@@ -1462,13 +1517,13 @@ export default function AdminTicketsPage() {
                               key={cat.value}
                               onClick={() => setEditCategory(cat.value)}
                               className={cn(
-                                "flex flex-col items-center gap-1 py-2.5 px-2 rounded-lg border text-[11px] font-semibold transition-all",
+                                "flex flex-col items-center gap-1 py-3 px-2 rounded-lg border text-[11px] font-semibold transition-all",
                                 editCategory === cat.value
                                   ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20 shadow-sm"
                                   : "border-transparent bg-background hover:border-muted-foreground/20 hover:bg-muted/50"
                               )}
                             >
-                              <span className="text-base">{cat.icon}</span>
+                              <span className="text-lg">{cat.icon}</span>
                               {cat.label}
                             </button>
                           ))}
@@ -1500,36 +1555,77 @@ export default function AdminTicketsPage() {
                     </div>
                   </div>
 
-                  {/* Status & Assignment — Read Only */}
+                  {/* Status & Assignment — Editable */}
                   <div className="space-y-3">
                     <p className="text-xs font-bold text-foreground flex items-center gap-2">
                       <Shield className="h-3.5 w-3.5 text-primary" />
                       الحالة والتوجيه
                     </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-muted/20 rounded-xl p-3.5 border">
-                        <p className="text-[10px] text-muted-foreground mb-2 font-semibold">الحالة الحالية</p>
-                        <div className={cn(
-                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold",
-                          statusConfig[ticketToEdit.status]?.bg, statusConfig[ticketToEdit.status]?.text
-                        )}>
-                          <span className={cn("w-2 h-2 rounded-full", statusConfig[ticketToEdit.status]?.dot)} />
-                          {statusConfig[ticketToEdit.status]?.label}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/20 rounded-xl p-4 border">
+                      <div className="space-y-2">
+                        <Label className="text-[11px] font-semibold">الحالة</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(statusConfig).map(([key, cfg]) => (
+                            <button
+                              key={key}
+                              onClick={() => setEditStatus(key)}
+                              className={cn(
+                                "flex items-center gap-2 py-2.5 px-3 rounded-lg border text-xs font-bold transition-all",
+                                editStatus === key
+                                  ? `${cfg.bg} ${cfg.text} ring-2 ring-current/20 shadow-sm border-current/30`
+                                  : "bg-background border-transparent opacity-50 hover:opacity-80"
+                              )}
+                            >
+                              <span className={cn("w-2 h-2 rounded-full shrink-0", cfg.dot)} />
+                              {cfg.label}
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      <div className="bg-muted/20 rounded-xl p-3.5 border">
-                        <p className="text-[10px] text-muted-foreground mb-2 font-semibold">الموظف المسؤول</p>
-                        {ticketToEdit.staff ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-bold">{ticketToEdit.staff.full_name[0]}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs font-semibold">{ticketToEdit.staff.full_name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">غير محدد</span>
+                      <div className="space-y-2">
+                        <Label className="text-[11px] font-semibold">الموظف المسؤول</Label>
+                        <Select value={editStaffId} onValueChange={setEditStaffId}>
+                          <SelectTrigger className="bg-background h-9">
+                            <SelectValue placeholder="اختر الموظف..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">بدون تعيين</SelectItem>
+                            {staffMembers.filter(s => s.is_active && s.can_reply_tickets).map(s => (
+                              <SelectItem key={s.id} value={s.id}>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-5 w-5">
+                                    <AvatarFallback className="text-[9px] bg-primary/10 text-primary font-bold">{s.full_name[0]}</AvatarFallback>
+                                  </Avatar>
+                                  <span>{s.full_name}</span>
+                                  {s.job_title && <span className="text-[10px] text-muted-foreground">— {s.job_title}</span>}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {ticketToEdit.staff && (
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            الموظف الحالي: <strong>{ticketToEdit.staff.full_name}</strong>
+                          </p>
                         )}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Admin Notes */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                      ملاحظات الإدارة
+                    </p>
+                    <div className="bg-muted/20 rounded-xl p-4 border">
+                      <Textarea
+                        value={editAdminNote}
+                        onChange={e => setEditAdminNote(e.target.value)}
+                        placeholder="ملاحظات داخلية للموظفين (لا تظهر للعميل)..."
+                        className="min-h-[70px] bg-background resize-none"
+                      />
                     </div>
                   </div>
 
@@ -1550,10 +1646,10 @@ export default function AdminTicketsPage() {
                 </div>
               </ScrollArea>
 
-              {/* Footer */}
-              <div className="p-4 border-t bg-card flex items-center justify-between">
+              {/* Sticky Footer */}
+              <div className="p-4 border-t bg-card flex items-center justify-between shrink-0">
                 <div className="text-[11px] text-muted-foreground">
-                  {(editSubject !== ticketToEdit.subject || editDescription !== ticketToEdit.description || editCategory !== ticketToEdit.category || editPriority !== ticketToEdit.priority) && (
+                  {hasChanges && (
                     <span className="text-amber-600 font-bold flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                       تغييرات غير محفوظة
@@ -1569,7 +1665,8 @@ export default function AdminTicketsPage() {
                 </div>
               </div>
             </>
-          )}
+          );
+          })()}
         </DialogContent>
       </Dialog>
     </TooltipProvider>
