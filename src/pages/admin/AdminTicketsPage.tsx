@@ -28,6 +28,7 @@ import { ar } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CreateTicketModal } from "@/components/admin/CreateTicketModal";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TicketTasksManager } from "@/components/tickets/TicketTasksManager";
 
 interface SupportTicket {
   id: string;
@@ -425,6 +426,7 @@ export default function AdminTicketsPage() {
   const handleDeleteTicket = async (ticket: SupportTicket) => {
     setDeleting(true);
     try {
+      await supabase.from('ticket_tasks').delete().eq('ticket_id', ticket.id);
       await supabase.from('ticket_replies').delete().eq('ticket_id', ticket.id);
       await supabase.from('ticket_activity_log').delete().eq('ticket_id', ticket.id);
       
@@ -457,6 +459,7 @@ export default function AdminTicketsPage() {
       const ticketNumbers = deletedTickets.map(t => t.ticket_number).join(', ');
       
       for (const id of ids) {
+        await supabase.from('ticket_tasks').delete().eq('ticket_id', id);
         await supabase.from('ticket_replies').delete().eq('ticket_id', id);
         await supabase.from('ticket_activity_log').delete().eq('ticket_id', id);
       }
@@ -1115,6 +1118,17 @@ export default function AdminTicketsPage() {
                   ))}
                 </div>
               </ScrollArea>
+
+              {/* Tasks Manager */}
+              {selectedTicket && (selectedTicket as any).task_mode && (selectedTicket as any).task_mode !== 'none' && (
+                <div className="px-6 py-4 border-t">
+                  <TicketTasksManager
+                    ticketId={selectedTicket.id}
+                    mode="admin"
+                    taskMode={(selectedTicket as any).task_mode || 'none'}
+                  />
+                </div>
+              )}
 
               {/* Reply Input */}
               {selectedTicket.status !== 'closed' && (

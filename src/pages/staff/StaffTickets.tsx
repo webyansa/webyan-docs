@@ -34,6 +34,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { TicketTasksManager } from '@/components/tickets/TicketTasksManager';
 
 interface SupportTicket {
   id: string;
@@ -664,6 +665,15 @@ export default function StaffTickets() {
               <Label className="text-sm font-medium text-muted-foreground">وصف المشكلة</Label>
               <p className="text-sm mt-2">{selectedTicket?.description}</p>
             </div>
+
+            {/* Tasks Manager */}
+            {selectedTicket && (selectedTicket as any).task_mode && (selectedTicket as any).task_mode !== 'none' && (
+              <TicketTasksManager
+                ticketId={selectedTicket.id}
+                mode="staff"
+                taskMode={(selectedTicket as any).task_mode || 'none'}
+              />
+            )}
 
             {/* Replies */}
             <div>

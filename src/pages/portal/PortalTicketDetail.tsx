@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { TicketTasksManager } from '@/components/tickets/TicketTasksManager';
 
 interface TicketReply {
   id: string;
@@ -394,6 +395,19 @@ const PortalTicketDetail = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-foreground whitespace-pre-wrap">{ticket.closure_report}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tasks Progress */}
+          {ticket && (ticket as any).task_mode && (ticket as any).task_mode !== 'none' && (
+            <Card>
+              <CardContent className="p-5">
+                <TicketTasksManager
+                  ticketId={ticket.id}
+                  mode="client"
+                  taskMode={(ticket as any).task_mode || 'none'}
+                />
               </CardContent>
             </Card>
           )}
