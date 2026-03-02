@@ -13,10 +13,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const contentTypeLabels: Record<string, string> = { design: 'تصميم', video: 'فيديو', article: 'مقال', ad: 'إعلان', tweet: 'تغريدة' };
@@ -25,6 +26,9 @@ const statusLabels: Record<string, string> = { draft: 'مسودة', waiting_desi
 const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-800', waiting_design: 'bg-purple-100 text-purple-800', waiting_approval: 'bg-amber-100 text-amber-800', ready: 'bg-blue-100 text-blue-800', published: 'bg-green-100 text-green-800' };
 
 const ALL_CHANNELS = ['X', 'LinkedIn', 'Instagram', 'Website', 'Email', 'WhatsApp', 'أخرى'];
+
+const platformToContentType: Record<string, string> = { x: 'tweet', linkedin: 'article', instagram: 'design', website: 'article' };
+const platformToChannel: Record<string, string> = { x: 'X', linkedin: 'LinkedIn', instagram: 'Instagram', website: 'Website' };
 
 interface ContentForm {
   campaign_id: string;
@@ -42,10 +46,26 @@ interface ContentForm {
   status: string;
 }
 
+interface AIForm {
+  idea_description: string;
+  platform: string;
+  tone: string;
+  language: string;
+  product_name: string;
+  audience: string;
+  value_prop: string;
+  landing_url: string;
+}
+
 const emptyForm: ContentForm = {
   campaign_id: '', title: '', content_type: 'design', publish_date: undefined,
   publish_time: '', post_text: '', hashtags: '', cta: '', design_file_url: '',
   design_notes: '', design_status: 'draft', channels: [], status: 'draft',
+};
+
+const emptyAIForm: AIForm = {
+  idea_description: '', platform: 'x', tone: 'formal', language: 'ar',
+  product_name: '', audience: '', value_prop: '', landing_url: '',
 };
 
 export default function ContentCalendarPage() {
@@ -60,6 +80,13 @@ export default function ContentCalendarPage() {
   const [filterCampaign, setFilterCampaign] = useState(initialCampaign);
   const [viewTab, setViewTab] = useState('board');
   const [calendarMonth, setCalendarMonth] = useState(new Date());
+
+  // AI state
+  const [aiForm, setAIForm] = useState<AIForm>({ ...emptyAIForm });
+  const [aiLoading, setAILoading] = useState(false);
+  const [aiRefiningField, setAIRefiningField] = useState<string | null>(null);
+  const [lastAIResult, setLastAIResult] = useState<any>(null);
+  const [showAISection, setShowAISection] = useState(false);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -79,7 +106,14 @@ export default function ContentCalendarPage() {
     return items.filter((i: any) => i.campaign_id === filterCampaign);
   }, [items, filterCampaign]);
 
-  const openCreate = () => { setEditingId(null); setForm({ ...emptyForm, campaign_id: filterCampaign }); setDialogOpen(true); };
+  const openCreate = () => {
+    setEditingId(null);
+    setForm({ ...emptyForm, campaign_id: filterCampaign });
+    setAIForm({ ...emptyAIForm });
+    setLastAIResult(null);
+    setShowAISection(false);
+    setDialogOpen(true);
+  };
 
   const openEdit = (item: any) => {
     setEditingId(item.id);
@@ -91,6 +125,9 @@ export default function ContentCalendarPage() {
       design_notes: item.design_notes || '', design_status: item.design_status || 'draft',
       channels: item.channels || [], status: item.status,
     });
+    setAIForm({ ...emptyAIForm });
+    setLastAIResult(null);
+    setShowAISection(false);
     setDialogOpen(true);
   };
 
@@ -109,9 +146,13 @@ export default function ContentCalendarPage() {
       if (error) { toast.error('فشل التحديث'); return; }
       toast.success('تم التحديث');
     } else {
-      const { error } = await (supabase.from('content_calendar').insert(payload) as any);
+      const { data: newContent, error } = await (supabase.from('content_calendar').insert(payload).select('id').single() as any);
       if (error) { toast.error('فشل الإنشاء'); return; }
       toast.success('تم الإنشاء');
+      // Link AI generation if exists
+      if (lastAIResult && newContent?.id) {
+        await (supabase.from('ai_generations' as any).update({ content_id: newContent.id }).is('content_id', null).order('created_at', { ascending: false }).limit(1) as any);
+      }
     }
     setDialogOpen(false);
     fetchData();
@@ -131,6 +172,98 @@ export default function ContentCalendarPage() {
     }));
   };
 
+  // AI Generation
+  const handleAIGenerate = async (refineField?: string) => {
+    if (!aiForm.idea_description.trim()) {
+      toast.error('يرجى كتابة وصف فكرة المحتوى');
+      return;
+    }
+
+    if (refineField) {
+      setAIRefiningField(refineField);
+    } else {
+      setAILoading(true);
+    }
+
+    try {
+      const payload: any = {
+        platform: aiForm.platform,
+        tone: aiForm.tone,
+        language: aiForm.language,
+        idea_description: aiForm.idea_description,
+        product_name: aiForm.product_name || undefined,
+        audience: aiForm.audience || undefined,
+        value_prop: aiForm.value_prop || undefined,
+        landing_url: aiForm.landing_url || undefined,
+      };
+
+      if (refineField && lastAIResult) {
+        payload.refine_field = refineField;
+        payload.previous_result = lastAIResult;
+      }
+
+      const { data, error } = await supabase.functions.invoke('generate-marketing-content', { body: payload });
+
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      const result = data;
+      setLastAIResult(result);
+
+      if (refineField && lastAIResult) {
+        // Only update the refined field
+        const fieldMap: Record<string, (r: any) => Partial<ContentForm>> = {
+          title: r => ({ title: r.title }),
+          post_text: r => ({ post_text: r.post_text }),
+          cta: r => ({ cta: r.cta }),
+          hashtags: r => ({ hashtags: (r.hashtags || []).join(' ') }),
+          design_brief: r => ({ design_notes: r.design_brief }),
+        };
+        const updates = fieldMap[refineField]?.(result);
+        if (updates) setForm(prev => ({ ...prev, ...updates }));
+      } else {
+        // Fill all fields
+        setForm(prev => ({
+          ...prev,
+          title: result.title || prev.title,
+          post_text: result.post_text || prev.post_text,
+          cta: result.cta || prev.cta,
+          hashtags: (result.hashtags || []).join(' '),
+          design_notes: result.design_brief || prev.design_notes,
+          content_type: platformToContentType[aiForm.platform] || prev.content_type,
+          channels: prev.channels.length === 0 && platformToChannel[aiForm.platform]
+            ? [platformToChannel[aiForm.platform]]
+            : prev.channels,
+        }));
+      }
+
+      toast.success(refineField ? `تم تحسين ${refineField}` : 'تم توليد المحتوى بنجاح ✨');
+    } catch (err: any) {
+      console.error('AI generation error:', err);
+      toast.error(err.message || 'فشل توليد المحتوى');
+    } finally {
+      setAILoading(false);
+      setAIRefiningField(null);
+    }
+  };
+
+  const RefineButton = ({ field, label }: { field: string; label: string }) => (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      className="h-6 px-2 text-xs gap-1 text-primary"
+      disabled={aiLoading || !!aiRefiningField || !lastAIResult}
+      onClick={() => handleAIGenerate(field)}
+    >
+      {aiRefiningField === field ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+      تحسين
+    </Button>
+  );
+
   // Kanban columns
   const kanbanColumns = [
     { key: 'draft', label: 'مسودة' },
@@ -144,9 +277,8 @@ export default function ContentCalendarPage() {
   const monthStart = startOfMonth(calendarMonth);
   const monthEnd = endOfMonth(calendarMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  // Pad start to align with week (Saturday start for Arabic)
   const startDay = monthStart.getDay();
-  const padDays = (startDay + 1) % 7; // Sat = 0
+  const padDays = (startDay + 1) % 7;
 
   const getItemsForDay = (day: Date) => filteredItems.filter((i: any) => i.publish_date && isSameDay(new Date(i.publish_date), day));
 
@@ -309,15 +441,117 @@ export default function ContentCalendarPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle>{editingId ? 'تعديل المحتوى' : 'محتوى جديد'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+
+            {/* AI Generation Section */}
+            <div className="border rounded-lg overflow-hidden">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between p-3 bg-gradient-to-l from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/15 transition-colors"
+                onClick={() => setShowAISection(!showAISection)}
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="font-semibold text-sm">توليد المحتوى بالذكاء الاصطناعي</span>
+                </div>
+                <ChevronLeft className={cn("h-4 w-4 transition-transform", showAISection && "-rotate-90")} />
+              </button>
+
+              {showAISection && (
+                <div className="p-4 space-y-3 bg-muted/30">
+                  <div>
+                    <label className="text-sm font-medium">وصف فكرة المحتوى *</label>
+                    <Textarea
+                      value={aiForm.idea_description}
+                      onChange={e => setAIForm(p => ({ ...p, idea_description: e.target.value }))}
+                      rows={3}
+                      placeholder="مثال: منشور تعريفي بمنصة ويبيان لإدارة الجمعيات الخيرية..."
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">المنصة المستهدفة</label>
+                      <Select value={aiForm.platform} onValueChange={v => setAIForm(p => ({ ...p, platform: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="x">X (تويتر)</SelectItem>
+                          <SelectItem value="linkedin">LinkedIn</SelectItem>
+                          <SelectItem value="instagram">Instagram</SelectItem>
+                          <SelectItem value="website">Website</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">نبرة المحتوى</label>
+                      <Select value={aiForm.tone} onValueChange={v => setAIForm(p => ({ ...p, tone: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="formal">رسمي</SelectItem>
+                          <SelectItem value="friendly">ودود</SelectItem>
+                          <SelectItem value="strong">تسويقي قوي</SelectItem>
+                          <SelectItem value="educational">تعليمي</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">اللغة</label>
+                      <Select value={aiForm.language} onValueChange={v => setAIForm(p => ({ ...p, language: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ar">عربي</SelectItem>
+                          <SelectItem value="en">English</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">اسم المنتج/الخدمة</label>
+                      <Input className="h-9" value={aiForm.product_name} onChange={e => setAIForm(p => ({ ...p, product_name: e.target.value }))} placeholder="ويبيان" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">الجمهور المستهدف</label>
+                      <Input className="h-9" value={aiForm.audience} onChange={e => setAIForm(p => ({ ...p, audience: e.target.value }))} placeholder="جمعيات، مانحين..." />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">الميزة الرئيسية</label>
+                      <Input className="h-9" value={aiForm.value_prop} onChange={e => setAIForm(p => ({ ...p, value_prop: e.target.value }))} placeholder="إدارة متكاملة..." />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">رابط صفحة الهبوط</label>
+                      <Input className="h-9" value={aiForm.landing_url} onChange={e => setAIForm(p => ({ ...p, landing_url: e.target.value }))} placeholder="https://..." />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={() => handleAIGenerate()} disabled={aiLoading || !!aiRefiningField} className="gap-2">
+                      {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {aiLoading ? 'جاري التوليد...' : 'توليد المحتوى'}
+                    </Button>
+                    {lastAIResult && (
+                      <Button variant="outline" onClick={() => handleAIGenerate()} disabled={aiLoading || !!aiRefiningField} className="gap-2">
+                        <RefreshCw className="h-4 w-4" />
+                        إعادة توليد
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             {/* General */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="text-sm font-medium">عنوان المنشور *</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">عنوان المنشور *</label>
+                  {lastAIResult && <RefineButton field="title" label="تحسين" />}
+                </div>
                 <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
               </div>
               <div>
@@ -365,16 +599,25 @@ export default function ContentCalendarPage() {
 
             {/* Text content */}
             <div>
-              <label className="text-sm font-medium">نص المنشور</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">نص المنشور</label>
+                {lastAIResult && <RefineButton field="post_text" label="تحسين" />}
+              </div>
               <Textarea value={form.post_text} onChange={e => setForm({ ...form, post_text: e.target.value })} rows={3} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium">الوسوم (Hashtags)</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">الوسوم (Hashtags)</label>
+                  {lastAIResult && <RefineButton field="hashtags" label="تحسين" />}
+                </div>
                 <Input value={form.hashtags} onChange={e => setForm({ ...form, hashtags: e.target.value })} placeholder="#تسويق #محتوى" />
               </div>
               <div>
-                <label className="text-sm font-medium">CTA (دعوة للإجراء)</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">CTA (دعوة للإجراء)</label>
+                  {lastAIResult && <RefineButton field="cta" label="تحسين" />}
+                </div>
                 <Input value={form.cta} onChange={e => setForm({ ...form, cta: e.target.value })} placeholder="اشترك الآن" />
               </div>
             </div>
@@ -399,7 +642,10 @@ export default function ContentCalendarPage() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium">ملاحظات التصميم</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">ملاحظات التصميم / وصف التصميم</label>
+                {lastAIResult && <RefineButton field="design_brief" label="تحسين" />}
+              </div>
               <Textarea value={form.design_notes} onChange={e => setForm({ ...form, design_notes: e.target.value })} rows={2} />
             </div>
 

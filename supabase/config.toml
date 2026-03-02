@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.submit-subscription-request]
 verify_jwt = false
+
+[functions.generate-marketing-content]
+verify_jwt = false

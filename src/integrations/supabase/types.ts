@@ -47,6 +47,44 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_generations: {
+        Row: {
+          content_id: string | null
+          created_at: string
+          id: string
+          prompt_inputs: Json
+          provider: string
+          result: Json
+          user_id: string | null
+        }
+        Insert: {
+          content_id?: string | null
+          created_at?: string
+          id?: string
+          prompt_inputs?: Json
+          provider: string
+          result?: Json
+          user_id?: string | null
+        }
+        Update: {
+          content_id?: string | null
+          created_at?: string
+          id?: string
+          prompt_inputs?: Json
+          provider?: string
+          result?: Json
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_generations_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content_calendar"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_audit_log: {
         Row: {
           action: string
