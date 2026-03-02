@@ -100,22 +100,23 @@ export default function SettingsPage() {
   const handleSaveSettings = async (keys: string[]) => {
     setIsSaving(true);
     try {
-      const updates = keys.map(key => ({
-        key,
-        value: (settings as any)[key] || '',
-      }));
-
-      for (const update of updates) {
-        const { error } = await supabase
+      for (const key of keys) {
+        const value = (settings as any)[key] || '';
+        
+        // First try update
+        const { data: updated, error: updateError } = await supabase
           .from('system_settings')
-          .update({ value: update.value })
-          .eq('key', update.key);
+          .update({ value, updated_at: new Date().toISOString() })
+          .eq('key', key)
+          .select();
 
-        if (error) {
-          // If record doesn't exist, insert it
+        if (updateError) throw updateError;
+
+        // If no rows updated, insert new record
+        if (!updated || updated.length === 0) {
           const { error: insertError } = await supabase
             .from('system_settings')
-            .insert({ key: update.key, value: update.value });
+            .insert({ key, value, description: key });
           if (insertError) throw insertError;
         }
       }
