@@ -49,6 +49,7 @@ interface ContentForm {
 
 interface AIForm {
   idea_description: string;
+  provider: string;
   platform: string;
   tone: string;
   language: string;
@@ -65,7 +66,7 @@ const emptyForm: ContentForm = {
 };
 
 const emptyAIForm: AIForm = {
-  idea_description: '', platform: 'x', tone: 'formal', language: 'ar',
+  idea_description: '', provider: '', platform: 'x', tone: 'formal', language: 'ar',
   product_name: '', audience: '', value_prop: '', landing_url: '',
 };
 
@@ -88,6 +89,14 @@ export default function ContentCalendarPage() {
   const [aiRefiningField, setAIRefiningField] = useState<string | null>(null);
   const [lastAIResult, setLastAIResult] = useState<any>(null);
   const [showAISection, setShowAISection] = useState(false);
+  const [aiDefaultProvider, setAIDefaultProvider] = useState('lovable');
+
+  useEffect(() => {
+    // Fetch default AI provider from settings
+    supabase.from('system_settings').select('key, value').eq('key', 'ai_default_provider').then(({ data }) => {
+      if (data?.[0]?.value) setAIDefaultProvider(data[0].value);
+    });
+  }, []);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -188,7 +197,9 @@ export default function ContentCalendarPage() {
     }
 
     try {
+      const provider = aiForm.provider || aiDefaultProvider || 'lovable';
       const payload: any = {
+        provider,
         platform: aiForm.platform,
         tone: aiForm.tone,
         language: aiForm.language,
@@ -222,6 +233,7 @@ export default function ContentCalendarPage() {
           post_text: r => ({ post_text: r.post_text }),
           cta: r => ({ cta: r.cta }),
           hashtags: r => ({ hashtags: (r.hashtags || []).join(' ') }),
+          design_text: r => ({ design_text: r.design_text }),
           design_brief: r => ({ design_notes: r.design_brief }),
         };
         const updates = fieldMap[refineField]?.(result);
@@ -234,6 +246,7 @@ export default function ContentCalendarPage() {
           post_text: result.post_text || prev.post_text,
           cta: result.cta || prev.cta,
           hashtags: (result.hashtags || []).join(' '),
+          design_text: result.design_text || prev.design_text,
           design_notes: result.design_brief || prev.design_notes,
           content_type: platformToContentType[aiForm.platform] || prev.content_type,
           channels: prev.channels.length === 0 && platformToChannel[aiForm.platform]
@@ -475,7 +488,18 @@ export default function ContentCalendarPage() {
                       className="mt-1"
                     />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">مزود الذكاء الاصطناعي</label>
+                      <Select value={aiForm.provider || aiDefaultProvider} onValueChange={v => setAIForm(p => ({ ...p, provider: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="lovable">Lovable AI (مجاني)</SelectItem>
+                          <SelectItem value="openai">OpenAI (ChatGPT)</SelectItem>
+                          <SelectItem value="gemini">Google Gemini</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div>
                       <label className="text-xs font-medium">المنصة المستهدفة</label>
                       <Select value={aiForm.platform} onValueChange={v => setAIForm(p => ({ ...p, platform: v }))}>
@@ -646,6 +670,7 @@ export default function ContentCalendarPage() {
             <div>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">نص التصميم</label>
+                {lastAIResult && <RefineButton field="design_text" label="تحسين" />}
               </div>
               <p className="text-xs text-muted-foreground mb-1">المحتوى النصي الذي سيظهر داخل التصميم (عناوين، شعارات، نصوص رئيسية)</p>
               <Textarea value={form.design_text} onChange={e => setForm({ ...form, design_text: e.target.value })} rows={2} placeholder="مثال: عنوان التصميم الرئيسي، النص الفرعي، أرقام إحصائية..." />
