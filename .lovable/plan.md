@@ -1,51 +1,76 @@
 
 
-# خطة تحسين واجهات التذاكر في لوحة التحكم المركزية
+# خطة إنشاء نظام إدارة الخصومات والعروض
 
-## المشاكل الحالية
-1. **مودال التعديل** بسيط جداً — حقول عادية بدون تصميم احترافي ولا يعرض معلومات التذكرة الحالية (الحالة، الموظف، العميل)
-2. **مودال عرض التفاصيل** — تصميم عمودي مسطح بدون تبويبات أو تنظيم واضح
-3. **مودال إنشاء التذكرة** — يعمل لكن يحتاج تحسينات تصميمية
+## نظرة عامة
+إضافة نظام متكامل لإدارة الخصومات يتكامل مع نظام عروض الأسعار الحالي، يشمل جدول قاعدة بيانات جديد، صفحة إدارة في لوحة التحكم، وتعديل نموذج إنشاء عرض السعر لدعم تطبيق الخصومات.
 
 ---
 
-## التغييرات المطلوبة
+## 1. قاعدة البيانات - جدول `discounts`
 
-### 1. إعادة تصميم مودال التعديل (Edit Dialog)
-**الملف**: `src/pages/admin/AdminTicketsPage.tsx` (سطور 1309-1365)
+إنشاء جدول جديد بالحقول التالية:
+- `id`, `name` (اسم العرض/الخصم), `code` (كود اختياري), `requires_code` (boolean)
+- `discount_type` (percentage / fixed), `discount_value` (numeric)
+- `start_date`, `end_date` (nullable = بدون نهاية), `is_active` (boolean)
+- `scope_type` (all_plans / specific_plans / all_services / specific_services / full_quote)
+- `scope_ids` (jsonb - مصفوفة IDs للخطط أو الخدمات المحددة)
+- `max_total_usage` (nullable), `max_per_client` (nullable), `current_usage` (default 0)
+- `internal_notes`, `created_by`, `created_at`, `updated_at`
 
-- **Header احترافي**: شريط علوي ملون يعرض رقم التذكرة + badge الحالة + badge الأولوية + اسم العميل/المنظمة
-- **تخطيط بطاقات**: تقسيم الحقول في بطاقات منظمة (card-like sections):
-  - **قسم المعلومات الأساسية**: الموضوع + الوصف
-  - **قسم التصنيف**: التصنيف والأولوية بأزرار ملونة (مثل CreateTicketModal) بدل Select عادي
-  - **قسم الحالة والتوجيه**: تغيير الحالة + إعادة توجيه الموظف من نفس المودال
-  - **قسم إدارة المهام**: عرض `TicketTasksManager` داخل مودال التعديل
-- **Footer ثابت**: أزرار الحفظ والإلغاء مع مؤشر التغييرات
-- توسيع المودال إلى `max-w-2xl`
+إضافة أعمدة على جدول `crm_quotes`:
+- `discount_source` (text: manual / saved_discount / null)
+- `discount_id` (uuid FK → discounts, nullable)
+- `discount_name` (text, nullable)
 
-### 2. إعادة تصميم مودال عرض التفاصيل (View Dialog)  
-**الملف**: `src/pages/admin/AdminTicketsPage.tsx` (سطور 975-1187)
+جدول تتبع: `discount_usage_log` لتسجيل كل تطبيق خصم على عرض سعر (discount_id, quote_id, applied_by, applied_at, discount_value_applied).
 
-- **Header مع gradient**: خلفية متدرجة تعرض رقم التذكرة + الحالة + الأولوية
-- **شريط معلومات العميل**: بطاقة واضحة للمنظمة/العميل مع الموقع والبريد
-- **تبويبات (Tabs)** لتنظيم المحتوى:
-  - **تبويب "المحادثة"**: الرسالة الأصلية + الردود + حقل الرد
-  - **تبويب "المهام"**: `TicketTasksManager` بشكل كامل
-- **Sidebar معلومات**: على اليسار يعرض (التصنيف، الأولوية، الموظف، التاريخ، المصدر) — أو grid cards
-- توسيع المودال إلى `max-w-4xl` لاستيعاب المحتوى
-
-### 3. تحسين مودال الإنشاء (CreateTicketModal)
-**الملف**: `src/components/admin/CreateTicketModal.tsx`
-
-- تحسينات طفيفة على التصميم: إضافة أيقونات ملونة لخيارات التصنيف بشكل أكبر
-- تحسين خطوة المراجعة (Step 3) بعرض بصري أجمل للبيانات
+RLS: قراءة وكتابة للـ admin و editor فقط.
 
 ---
 
-## ملخص الملفات المتأثرة
+## 2. صفحة إدارة الخصومات
 
-| الملف | التغيير |
-|---|---|
-| `src/pages/admin/AdminTicketsPage.tsx` | إعادة تصميم Edit Dialog + View Dialog |
-| `src/components/admin/CreateTicketModal.tsx` | تحسينات تصميمية طفيفة |
+صفحة جديدة `/admin/discounts` تُضاف في قسم "إدارة العملاء" بالسايدبار.
+
+تحتوي على:
+- **جدول** يعرض: اسم الخصم، النوع، القيمة، الحالة (نشط/منتهي/متوقف)، فترة التفعيل، الاستخدام
+- **Badge** ذكي: "نشط" (أخضر)، "منتهي" (رمادي)، "متوقف" (أحمر)، "استنفد" (برتقالي)
+- **Dialog** لإنشاء/تعديل خصم بكل الحقول المطلوبة مع multi-select للخطط والخدمات
+- إمكانية تفعيل/إيقاف سريع عبر Switch
+- سجل نشاط (Audit) لكل عملية إنشاء/تعديل/إيقاف
+
+---
+
+## 3. تعديل نموذج عرض السعر (`AdvancedQuoteModal`)
+
+إضافة **قسم "تطبيق خصم"** في خطوة المراجعة (Step 3) بثلاثة خيارات:
+1. **بدون خصم** (الافتراضي)
+2. **خصم مباشر**: حقول يدوية (نوع + قيمة)
+3. **خصم محفوظ**: قائمة منسدلة بالخصومات المتاحة فقط (نشطة + ضمن الفترة + لم تستنفد)
+
+**منطق الحساب**: إجمالي البنود → الخصم → الصافي → الضريبة → الإجمالي النهائي
+
+عند الحفظ: تسجيل `discount_source`, `discount_id`, `discount_name` + تحديث `current_usage` + إدخال في `discount_usage_log`.
+
+---
+
+## 4. تحديث عرض تفاصيل عرض السعر وPDF
+
+تعديل `QuoteDetailsPage` و `QuotePDFDocument` لعرض سطر الخصم (اسمه ونوعه وقيمته) في الملخص المالي.
+
+---
+
+## 5. الملفات المتأثرة
+
+| ملف | نوع التغيير |
+|-----|-------------|
+| Migration SQL | إنشاء جداول + أعمدة + RLS |
+| `src/pages/admin/DiscountsPage.tsx` | **جديد** - صفحة الإدارة |
+| `src/App.tsx` | إضافة Route |
+| `src/pages/admin/AdminLayout.tsx` | إضافة رابط السايدبار |
+| `src/components/crm/modals/AdvancedQuoteModal.tsx` | إضافة قسم الخصم |
+| `src/pages/admin/crm/QuoteDetailsPage.tsx` | عرض بيانات الخصم |
+| `src/components/crm/quotes/QuotePDFDocument.tsx` | سطر الخصم في PDF |
+| `src/components/crm/modals/InvoiceRequestModal.tsx` | دعم الخصم في الحسابات |
 
