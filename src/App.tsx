@@ -74,6 +74,7 @@ import PricingPage from "./pages/PricingPage";
 import SubscribePage from "./pages/SubscribePage";
 import SubscriptionRequestsPage from "./pages/admin/SubscriptionRequestsPage";
 import SubscriptionRequestDetailsPage from "./pages/admin/SubscriptionRequestDetailsPage";
+import DiscountsPage from "./pages/admin/DiscountsPage";
 
 // Operations pages
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
@@ -252,6 +253,7 @@ const App = () => (
                 <Route path="marketing/templates" element={<EmailTemplatesPage />} />
                 <Route path="subscription-requests" element={<SubscriptionRequestsPage />} />
                 <Route path="subscription-requests/:id" element={<SubscriptionRequestDetailsPage />} />
+                <Route path="discounts" element={<DiscountsPage />} />
               </Route>
               
               {/* Unauthorized Page */}

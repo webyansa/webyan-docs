@@ -37,7 +37,8 @@ import {
   Rocket,
   UserPlus,
   Globe,
-  Layers
+  Layers,
+  Tag,
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { AdminNotificationDropdown } from '@/components/layout/AdminNotificationDropdown';
@@ -138,6 +139,7 @@ const crmSection: NavSection = {
     { title: 'عروض الأسعار', href: '/admin/crm/quotes', icon: FileText, permission: 'canManageClients' },
     { title: 'العملاء', href: '/admin/clients', icon: Building2, permission: 'canManageClients' },
     { title: 'طلبات الاشتراك', href: '/admin/subscription-requests', icon: FileText, permission: 'canManageClients' },
+    { title: 'الخصومات والعروض', href: '/admin/discounts', icon: Tag, permission: 'canManageClients' },
   ]
 };
 
