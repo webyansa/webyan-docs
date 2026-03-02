@@ -43,6 +43,7 @@ import {
   X,
   Gift,
   Info,
+  Percent,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -101,7 +102,12 @@ export default function AdvancedQuoteModal({
   const [notes, setNotes] = useState('');
   const [sendEmail, setSendEmail] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [taxInclusive, setTaxInclusive] = useState(false); // false = exclusive (default)
+  const [taxInclusive, setTaxInclusive] = useState(false);
+  // Discount state
+  const [discountMode, setDiscountMode] = useState<'none' | 'manual' | 'saved'>('none');
+  const [manualDiscountType, setManualDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [manualDiscountValue, setManualDiscountValue] = useState('');
+  const [selectedDiscountId, setSelectedDiscountId] = useState<string | null>(null);
 
   // Fetch VAT rate from system settings
   const { data: vatRate = 15 } = useQuery({
@@ -148,6 +154,26 @@ export default function AdvancedQuoteModal({
     enabled: open,
   });
 
+  // Fetch available discounts
+  const { data: availableDiscounts = [] } = useQuery({
+    queryKey: ['available-discounts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('discounts')
+        .select('*')
+        .eq('is_active', true)
+        .lte('start_date', new Date().toISOString());
+      if (error) throw error;
+      // Filter: not expired and not exhausted
+      return (data || []).filter((d: any) => {
+        if (d.end_date && new Date(d.end_date) < new Date()) return false;
+        if (d.max_total_usage && d.current_usage >= d.max_total_usage) return false;
+        return true;
+      });
+    },
+    enabled: open,
+  });
+
   // Fetch annual services catalog
   const { data: annualServices = [] } = useQuery({
     queryKey: ['pricing-annual-services'],
@@ -182,12 +208,16 @@ export default function AdvancedQuoteModal({
       setNotes('');
       setSendEmail(false);
       setTaxInclusive(false);
+      setDiscountMode('none');
+      setManualDiscountType('percentage');
+      setManualDiscountValue('');
+      setSelectedDiscountId(null);
     }
   }, [open, currentValue]);
 
   // Calculate quote items and totals
   // Prices in catalog are TAX-INCLUSIVE. We compute accordingly based on taxInclusive mode.
-  const { items, subtotal, taxAmount, total, recurringItemsSummary } = useMemo(() => {
+  const { items, subtotal, discountAmount, subtotalAfterDiscount, taxAmount, total, recurringItemsSummary } = useMemo(() => {
     const quoteItems: QuoteItem[] = [];
 
     if (quoteType === 'subscription' && selectedPlanId) {
@@ -261,17 +291,36 @@ export default function AdvancedQuoteModal({
     });
 
     const sub = +quoteItems.reduce((sum, item) => sum + item.total, 0).toFixed(2);
+    
+    // Calculate discount
+    let discountCalc = 0;
+    const selectedDiscount = discountMode === 'saved' && selectedDiscountId
+      ? availableDiscounts.find((d: any) => d.id === selectedDiscountId)
+      : null;
+    
+    if (discountMode === 'manual' && manualDiscountValue) {
+      const val = parseFloat(manualDiscountValue) || 0;
+      discountCalc = manualDiscountType === 'percentage' ? +(sub * val / 100).toFixed(2) : +val.toFixed(2);
+    } else if (discountMode === 'saved' && selectedDiscount) {
+      const val = selectedDiscount.discount_value || 0;
+      discountCalc = selectedDiscount.discount_type === 'percentage' ? +(sub * val / 100).toFixed(2) : +val.toFixed(2);
+    }
+    discountCalc = Math.min(discountCalc, sub); // cap at subtotal
+
+    const afterDiscount = +(sub - discountCalc).toFixed(2);
     let tax: number;
     let tot: number;
 
     if (taxInclusive) {
-      // prices already include tax, extract tax for info
       tax = +quoteItems.reduce((sum, item) => sum + calcTaxAmount(item.total, vatRate), 0).toFixed(2);
-      tot = sub; // total IS the subtotal (tax included)
+      // Adjust tax for discount proportionally if discount applied
+      if (discountCalc > 0 && sub > 0) {
+        tax = +(tax * (afterDiscount / sub)).toFixed(2);
+      }
+      tot = afterDiscount;
     } else {
-      // prices are before tax, add tax
-      tax = +(sub * vatRate / 100).toFixed(2);
-      tot = +(sub + tax).toFixed(2);
+      tax = +(afterDiscount * vatRate / 100).toFixed(2);
+      tot = +(afterDiscount + tax).toFixed(2);
     }
 
     const riSummary = recurringItems
@@ -282,8 +331,8 @@ export default function AdvancedQuoteModal({
         firstYearFree: ri.firstYearFree,
       }));
 
-    return { items: quoteItems, subtotal: sub, taxAmount: tax, total: tot, recurringItemsSummary: riSummary };
-  }, [quoteType, selectedPlanId, billingCycle, selectedServiceIds, customValue, customDescription, projectName, recurringItems, plans, services, taxInclusive, vatRate]);
+    return { items: quoteItems, subtotal: sub, discountAmount: discountCalc, subtotalAfterDiscount: afterDiscount, taxAmount: tax, total: tot, recurringItemsSummary: riSummary };
+  }, [quoteType, selectedPlanId, billingCycle, selectedServiceIds, customValue, customDescription, projectName, recurringItems, plans, services, taxInclusive, vatRate, discountMode, manualDiscountType, manualDiscountValue, selectedDiscountId, availableDiscounts]);
 
   const canProceedToStep2 = () => {
     if (quoteType === 'services_only') return true;
@@ -361,6 +410,11 @@ export default function AdvancedQuoteModal({
             recurring_amount: item.recurring_amount,
           })),
           subtotal,
+          discount_type: discountMode === 'manual' ? manualDiscountType : (discountMode === 'saved' ? (availableDiscounts.find((d: any) => d.id === selectedDiscountId)?.discount_type || null) : null),
+          discount_value: discountAmount > 0 ? (discountMode === 'manual' ? (parseFloat(manualDiscountValue) || 0) : (availableDiscounts.find((d: any) => d.id === selectedDiscountId)?.discount_value || 0)) : null,
+          discount_source: discountMode === 'none' ? null : discountMode === 'manual' ? 'manual' : 'saved_discount',
+          discount_id: discountMode === 'saved' ? selectedDiscountId : null,
+          discount_name: discountMode === 'saved' ? (availableDiscounts.find((d: any) => d.id === selectedDiscountId)?.name || null) : null,
           tax_rate: vatRate,
           tax_amount: taxAmount,
           total_amount: total,
@@ -376,6 +430,21 @@ export default function AdvancedQuoteModal({
         .single();
 
       if (quoteError) throw quoteError;
+
+      // Log discount usage if saved discount was applied
+      if (discountMode === 'saved' && selectedDiscountId && discountAmount > 0) {
+        await supabase.from('discount_usage_log').insert({
+          discount_id: selectedDiscountId,
+          quote_id: quote.id,
+          applied_by: staffId,
+          discount_value_applied: discountAmount,
+        } as any);
+        // Increment current_usage
+        const disc = availableDiscounts.find((d: any) => d.id === selectedDiscountId);
+        if (disc) {
+          await supabase.from('discounts').update({ current_usage: (disc.current_usage || 0) + 1 } as any).eq('id', selectedDiscountId);
+        }
+      }
 
       if (dealId) {
         const { error: activityError } = await supabase
@@ -759,6 +828,71 @@ export default function AdvancedQuoteModal({
                   </Label>
                 </div>
               </RadioGroup>
+            </div>
+
+            {/* Discount Section */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="flex items-center gap-2 font-medium">
+                <Percent className="h-4 w-4 text-primary" />
+                تطبيق خصم
+              </Label>
+              <RadioGroup
+                value={discountMode}
+                onValueChange={(v) => { setDiscountMode(v as any); setSelectedDiscountId(null); setManualDiscountValue(''); }}
+                className="flex gap-6"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="none" id="disc-none" />
+                  <Label htmlFor="disc-none" className="cursor-pointer text-sm">بدون خصم</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="manual" id="disc-manual" />
+                  <Label htmlFor="disc-manual" className="cursor-pointer text-sm">خصم مباشر</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="saved" id="disc-saved" />
+                  <Label htmlFor="disc-saved" className="cursor-pointer text-sm">خصم محفوظ</Label>
+                </div>
+              </RadioGroup>
+
+              {discountMode === 'manual' && (
+                <div className="flex gap-3 items-end">
+                  <div className="space-y-1 w-32">
+                    <Label className="text-xs">النوع</Label>
+                    <Select value={manualDiscountType} onValueChange={(v) => setManualDiscountType(v as any)}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percentage">نسبة %</SelectItem>
+                        <SelectItem value="fixed">مبلغ ثابت</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 flex-1">
+                    <Label className="text-xs">القيمة</Label>
+                    <Input type="number" value={manualDiscountValue} onChange={(e) => setManualDiscountValue(e.target.value)} placeholder="0" className="h-9" />
+                  </div>
+                </div>
+              )}
+
+              {discountMode === 'saved' && (
+                <Select value={selectedDiscountId || '__none__'} onValueChange={(v) => setSelectedDiscountId(v === '__none__' ? null : v)}>
+                  <SelectTrigger><SelectValue placeholder="اختر خصم محفوظ..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-- اختر --</SelectItem>
+                    {availableDiscounts.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name} ({d.discount_type === 'percentage' ? `${d.discount_value}%` : `${d.discount_value} ر.س`})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {discountAmount > 0 && (
+                <div className="text-sm text-green-600 font-medium bg-green-50 rounded p-2">
+                  قيمة الخصم: {discountAmount.toLocaleString('ar-SA')} ر.س
+                </div>
+              )}
             </div>
 
             <QuoteItemsTable

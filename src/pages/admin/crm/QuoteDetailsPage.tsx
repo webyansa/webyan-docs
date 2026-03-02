@@ -1021,6 +1021,9 @@ export default function QuoteDetailsPage() {
                     <Percent className="h-3 w-3" />
                     الخصم
                     {discountType === 'percentage' && ` (${discountAmount}%)`}
+                    {(quote as any).discount_name && (
+                      <Badge variant="outline" className="text-[10px] h-4 mr-1">{(quote as any).discount_name}</Badge>
+                    )}
                   </span>
                   <span className="font-medium">- {formatCurrency(calculatedDiscount)}</span>
                 </div>

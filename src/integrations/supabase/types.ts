@@ -1631,6 +1631,9 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           currency: string | null
+          discount_id: string | null
+          discount_name: string | null
+          discount_source: string | null
           discount_type: string | null
           discount_value: number | null
           document_url: string | null
@@ -1682,6 +1685,9 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
+          discount_id?: string | null
+          discount_name?: string | null
+          discount_source?: string | null
           discount_type?: string | null
           discount_value?: number | null
           document_url?: string | null
@@ -1733,6 +1739,9 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
+          discount_id?: string | null
+          discount_name?: string | null
+          discount_source?: string | null
           discount_type?: string | null
           discount_value?: number | null
           document_url?: string | null
@@ -1793,6 +1802,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_quotes_discount_id_fkey"
+            columns: ["discount_id"]
+            isOneToOne: false
+            referencedRelation: "discounts"
             referencedColumns: ["id"]
           },
           {
@@ -1965,6 +1981,126 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discount_usage_log: {
+        Row: {
+          applied_at: string
+          applied_by: string | null
+          discount_id: string
+          discount_value_applied: number
+          id: string
+          quote_id: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string | null
+          discount_id: string
+          discount_value_applied?: number
+          id?: string
+          quote_id: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string | null
+          discount_id?: string
+          discount_value_applied?: number
+          id?: string
+          quote_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_usage_log_applied_by_fkey"
+            columns: ["applied_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_usage_log_discount_id_fkey"
+            columns: ["discount_id"]
+            isOneToOne: false
+            referencedRelation: "discounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_usage_log_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "crm_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discounts: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string | null
+          current_usage: number
+          discount_type: string
+          discount_value: number
+          end_date: string | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean
+          max_per_client: number | null
+          max_total_usage: number | null
+          name: string
+          requires_code: boolean
+          scope_ids: Json | null
+          scope_type: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_usage?: number
+          discount_type?: string
+          discount_value?: number
+          end_date?: string | null
+          id?: string
+          internal_notes?: string | null
+          is_active?: boolean
+          max_per_client?: number | null
+          max_total_usage?: number | null
+          name: string
+          requires_code?: boolean
+          scope_ids?: Json | null
+          scope_type?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_usage?: number
+          discount_type?: string
+          discount_value?: number
+          end_date?: string | null
+          id?: string
+          internal_notes?: string | null
+          is_active?: boolean
+          max_per_client?: number | null
+          max_total_usage?: number | null
+          name?: string
+          requires_code?: boolean
+          scope_ids?: Json | null
+          scope_type?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
         ]
