@@ -167,7 +167,7 @@ export default function AdvancedQuoteModal({
       // Filter: not expired and not exhausted
       return (data || []).filter((d: any) => {
         if (d.end_date && new Date(d.end_date) < new Date()) return false;
-        if (d.max_total_usage && d.current_usage >= d.max_total_usage) return false;
+        if (d.max_total_usage != null && d.max_total_usage > 0 && d.current_usage >= d.max_total_usage) return false;
         return true;
       });
     },
