@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings, Globe, Bell, Shield, Database, Save, Mail, Loader2, Upload, FileImage } from 'lucide-react';
+import { Settings, Globe, Bell, Shield, Database, Save, Mail, Loader2, Upload, FileImage, Sparkles, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,6 +18,11 @@ interface SystemSettings {
   support_response_time: string;
   max_upload_size_mb: string;
   allowed_file_types: string;
+  ai_default_provider: string;
+  ai_openai_api_key: string;
+  ai_gemini_api_key: string;
+  ai_default_model_openai: string;
+  ai_default_model_gemini: string;
 }
 
 export default function SettingsPage() {
@@ -30,7 +35,15 @@ export default function SettingsPage() {
     support_response_time: '48',
     max_upload_size_mb: '1',
     allowed_file_types: 'image/jpeg,image/png,image/gif,image/webp',
+    ai_default_provider: 'lovable',
+    ai_openai_api_key: '',
+    ai_gemini_api_key: '',
+    ai_default_model_openai: 'gpt-4o',
+    ai_default_model_gemini: 'gemini-2.5-flash',
   });
+  const [showOpenAIKey, setShowOpenAIKey] = useState(false);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
 
   const allFileTypes = [
     { value: 'image/jpeg', label: 'JPEG' },
@@ -63,6 +76,11 @@ export default function SettingsPage() {
         support_response_time: '48',
         max_upload_size_mb: '1',
         allowed_file_types: 'image/jpeg,image/png,image/gif,image/webp',
+        ai_default_provider: 'lovable',
+        ai_openai_api_key: '',
+        ai_gemini_api_key: '',
+        ai_default_model_openai: 'gpt-4o',
+        ai_default_model_gemini: 'gemini-2.5-flash',
       };
 
       data?.forEach((item: { key: string; value: string }) => {
@@ -309,7 +327,127 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* General Settings */}
+      {/* AI Settings */}
+      <Card className="border-violet-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-violet-500" />
+            إعدادات الذكاء الاصطناعي
+          </CardTitle>
+          <CardDescription>ربط مزودي الذكاء الاصطناعي لتوليد المحتوى التسويقي</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Default Provider */}
+          <div className="space-y-2">
+            <Label>المزود الافتراضي</Label>
+            <Select value={settings.ai_default_provider} onValueChange={v => setSettings({ ...settings, ai_default_provider: v })}>
+              <SelectTrigger className="w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lovable">Lovable AI (مجاني - مدمج)</SelectItem>
+                <SelectItem value="openai">OpenAI (ChatGPT)</SelectItem>
+                <SelectItem value="gemini">Google (Gemini)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Lovable AI مدمج ولا يحتاج مفتاح. لاستخدام OpenAI أو Gemini أدخل مفتاح API أدناه.
+            </p>
+          </div>
+
+          <Separator />
+
+          {/* OpenAI */}
+          <div className="space-y-3 p-4 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold">OpenAI (ChatGPT)</Label>
+              {settings.ai_openai_api_key ? (
+                <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> مفعّل</span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground"><XCircle className="h-3.5 w-3.5" /> غير مفعّل</span>
+              )}
+            </div>
+            <div className="relative">
+              <Input
+                type={showOpenAIKey ? 'text' : 'password'}
+                value={settings.ai_openai_api_key}
+                onChange={e => setSettings({ ...settings, ai_openai_api_key: e.target.value })}
+                placeholder="sk-..."
+                dir="ltr"
+                className="pr-10"
+              />
+              <button type="button" className="absolute left-2 top-1/2 -translate-y-1/2" onClick={() => setShowOpenAIKey(!showOpenAIKey)}>
+                {showOpenAIKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+              </button>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">النموذج الافتراضي</Label>
+              <Select value={settings.ai_default_model_openai} onValueChange={v => setSettings({ ...settings, ai_default_model_openai: v })}>
+                <SelectTrigger className="w-48 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                  <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              احصل على مفتاح API من{' '}
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">platform.openai.com</a>
+            </p>
+          </div>
+
+          {/* Gemini */}
+          <div className="space-y-3 p-4 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold">Google Gemini</Label>
+              {settings.ai_gemini_api_key ? (
+                <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> مفعّل</span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground"><XCircle className="h-3.5 w-3.5" /> غير مفعّل</span>
+              )}
+            </div>
+            <div className="relative">
+              <Input
+                type={showGeminiKey ? 'text' : 'password'}
+                value={settings.ai_gemini_api_key}
+                onChange={e => setSettings({ ...settings, ai_gemini_api_key: e.target.value })}
+                placeholder="AIza..."
+                dir="ltr"
+                className="pr-10"
+              />
+              <button type="button" className="absolute left-2 top-1/2 -translate-y-1/2" onClick={() => setShowGeminiKey(!showGeminiKey)}>
+                {showGeminiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+              </button>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">النموذج الافتراضي</Label>
+              <Select value={settings.ai_default_model_gemini} onValueChange={v => setSettings({ ...settings, ai_default_model_gemini: v })}>
+                <SelectTrigger className="w-48 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                  <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                  <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              احصل على مفتاح API من{' '}
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AI Studio</a>
+            </p>
+          </div>
+
+          <Button onClick={() => handleSaveSettings(['ai_default_provider', 'ai_openai_api_key', 'ai_gemini_api_key', 'ai_default_model_openai', 'ai_default_model_gemini'])} disabled={isSaving} className="gap-2">
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            حفظ إعدادات الذكاء الاصطناعي
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
