@@ -792,6 +792,7 @@ export type Database = {
           design_file_url: string | null
           design_notes: string | null
           design_status: string | null
+          design_text: string | null
           hashtags: string | null
           id: string
           post_text: string | null
@@ -811,6 +812,7 @@ export type Database = {
           design_file_url?: string | null
           design_notes?: string | null
           design_status?: string | null
+          design_text?: string | null
           hashtags?: string | null
           id?: string
           post_text?: string | null
@@ -830,6 +832,7 @@ export type Database = {
           design_file_url?: string | null
           design_notes?: string | null
           design_status?: string | null
+          design_text?: string | null
           hashtags?: string | null
           id?: string
           post_text?: string | null

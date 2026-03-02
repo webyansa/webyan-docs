@@ -40,6 +40,7 @@ interface ContentForm {
   hashtags: string;
   cta: string;
   design_file_url: string;
+  design_text: string;
   design_notes: string;
   design_status: string;
   channels: string[];
@@ -60,7 +61,7 @@ interface AIForm {
 const emptyForm: ContentForm = {
   campaign_id: '', title: '', content_type: 'design', publish_date: undefined,
   publish_time: '', post_text: '', hashtags: '', cta: '', design_file_url: '',
-  design_notes: '', design_status: 'draft', channels: [], status: 'draft',
+  design_text: '', design_notes: '', design_status: 'draft', channels: [], status: 'draft',
 };
 
 const emptyAIForm: AIForm = {
@@ -122,7 +123,7 @@ export default function ContentCalendarPage() {
       publish_date: item.publish_date ? new Date(item.publish_date) : undefined,
       publish_time: item.publish_time || '', post_text: item.post_text || '',
       hashtags: item.hashtags || '', cta: item.cta || '', design_file_url: item.design_file_url || '',
-      design_notes: item.design_notes || '', design_status: item.design_status || 'draft',
+      design_text: item.design_text || '', design_notes: item.design_notes || '', design_status: item.design_status || 'draft',
       channels: item.channels || [], status: item.status,
     });
     setAIForm({ ...emptyAIForm });
@@ -138,7 +139,8 @@ export default function ContentCalendarPage() {
       publish_date: form.publish_date ? format(form.publish_date, 'yyyy-MM-dd') : null,
       publish_time: form.publish_time || null, post_text: form.post_text || null,
       hashtags: form.hashtags || null, cta: form.cta || null,
-      design_file_url: form.design_file_url || null, design_notes: form.design_notes || null,
+      design_file_url: form.design_file_url || null, design_text: form.design_text || null,
+      design_notes: form.design_notes || null,
       design_status: form.design_status, channels: form.channels, status: form.status,
     };
     if (editingId) {
@@ -640,6 +642,13 @@ export default function ContentCalendarPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">نص التصميم</label>
+              </div>
+              <p className="text-xs text-muted-foreground mb-1">المحتوى النصي الذي سيظهر داخل التصميم (عناوين، شعارات، نصوص رئيسية)</p>
+              <Textarea value={form.design_text} onChange={e => setForm({ ...form, design_text: e.target.value })} rows={2} placeholder="مثال: عنوان التصميم الرئيسي، النص الفرعي، أرقام إحصائية..." />
             </div>
             <div>
               <div className="flex items-center justify-between">
