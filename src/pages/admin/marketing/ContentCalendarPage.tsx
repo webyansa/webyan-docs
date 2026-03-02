@@ -161,10 +161,10 @@ export default function ContentCalendarPage() {
           <p className="text-muted-foreground mt-1">إدارة وجدولة المحتوى التسويقي</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={filterCampaign} onValueChange={setFilterCampaign}>
+          <Select value={filterCampaign || 'all'} onValueChange={v => setFilterCampaign(v === 'all' ? '' : v)}>
             <SelectTrigger className="w-48"><SelectValue placeholder="كل الحملات" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">كل الحملات</SelectItem>
+              <SelectItem value="all">كل الحملات</SelectItem>
               {campaigns.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -335,10 +335,10 @@ export default function ContentCalendarPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">الحملة</label>
-                <Select value={form.campaign_id} onValueChange={v => setForm({ ...form, campaign_id: v })}>
+                <Select value={form.campaign_id || 'none'} onValueChange={v => setForm({ ...form, campaign_id: v === 'none' ? '' : v })}>
                   <SelectTrigger><SelectValue placeholder="اختر حملة" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">بدون حملة</SelectItem>
+                    <SelectItem value="none">بدون حملة</SelectItem>
                     {campaigns.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
