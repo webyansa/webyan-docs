@@ -44,6 +44,42 @@ export default function SettingsPage() {
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<Record<string, 'success' | 'error' | null>>({});
+
+  const handleTestConnection = async (provider: 'openai' | 'gemini' | 'lovable') => {
+    setTestingProvider(provider);
+    setConnectionStatus(prev => ({ ...prev, [provider]: null }));
+    try {
+      // First save the keys
+      await handleSaveSettings(['ai_default_provider', 'ai_openai_api_key', 'ai_gemini_api_key', 'ai_default_model_openai', 'ai_default_model_gemini']);
+      
+      // Then test by calling the edge function
+      const { data, error } = await supabase.functions.invoke('generate-marketing-content', {
+        body: {
+          provider,
+          idea_description: 'اختبار اتصال - test connection',
+          platform: 'x',
+          tone: 'formal',
+          language: 'ar',
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.title || data?.post_text) {
+        setConnectionStatus(prev => ({ ...prev, [provider]: 'success' }));
+        toast.success(`✅ تم الاتصال بنجاح بـ ${provider === 'openai' ? 'OpenAI' : provider === 'gemini' ? 'Google Gemini' : 'Lovable AI'}`);
+      } else {
+        throw new Error('لم يتم استلام نتيجة صحيحة');
+      }
+    } catch (err: any) {
+      console.error('Connection test failed:', err);
+      setConnectionStatus(prev => ({ ...prev, [provider]: 'error' }));
+      toast.error(`❌ فشل الاتصال: ${err.message || 'خطأ غير معروف'}`);
+    } finally {
+      setTestingProvider(null);
+    }
+  };
 
   const allFileTypes = [
     { value: 'image/jpeg', label: 'JPEG' },
@@ -442,10 +478,31 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          <Button onClick={() => handleSaveSettings(['ai_default_provider', 'ai_openai_api_key', 'ai_gemini_api_key', 'ai_default_model_openai', 'ai_default_model_gemini'])} disabled={isSaving} className="gap-2">
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            حفظ إعدادات الذكاء الاصطناعي
-          </Button>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button onClick={() => handleSaveSettings(['ai_default_provider', 'ai_openai_api_key', 'ai_gemini_api_key', 'ai_default_model_openai', 'ai_default_model_gemini'])} disabled={isSaving} className="gap-2">
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              حفظ إعدادات الذكاء الاصطناعي
+            </Button>
+
+            <Separator orientation="vertical" className="h-9" />
+
+            {settings.ai_openai_api_key && (
+              <Button variant="outline" onClick={() => handleTestConnection('openai')} disabled={testingProvider !== null} className="gap-2">
+                {testingProvider === 'openai' ? <Loader2 className="h-4 w-4 animate-spin" /> : connectionStatus.openai === 'success' ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : connectionStatus.openai === 'error' ? <XCircle className="h-4 w-4 text-destructive" /> : <Sparkles className="h-4 w-4" />}
+                اختبار OpenAI
+              </Button>
+            )}
+            {settings.ai_gemini_api_key && (
+              <Button variant="outline" onClick={() => handleTestConnection('gemini')} disabled={testingProvider !== null} className="gap-2">
+                {testingProvider === 'gemini' ? <Loader2 className="h-4 w-4 animate-spin" /> : connectionStatus.gemini === 'success' ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : connectionStatus.gemini === 'error' ? <XCircle className="h-4 w-4 text-destructive" /> : <Sparkles className="h-4 w-4" />}
+                اختبار Gemini
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => handleTestConnection('lovable')} disabled={testingProvider !== null} className="gap-2">
+              {testingProvider === 'lovable' ? <Loader2 className="h-4 w-4 animate-spin" /> : connectionStatus.lovable === 'success' ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : connectionStatus.lovable === 'error' ? <XCircle className="h-4 w-4 text-destructive" /> : <Sparkles className="h-4 w-4" />}
+              اختبار Lovable AI
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
