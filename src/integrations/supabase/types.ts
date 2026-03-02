@@ -743,6 +743,74 @@ export type Database = {
           },
         ]
       }
+      content_calendar: {
+        Row: {
+          campaign_id: string | null
+          channels: string[] | null
+          content_type: string
+          created_at: string
+          created_by: string | null
+          cta: string | null
+          design_file_url: string | null
+          design_notes: string | null
+          design_status: string | null
+          hashtags: string | null
+          id: string
+          post_text: string | null
+          publish_date: string | null
+          publish_time: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          channels?: string[] | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta?: string | null
+          design_file_url?: string | null
+          design_notes?: string | null
+          design_status?: string | null
+          hashtags?: string | null
+          id?: string
+          post_text?: string | null
+          publish_date?: string | null
+          publish_time?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          channels?: string[] | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta?: string | null
+          design_file_url?: string | null
+          design_notes?: string | null
+          design_status?: string | null
+          hashtags?: string | null
+          id?: string
+          post_text?: string | null
+          publish_date?: string | null
+          publish_time?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_calendar_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_plan_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_documentation: {
         Row: {
           account_id: string
@@ -2955,6 +3023,118 @@ export type Database = {
           variables_used?: Json | null
         }
         Relationships: []
+      }
+      marketing_plan_campaigns: {
+        Row: {
+          campaign_type: string
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          key_message: string | null
+          name: string
+          notes: string | null
+          plan_id: string
+          start_date: string | null
+          status: string
+          target_audience: string | null
+          target_kpi: string | null
+          updated_at: string
+        }
+        Insert: {
+          campaign_type?: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          key_message?: string | null
+          name: string
+          notes?: string | null
+          plan_id: string
+          start_date?: string | null
+          status?: string
+          target_audience?: string | null
+          target_kpi?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campaign_type?: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          key_message?: string | null
+          name?: string
+          notes?: string | null
+          plan_id?: string
+          start_date?: string | null
+          status?: string
+          target_audience?: string | null
+          target_kpi?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_plan_campaigns_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_plans: {
+        Row: {
+          budget: number | null
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          name: string
+          notes: string | null
+          objective: string | null
+          responsible_id: string | null
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          budget?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          name: string
+          notes?: string | null
+          objective?: string | null
+          responsible_id?: string | null
+          start_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          budget?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          objective?: string | null
+          responsible_id?: string | null
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_plans_responsible_id_fkey"
+            columns: ["responsible_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       marketing_unsubscribes: {
         Row: {

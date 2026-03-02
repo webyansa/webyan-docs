@@ -160,7 +160,9 @@ const marketingSection: NavSection = {
   title: 'التسويق',
   sectionPermission: 'canManageClients',
   items: [
-    { title: 'الحملات البريدية', href: '/admin/marketing', icon: Mail, permission: 'canManageClients' },
+    { title: 'الخطط التسويقية', href: '/admin/marketing/plans', icon: Target, permission: 'canManageClients' },
+    { title: 'تقويم المحتوى', href: '/admin/marketing/content', icon: CalendarDays, permission: 'canManageClients' },
+    { title: 'الحملات البريدية', href: '/admin/marketing/email', icon: Mail, permission: 'canManageClients' },
     { title: 'القوالب البريدية', href: '/admin/marketing/templates', icon: FileText, permission: 'canManageClients' },
   ]
 };

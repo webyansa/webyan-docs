@@ -87,6 +87,9 @@ import MarketingDashboardPage from "./pages/admin/marketing/MarketingDashboardPa
 import CampaignEditorPage from "./pages/admin/marketing/CampaignEditorPage";
 import CampaignDetailsPage from "./pages/admin/marketing/CampaignDetailsPage";
 import EmailTemplatesPage from "./pages/admin/marketing/EmailTemplatesPage";
+import MarketingPlansPage from "./pages/admin/marketing/MarketingPlansPage";
+import PlanDetailsPage from "./pages/admin/marketing/PlanDetailsPage";
+import ContentCalendarPage from "./pages/admin/marketing/ContentCalendarPage";
 
 // Client Portal pages
 import PortalLayout from "./pages/portal/PortalLayout";
@@ -247,7 +250,10 @@ const App = () => (
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:id" element={<ProjectDetailsPage />} />
                 <Route path="project-stages" element={<ProjectStagesPage />} />
-                <Route path="marketing" element={<MarketingDashboardPage />} />
+                <Route path="marketing/plans" element={<MarketingPlansPage />} />
+                <Route path="marketing/plans/:planId" element={<PlanDetailsPage />} />
+                <Route path="marketing/content" element={<ContentCalendarPage />} />
+                <Route path="marketing/email" element={<MarketingDashboardPage />} />
                 <Route path="marketing/campaigns/new" element={<CampaignEditorPage />} />
                 <Route path="marketing/campaigns/:id" element={<CampaignDetailsPage />} />
                 <Route path="marketing/templates" element={<EmailTemplatesPage />} />
