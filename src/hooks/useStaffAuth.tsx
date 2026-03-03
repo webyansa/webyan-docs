@@ -8,6 +8,7 @@ interface StaffPermissions {
   canReplyTickets: boolean;
   canManageContent: boolean;
   canAttendMeetings: boolean;
+  canManageMarketing: boolean;
 }
 
 interface StaffAuthContextType {
@@ -31,6 +32,7 @@ const defaultPermissions: StaffPermissions = {
   canReplyTickets: false,
   canManageContent: false,
   canAttendMeetings: false,
+  canManageMarketing: false,
 };
 
 const StaffAuthContext = createContext<StaffAuthContextType | undefined>(undefined);
@@ -87,6 +89,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
             can_attend_meetings: boolean;
             can_manage_content: boolean;
             can_reply_tickets: boolean;
+            can_manage_marketing: boolean;
             staff_id: string;
           };
 
@@ -129,6 +132,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
               canReplyTickets: staffData.can_reply_tickets,
               canManageContent: staffData.can_manage_content,
               canAttendMeetings: staffData.can_attend_meetings,
+              canManageMarketing: staffData.can_manage_marketing,
             });
             permissionsResolvedForUserIdRef.current = userId;
             permissionsResolvedStatusRef.current = 'staff';

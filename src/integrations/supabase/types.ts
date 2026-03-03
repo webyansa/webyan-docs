@@ -847,11 +847,13 @@ export type Database = {
           design_notes: string | null
           design_status: string | null
           design_text: string | null
+          designer_id: string | null
           hashtags: string | null
           id: string
           post_text: string | null
           publish_date: string | null
           publish_time: string | null
+          publisher_id: string | null
           status: string
           title: string
           updated_at: string
@@ -867,11 +869,13 @@ export type Database = {
           design_notes?: string | null
           design_status?: string | null
           design_text?: string | null
+          designer_id?: string | null
           hashtags?: string | null
           id?: string
           post_text?: string | null
           publish_date?: string | null
           publish_time?: string | null
+          publisher_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -887,11 +891,13 @@ export type Database = {
           design_notes?: string | null
           design_status?: string | null
           design_text?: string | null
+          designer_id?: string | null
           hashtags?: string | null
           id?: string
           post_text?: string | null
           publish_date?: string | null
           publish_time?: string | null
+          publisher_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -902,6 +908,20 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "marketing_plan_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_calendar_designer_id_fkey"
+            columns: ["designer_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_calendar_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
         ]
@@ -4036,6 +4056,7 @@ export type Database = {
           assigned_tickets_count: number | null
           can_attend_meetings: boolean
           can_manage_content: boolean
+          can_manage_marketing: boolean
           can_reply_tickets: boolean
           completed_meetings_count: number | null
           created_at: string
@@ -4055,6 +4076,7 @@ export type Database = {
           assigned_tickets_count?: number | null
           can_attend_meetings?: boolean
           can_manage_content?: boolean
+          can_manage_marketing?: boolean
           can_reply_tickets?: boolean
           completed_meetings_count?: number | null
           created_at?: string
@@ -4074,6 +4096,7 @@ export type Database = {
           assigned_tickets_count?: number | null
           can_attend_meetings?: boolean
           can_manage_content?: boolean
+          can_manage_marketing?: boolean
           can_reply_tickets?: boolean
           completed_meetings_count?: number | null
           created_at?: string
@@ -5114,6 +5137,7 @@ export type Database = {
         Returns: {
           can_attend_meetings: boolean
           can_manage_content: boolean
+          can_manage_marketing: boolean
           can_reply_tickets: boolean
           staff_id: string
         }[]

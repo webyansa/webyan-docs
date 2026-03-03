@@ -119,6 +119,7 @@ import StaffContent from "./pages/staff/StaffContent";
 import StaffChatPage from "./pages/staff/StaffChatPage";
 import StaffProjects from "./pages/staff/StaffProjects";
 import StaffProjectDetails from "./pages/staff/StaffProjectDetails";
+import StaffMarketing from "./pages/staff/StaffMarketing";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -201,6 +202,7 @@ const App = () => (
                 <Route path="meetings" element={<StaffMeetings />} />
                 <Route path="meetings/:id" element={<StaffMeetings />} />
                 <Route path="content" element={<StaffContent />} />
+                <Route path="marketing" element={<StaffMarketing />} />
               </Route>
               
               {/* Admin Routes */}

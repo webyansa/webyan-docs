@@ -14,7 +14,8 @@ import {
   Loader2,
   UserCog,
   MessageCircle,
-  FolderKanban
+  FolderKanban,
+  Megaphone
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,7 @@ interface NavItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  permission?: 'canReplyTickets' | 'canManageContent' | 'canAttendMeetings';
+  permission?: 'canReplyTickets' | 'canManageContent' | 'canAttendMeetings' | 'canManageMarketing';
 }
 
 export default function StaffLayout() {
@@ -106,6 +107,7 @@ export default function StaffLayout() {
     { title: 'المحادثات', href: '/support/chat', icon: MessageCircle, permission: 'canReplyTickets' },
     { title: 'الاجتماعات الموجهة', href: '/support/meetings', icon: Calendar, permission: 'canAttendMeetings' },
     { title: 'إدارة المحتوى', href: '/support/content', icon: FileText, permission: 'canManageContent' },
+    { title: 'إدارة التسويق', href: '/support/marketing', icon: Megaphone, permission: 'canManageMarketing' },
   ];
 
   const filteredNavItems = navItems.filter(item => {
@@ -231,6 +233,12 @@ export default function StaffLayout() {
                 <div className="flex items-center gap-2 text-sm text-green-600">
                   <FileText className="h-4 w-4" />
                   <span>إدارة المحتوى</span>
+                </div>
+              )}
+              {permissions.canManageMarketing && (
+                <div className="flex items-center gap-2 text-sm text-green-600">
+                  <Megaphone className="h-4 w-4" />
+                  <span>التسويق الإلكتروني</span>
                 </div>
               )}
               {permissions.canAttendMeetings && (

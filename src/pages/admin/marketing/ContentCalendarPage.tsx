@@ -23,8 +23,8 @@ import { toast } from 'sonner';
 
 const contentTypeLabels: Record<string, string> = { design: 'تصميم', video: 'فيديو', article: 'مقال', ad: 'إعلان', tweet: 'تغريدة' };
 const designStatusLabels: Record<string, string> = { draft: 'مسودة', in_progress: 'قيد التنفيذ', ready: 'جاهز', approved: 'معتمد' };
-const statusLabels: Record<string, string> = { draft: 'مسودة', waiting_design: 'بانتظار التصميم', waiting_approval: 'بانتظار الموافقة', ready: 'جاهز للنشر', published: 'تم النشر' };
-const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-800', waiting_design: 'bg-purple-100 text-purple-800', waiting_approval: 'bg-amber-100 text-amber-800', ready: 'bg-blue-100 text-blue-800', published: 'bg-green-100 text-green-800' };
+const statusLabels: Record<string, string> = { draft: 'مسودة', waiting_design: 'بانتظار التصميم', in_design: 'قيد التصميم', design_done: 'تم التصميم', ready: 'جاهز للنشر', published: 'تم النشر' };
+const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-800', waiting_design: 'bg-purple-100 text-purple-800', in_design: 'bg-orange-100 text-orange-800', design_done: 'bg-cyan-100 text-cyan-800', ready: 'bg-blue-100 text-blue-800', published: 'bg-green-100 text-green-800' };
 
 const ALL_CHANNELS = ['X', 'LinkedIn', 'Instagram', 'Website', 'Email', 'WhatsApp', 'أخرى'];
 
@@ -46,6 +46,8 @@ interface ContentForm {
   design_status: string;
   channels: string[];
   status: string;
+  designer_id: string;
+  publisher_id: string;
 }
 
 interface AIForm {
@@ -62,6 +64,7 @@ const emptyForm: ContentForm = {
   campaign_id: '', title: '', content_type: 'design', publish_date: undefined,
   publish_time: '', post_text: '', hashtags: '', cta: '', design_file_url: '',
   design_text: '', design_notes: '', design_status: 'draft', channels: [], status: 'draft',
+  designer_id: '', publisher_id: '',
 };
 
 const emptyAIForm: AIForm = {
@@ -101,17 +104,20 @@ export default function ContentCalendarPage() {
   const [monthlyPlanMonth, setMonthlyPlanMonth] = useState(() => format(addMonths(new Date(), 0), 'yyyy-MM'));
   const [monthlyPlanStartDate, setMonthlyPlanStartDate] = useState('');
   const [monthlyPlanEndDate, setMonthlyPlanEndDate] = useState('');
+  const [marketingStaff, setMarketingStaff] = useState<any[]>([]);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    const [itemsRes, campsRes] = await Promise.all([
+    const [itemsRes, campsRes, staffRes] = await Promise.all([
       supabase.from('content_calendar').select('*, campaign:marketing_plan_campaigns(name)').order('publish_date', { ascending: true }) as any,
       supabase.from('marketing_plan_campaigns').select('id, name').order('name') as any,
+      supabase.from('staff_members').select('id, full_name').eq('is_active', true) as any,
     ]);
     setItems(itemsRes.data || []);
     setCampaigns(campsRes.data || []);
+    setMarketingStaff(staffRes.data || []);
     setLoading(false);
   };
 
@@ -138,6 +144,7 @@ export default function ContentCalendarPage() {
       hashtags: item.hashtags || '', cta: item.cta || '', design_file_url: item.design_file_url || '',
       design_text: item.design_text || '', design_notes: item.design_notes || '', design_status: item.design_status || 'draft',
       channels: item.channels || [], status: item.status,
+      designer_id: item.designer_id || '', publisher_id: item.publisher_id || '',
     });
     setAIForm({ ...emptyAIForm });
     setLastAIResult(null);
@@ -147,7 +154,7 @@ export default function ContentCalendarPage() {
 
   const handleSave = async () => {
     if (!form.title) { toast.error('عنوان المنشور مطلوب'); return; }
-    const payload = {
+    const payload: any = {
       campaign_id: form.campaign_id || null, title: form.title, content_type: form.content_type,
       publish_date: form.publish_date ? format(form.publish_date, 'yyyy-MM-dd') : null,
       publish_time: form.publish_time || null, post_text: form.post_text || null,
@@ -155,6 +162,7 @@ export default function ContentCalendarPage() {
       design_file_url: form.design_file_url || null, design_text: form.design_text || null,
       design_notes: form.design_notes || null,
       design_status: form.design_status, channels: form.channels, status: form.status,
+      designer_id: form.designer_id || null, publisher_id: form.publisher_id || null,
     };
     if (editingId) {
       const { error } = await (supabase.from('content_calendar').update(payload).eq('id', editingId) as any);
@@ -332,7 +340,8 @@ export default function ContentCalendarPage() {
   const kanbanColumns = [
     { key: 'draft', label: 'مسودة' },
     { key: 'waiting_design', label: 'بانتظار التصميم' },
-    { key: 'waiting_approval', label: 'بانتظار الموافقة' },
+    { key: 'in_design', label: 'قيد التصميم' },
+    { key: 'design_done', label: 'تم التصميم' },
     { key: 'ready', label: 'جاهز للنشر' },
     { key: 'published', label: 'تم النشر' },
   ];
@@ -735,6 +744,34 @@ export default function ContentCalendarPage() {
               </div>
             </div>
 
+            {/* Execution Assignment */}
+            <Separator />
+            <div>
+              <label className="text-sm font-semibold mb-2 block">إسناد التنفيذ</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium">مسؤول التصميم</label>
+                  <Select value={form.designer_id || 'none'} onValueChange={v => setForm({ ...form, designer_id: v === 'none' ? '' : v })}>
+                    <SelectTrigger><SelectValue placeholder="اختر موظف" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">بدون</SelectItem>
+                      {marketingStaff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium">مسؤول النشر</label>
+                  <Select value={form.publisher_id || 'none'} onValueChange={v => setForm({ ...form, publisher_id: v === 'none' ? '' : v })}>
+                    <SelectTrigger><SelectValue placeholder="اختر موظف" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">بدون</SelectItem>
+                      {marketingStaff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
             {/* Status */}
             <div>
               <label className="text-sm font-medium">حالة المنشور</label>
@@ -743,7 +780,8 @@ export default function ContentCalendarPage() {
                 <SelectContent>
                   <SelectItem value="draft">مسودة</SelectItem>
                   <SelectItem value="waiting_design">بانتظار التصميم</SelectItem>
-                  <SelectItem value="waiting_approval">بانتظار الموافقة</SelectItem>
+                  <SelectItem value="in_design">قيد التصميم</SelectItem>
+                  <SelectItem value="design_done">تم التصميم</SelectItem>
                   <SelectItem value="ready">جاهز للنشر</SelectItem>
                   <SelectItem value="published">تم النشر</SelectItem>
                 </SelectContent>

@@ -15,7 +15,8 @@ import {
   Edit3,
   Headphones,
   Mail,
-  RefreshCw
+  RefreshCw,
+  Megaphone
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,7 @@ interface StaffMember {
   can_reply_tickets: boolean;
   can_manage_content: boolean;
   can_attend_meetings: boolean;
+  can_manage_marketing: boolean;
   assigned_tickets_count: number;
   completed_meetings_count: number;
   created_at: string;
@@ -94,6 +96,7 @@ interface FormData {
   can_reply_tickets: boolean;
   can_manage_content: boolean;
   can_attend_meetings: boolean;
+  can_manage_marketing: boolean;
 }
 
 const getDefaultFormData = (): FormData => ({
@@ -106,7 +109,8 @@ const getDefaultFormData = (): FormData => ({
   role: 'support_agent',
   can_reply_tickets: true,
   can_manage_content: false,
-  can_attend_meetings: true
+  can_attend_meetings: true,
+  can_manage_marketing: false
 });
 
 // Helper to set staff_members permissions based on role
@@ -207,7 +211,8 @@ export default function StaffPage() {
         role,
         can_reply_tickets: member.can_reply_tickets,
         can_manage_content: member.can_manage_content,
-        can_attend_meetings: member.can_attend_meetings
+        can_attend_meetings: member.can_attend_meetings,
+        can_manage_marketing: member.can_manage_marketing || false
       });
     } else {
       setSelectedStaff(null);
@@ -268,8 +273,9 @@ export default function StaffPage() {
             phone: formData.phone.trim() || null,
             job_title: formData.job_title.trim() || null,
             is_active: formData.is_active,
-            ...permissions
-          })
+            ...permissions,
+            can_manage_marketing: formData.can_manage_marketing
+          } as any)
           .eq('id', selectedStaff.id);
 
         if (staffError) throw staffError;
@@ -300,7 +306,8 @@ export default function StaffPage() {
             job_title: formData.job_title.trim() || null,
             is_active: formData.is_active,
             role: formData.role,
-            ...permissions
+            ...permissions,
+            can_manage_marketing: formData.can_manage_marketing
           }
         });
 
@@ -683,8 +690,21 @@ export default function StaffPage() {
                     <Calendar className="h-3 w-3" /> الاجتماعات
                   </Badge>
                 )}
+                </div>
+
+                {/* Marketing permission - independent of role */}
+                <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className={`text-xs gap-1 ${formData.can_manage_marketing ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-500'}`}>
+                      <Megaphone className="h-3 w-3" /> التسويق الإلكتروني
+                    </Badge>
+                  </div>
+                  <Switch
+                    checked={formData.can_manage_marketing}
+                    onCheckedChange={(checked) => setFormData({ ...formData, can_manage_marketing: checked })}
+                  />
+                </div>
               </div>
-            </div>
 
             {/* Basic Info - 2 columns */}
             <div className="grid grid-cols-2 gap-3">
