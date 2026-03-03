@@ -1,117 +1,98 @@
 
 
-# خطة بناء طبقة تكامل AI Integration Layer
+# خطة تطوير نظام التسويق داخل بوابة الموظف
 
-## ملخص المشروع
-إعادة بناء كاملة لنظام الذكاء الاصطناعي: التحول من نظام متعدد المزودين (OpenAI/Gemini/Lovable) إلى نظام موحّد يعتمد على OpenAI فقط مع مسارين (Responses API / Assistants API)، وإضافة Vector Store + file_search، وقالب إخراج ثابت، وHealth Check، وسجل تدقيق متقدم.
-
----
-
-## الوضع الحالي
-
-- **SettingsPage.tsx**: يدعم 3 مزودين (OpenAI, Gemini, Lovable) مع اختيار model لكل مزود. المفاتيح تُخزن في `system_settings` DB.
-- **generate-marketing-content Edge Function**: يدعم 3 مزودين، يستخدم tool calling لاستخراج JSON، لا يدعم file_search أو Vector Store.
-- **ContentCalendarPage.tsx**: يسمح للمستخدم باختيار المزود والمنصة والنبرة. يستدعي `generate-marketing-content`.
-- **ai_generations table**: جدول بسيط (provider, prompt_inputs, result) - ينقصه حقول كثيرة.
-- **raw-chat-test / assistant-chat**: Edge Functions للاختبار.
+## ملخص
+إضافة صلاحية `can_manage_marketing` للموظفين، وإضافة حقلي `designer_id` و `publisher_id` لجدول `content_calendar`، وتحديث حالات المنشور، وبناء صفحة مهام التسويق في بوابة الموظف.
 
 ---
 
-## المهام المطلوبة
+## المهام
 
-### 1. Database Migration: جدول `ai_generation_logs` الجديد
+### 1. Database Migration
 
-إنشاء جدول جديد بالحقول المطلوبة:
-- `id`, `created_at`, `user_id`, `module`, `platform`, `tone`, `content_type`
-- `request_payload` (jsonb), `response_payload` (jsonb)
-- `used_file_search` (bool), `model_used` (text), `mode_used` (text)
-- `latency_ms` (int), `status` (text), `error_message` (text nullable)
+```sql
+-- إضافة صلاحية التسويق
+ALTER TABLE public.staff_members 
+  ADD COLUMN can_manage_marketing BOOLEAN NOT NULL DEFAULT false;
 
-مع RLS policies للAdmin فقط للقراءة، وInsert مفتوح للـ service_role عبر Edge Function.
+-- إضافة حقلي الإسناد
+ALTER TABLE public.content_calendar 
+  ADD COLUMN designer_id UUID REFERENCES public.staff_members(id),
+  ADD COLUMN publisher_id UUID REFERENCES public.staff_members(id);
 
-### 2. Edge Function: `ai-generate-content` (بديل لـ generate-marketing-content)
+-- تحديث حالات المنشور (إزالة القيد القديم إن وجد وإضافة الجديد)
+-- الحالات: draft, waiting_design, in_design, design_done, ready, published
 
-Edge Function موحدة جديدة تستبدل القديمة:
+-- RLS: السماح للموظف التسويقي بقراءة وتحديث المنشورات المسندة إليه
+CREATE POLICY "Marketing staff can view assigned content"
+  ON public.content_calendar FOR SELECT TO authenticated
+  USING (
+    designer_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
+    OR publisher_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
+    OR public.is_admin_or_editor(auth.uid())
+  );
 
-**المنطق:**
-1. يقرأ إعدادات AI من `system_settings` (mode, vector_store_id, temperature, top_p, assistant_id)
-2. يقرأ OpenAI API Key من `system_settings`
-3. **لا يقبل** `model` أو `provider` من الواجهة - يحددها من الإعدادات فقط
-
-**إذا mode = responses:**
-- يستدعي `POST https://api.openai.com/v1/responses`
-- يرسل system prompt ثابت + user prompt مبني من المدخلات
-- يضيف `tools: [{type: "file_search"}]` و `tool_resources` مع Vector Store ID
-- يطلب `response_format: {type: "json_object"}`
-- يتحقق من استخدام file_search في الاستجابة
-
-**إذا mode = assistants:**
-- يستخدم assistant_id من الإعدادات
-- ينشئ thread → يضيف message → يشغل run
-- يستخرج run steps للتحقق من tool_calls
-- يعيد نفس Response Schema
-
-**Response Schema ثابت:**
-```json
-{
-  "title": "...",
-  "design_copy": { "headline", "subheadline", "cta_text" },
-  "post_copy": { "primary_text", "hashtags": [], "links": [] },
-  "meta": { "platform", "tone", "compliance": { "within_char_limit", "used_file_search", "no_banned_words" } }
-}
+CREATE POLICY "Marketing staff can update assigned content"
+  ON public.content_calendar FOR UPDATE TO authenticated
+  USING (
+    designer_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
+    OR publisher_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
+  );
 ```
 
-**يسجل في `ai_generation_logs`** مع latency وstatus وused_file_search.
+تحديث `get_staff_permissions` RPC لإرجاع `can_manage_marketing`.
 
-### 3. Edge Function: `ai-health-check`
+### 2. تحديث useStaffAuth Hook
 
-- يرسل سؤال: "عرّف ويبيان اعتمادًا على ملفات المعرفة فقط"
-- يتحقق من:
-  - API reachable (pass/fail)
-  - Vector store reachable (pass/fail) - هل file_search تم استخدامه
-  - Retrieval used (pass/fail) - هل الرد يحتوي كلمات مفتاحية
-  - Sample response preview
-- يرجع تقرير مفصل
+- إضافة `canManageMarketing: boolean` في `StaffPermissions` interface
+- تمريرها من نتيجة RPC
 
-### 4. إعادة بناء قسم AI في SettingsPage.tsx
+### 3. تحديث StaffLayout (Sidebar)
 
-**إزالة:** قسم Gemini + Lovable AI + اختيار النماذج المتعددة + أزرار اختبار الاتصال القديمة.
+- إضافة nav item: "إدارة التسويق" → `/support/marketing` بصلاحية `canManageMarketing`
+- عرض شارة "التسويق الإلكتروني" في قسم صلاحياتي
 
-**إضافة:**
-- **AI Mode** (Dropdown): Responses API (افتراضي) | Assistants API
-- **Model** (عرض فقط): gpt-4.1 أو gpt-4-0125-preview حسب Mode
-- **Vector Store ID** (Text input)
-- **Assistant ID** (يظهر فقط في Assistants mode)
-- **OpenAI API Key** (Secret input)
-- **Temperature** (Slider 0-1, default 0.5)
-- **Top P** (Slider 0-1, default 0.9)
-- **زر "Run AI Health Check"** مع عرض نتائج 4 فحوصات + عينة رد
+### 4. تحديث StaffPage (إدارة الموظفين - Admin)
 
-### 5. تحديث ContentCalendarPage.tsx
+- إضافة `can_manage_marketing` كـ Switch في نموذج إنشاء/تعديل الموظف
+- إضافة شارة "التسويق" في جدول الموظفين
+- تحديث `getPermissionsForStaffRole` ليشمل الصلاحية
 
-**إزالة:** اختيار المزود (provider dropdown)، لا يظهر أي خيار model.
+### 5. تحديث ContentCalendarPage (Admin)
 
-**تحديث المدخلات:** المنصة، النبرة (رسمي/تنفيذي/سعودي_أبيض)، الجمهور، الفكرة، CTA، رابط الهبوط.
+- إضافة قسم "إسناد التنفيذ" في نموذج المحتوى:
+  - Dropdown "مسؤول التصميم" (موظفون بصلاحية `can_manage_marketing`)
+  - Dropdown "مسؤول النشر" (موظفون بصلاحية `can_manage_marketing`)
+- تحديث `statusLabels` و `statusColors` للحالات الجديدة:
+  - `draft` → مسودة
+  - `waiting_design` → بانتظار التصميم  
+  - `in_design` → قيد التصميم
+  - `design_done` → تم التصميم
+  - `ready` → جاهز للنشر
+  - `published` → تم النشر
+- تحديث Kanban columns
 
-**تحديث عرض المخرجات:** حقول قابلة للتعديل:
-- headline / subheadline / cta_text (design_copy)
-- primary_text / hashtags / links (post_copy)
+### 6. صفحة StaffMarketing (بوابة الموظف) — جديدة
 
-**زر Validate:** يفحص طول النص حسب المنصة، الكلمات الممنوعة، وجود الروابط.
+`src/pages/staff/StaffMarketing.tsx`
 
-**استدعاء** `ai-generate-content` بدلاً من `generate-marketing-content`.
+- 3 بطاقات إحصائية: قيد التنفيذ، بانتظار النشر، تم النشر
+- تبويب "مهام التصميم": المنشورات حيث `designer_id = staffId`
+  - أزرار تغيير الحالة: بانتظار التصميم → قيد التصميم → تم التصميم
+  - حقل رابط التصميم (الموجود مسبقاً `design_file_url`)
+- تبويب "مهام النشر": المنشورات حيث `publisher_id = staffId` والحالة `design_done`+
+  - زر تغيير الحالة إلى "تم النشر"
+- **القيود المطبقة:**
+  - لا يمكن "تم النشر" إلا من حالة "تم التصميم" أو "جاهز للنشر"
+  - لا يمكن بدء التصميم بدون تعيين مسؤول تصميم
 
-### 6. صفحة AI Generation Logs
+### 7. Routes
 
-صفحة جديدة `/admin/ai-logs` تعرض جدول السجلات:
-- التاريخ، المستخدم، المنصة، النبرة، النموذج، الوضع
-- حالة file_search، زمن الاستجابة، النتيجة (success/fail)
-- توسيع للصف لعرض request/response payload
-
-### 7. تحديث Sidebar والـ Routes
-
-- إضافة رابط "سجل توليد AI" في قسم النظام
-- إضافة Route في App.tsx
+إضافة في `App.tsx`:
+```
+<Route path="marketing" element={<StaffMarketing />} />
+```
 
 ---
 
@@ -119,21 +100,11 @@ Edge Function موحدة جديدة تستبدل القديمة:
 
 | الملف | الإجراء |
 |---|---|
-| `supabase/functions/ai-generate-content/index.ts` | إنشاء جديد |
-| `supabase/functions/ai-health-check/index.ts` | إنشاء جديد |
-| `src/pages/admin/AIGenerationLogsPage.tsx` | إنشاء جديد |
-| `src/pages/admin/SettingsPage.tsx` | إعادة بناء قسم AI |
-| `src/pages/admin/marketing/ContentCalendarPage.tsx` | تحديث AI integration |
-| `src/pages/admin/AdminLayout.tsx` | إضافة رابط Logs |
-| `src/App.tsx` | إضافة Route |
-| `supabase/config.toml` | تسجيل Functions جديدة |
-| DB Migration | جدول `ai_generation_logs` |
-
----
-
-## ملاحظات تقنية
-
-- **OpenAI API Key**: سيبقى في `system_settings` (كما هو حالياً) لأن Edge Functions تقرأه من DB. نقله لـ ENV فقط يتطلب إدارة secrets يدوية عبر أداة secrets - يمكن تنفيذه لاحقاً إذا أردت.
-- **الـ Edge Functions القديمة** (`generate-marketing-content`, `raw-chat-test`, `assistant-chat`) ستبقى موجودة لعدم كسر أي شيء، لكن لن تُستخدم من الواجهات الجديدة.
-- **OpenAI Responses API** يستخدم endpoint مختلف عن Chat Completions: `POST /v1/responses` مع `input` بدل `messages`.
+| DB Migration | أعمدة جديدة + RLS + تحديث RPC |
+| `src/hooks/useStaffAuth.tsx` | إضافة `canManageMarketing` |
+| `src/pages/staff/StaffLayout.tsx` | رابط التسويق + شارة الصلاحية |
+| `src/pages/staff/StaffMarketing.tsx` | **إنشاء جديد** |
+| `src/pages/admin/StaffPage.tsx` | Switch صلاحية التسويق |
+| `src/pages/admin/marketing/ContentCalendarPage.tsx` | حقول الإسناد + حالات جديدة |
+| `src/App.tsx` | Route جديد |
 
