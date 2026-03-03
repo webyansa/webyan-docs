@@ -164,6 +164,24 @@ async function callResponsesAPI(
     result = { title: "", design_copy: {}, post_copy: { primary_text: outputText, hashtags: [], links: [] }, meta: {} };
   }
 
+  // Normalize flat responses into expected nested schema
+  if (!result.post_copy && result.primary_text) {
+    result = {
+      title: result.title || result.headline || "",
+      design_copy: {
+        headline: result.headline || result.design_copy?.headline || "",
+        subheadline: result.subheadline || result.design_copy?.subheadline || "",
+        cta_text: result.CTA || result.cta_text || result.design_copy?.cta_text || "",
+      },
+      post_copy: {
+        primary_text: result.primary_text || "",
+        hashtags: result.hashtags || [],
+        links: result.links || [result.landing_page].filter(Boolean),
+      },
+      meta: result.meta || {},
+    };
+  }
+
   return { result, usedFileSearch, rawResponse: data };
 }
 
@@ -354,8 +372,26 @@ serve(async (req) => {
       usedFileSearch = resp.usedFileSearch;
     }
 
+    // Normalize flat AI responses into expected nested schema
+    if (!result.post_copy && (result.primary_text || result.content)) {
+      result = {
+        title: result.title || result.headline || "",
+        design_copy: {
+          headline: result.headline || "",
+          subheadline: result.subheadline || "",
+          cta_text: result.CTA || result.cta_text || result.cta || "",
+        },
+        post_copy: {
+          primary_text: result.primary_text || result.content || "",
+          hashtags: result.hashtags || [],
+          links: result.links || [result.landing_page, result.landing_url].filter(Boolean),
+        },
+        meta: result.meta || {},
+      };
+    }
+
     // Validate compliance
-    const primaryText = result?.post_copy?.primary_text || "";
+    const primaryText = result?.post_copy?.primary_text || result?.primary_text || "";
     const charLimit = PLATFORM_LIMITS[platform || "X"] || 280;
     const withinCharLimit = primaryText.length <= charLimit;
     const noBannedWords = !BANNED_WORDS.some((w) => primaryText.includes(w));
