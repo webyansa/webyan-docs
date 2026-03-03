@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.generate-marketing-content]
 verify_jwt = false
+
+[functions.raw-chat-test]
+verify_jwt = false

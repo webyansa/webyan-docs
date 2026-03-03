@@ -39,6 +39,7 @@ import {
   Globe,
   Layers,
   Tag,
+  Sparkles,
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { AdminNotificationDropdown } from '@/components/layout/AdminNotificationDropdown';
@@ -200,6 +201,7 @@ const settingsSection: NavSection = {
     { title: 'سجل البريد', href: '/admin/email-logs', icon: Mail, permission: 'canManageSystemSettings' },
     { title: 'إعدادات SMTP', href: '/admin/smtp-settings', icon: Mail, permission: 'canManageSystemSettings' },
     { title: 'الإعدادات العامة', href: '/admin/settings', icon: Settings, permission: 'canManageSystemSettings' },
+    { title: 'اختبار نماذج AI', href: '/admin/ai-chat-tester', icon: Sparkles, permission: 'canManageSystemSettings' },
   ]
 };
 
