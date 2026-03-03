@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2 } from 'lucide-react';
+import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const contentTypeLabels: Record<string, string> = { design: 'تصميم', video: 'فيديو', article: 'مقال', ad: 'إعلان', tweet: 'تغريدة' };
@@ -48,14 +48,12 @@ interface ContentForm {
 }
 
 interface AIForm {
-  idea_description: string;
-  provider: string;
+  idea: string;
   platform: string;
   tone: string;
-  language: string;
-  product_name: string;
   audience: string;
-  value_prop: string;
+  key_message: string;
+  cta: string;
   landing_url: string;
 }
 
@@ -66,8 +64,7 @@ const emptyForm: ContentForm = {
 };
 
 const emptyAIForm: AIForm = {
-  idea_description: '', provider: '', platform: 'x', tone: 'formal', language: 'ar',
-  product_name: '', audience: '', value_prop: '', landing_url: '',
+  idea: '', platform: 'X', tone: 'رسمي', audience: 'جمعيات أهلية', key_message: '', cta: 'تعرف أكثر', landing_url: 'https://webyan.sa',
 };
 
 export default function ContentCalendarPage() {
@@ -89,14 +86,7 @@ export default function ContentCalendarPage() {
   const [aiRefiningField, setAIRefiningField] = useState<string | null>(null);
   const [lastAIResult, setLastAIResult] = useState<any>(null);
   const [showAISection, setShowAISection] = useState(false);
-  const [aiDefaultProvider, setAIDefaultProvider] = useState('lovable');
-
-  useEffect(() => {
-    // Fetch default AI provider from settings
-    supabase.from('system_settings').select('key, value').eq('key', 'ai_default_provider').then(({ data }) => {
-      if (data?.[0]?.value) setAIDefaultProvider(data[0].value);
-    });
-  }, []);
+  // No need for provider state - controlled by admin settings only
 
   useEffect(() => { fetchData(); }, []);
 
@@ -183,101 +173,86 @@ export default function ContentCalendarPage() {
     }));
   };
 
-  // AI Generation
-  const handleAIGenerate = async (refineField?: string) => {
-    if (!aiForm.idea_description.trim()) {
+  // AI Generation - uses unified ai-generate-content endpoint
+  const handleAIGenerate = async () => {
+    if (!aiForm.idea.trim()) {
       toast.error('يرجى كتابة وصف فكرة المحتوى');
       return;
     }
 
-    if (refineField) {
-      setAIRefiningField(refineField);
-    } else {
-      setAILoading(true);
-    }
+    setAILoading(true);
 
     try {
-      const provider = aiForm.provider || aiDefaultProvider || 'lovable';
-      const payload: any = {
-        provider,
+      const payload = {
+        product: 'Webyan',
         platform: aiForm.platform,
         tone: aiForm.tone,
-        language: aiForm.language,
-        idea_description: aiForm.idea_description,
-        product_name: aiForm.product_name || undefined,
-        audience: aiForm.audience || undefined,
-        value_prop: aiForm.value_prop || undefined,
-        landing_url: aiForm.landing_url || undefined,
+        content_type: form.content_type || 'Post',
+        audience: aiForm.audience,
+        key_message: aiForm.key_message,
+        cta: aiForm.cta,
+        landing_url: aiForm.landing_url,
+        demos: { plus: 'https://Plus.webyan.sa', basic: 'https://basic.webyan.sa' },
+        constraints: { max_hashtags: 3, no_exaggeration: true, avoid_words: ['الأفضل', 'مضمون 100%', 'حل سحري', 'خرافي'], x_max_chars: 280 },
+        idea: aiForm.idea,
       };
 
-      if (refineField && lastAIResult) {
-        payload.refine_field = refineField;
-        payload.previous_result = lastAIResult;
-      }
-
-      const { data, error } = await supabase.functions.invoke('generate-marketing-content', { body: payload });
+      const { data, error } = await supabase.functions.invoke('ai-generate-content', { body: payload });
 
       if (error) throw error;
-      if (data?.error) {
-        toast.error(data.error);
-        return;
+      if (data?.error) { toast.error(data.error); return; }
+
+      setLastAIResult(data);
+
+      // Map new schema to form fields
+      setForm(prev => ({
+        ...prev,
+        title: data.title || prev.title,
+        post_text: data.post_copy?.primary_text || prev.post_text,
+        cta: data.design_copy?.cta_text || prev.cta,
+        hashtags: (data.post_copy?.hashtags || []).join(' '),
+        design_text: [data.design_copy?.headline, data.design_copy?.subheadline].filter(Boolean).join('\n') || prev.design_text,
+        design_notes: data.design_copy?.cta_text ? `CTA: ${data.design_copy.cta_text}` : prev.design_notes,
+        channels: prev.channels.length === 0 ? [aiForm.platform] : prev.channels,
+      }));
+
+      // Show compliance info
+      const compliance = data.meta?.compliance;
+      if (compliance && !compliance.within_char_limit) {
+        toast.warning('⚠️ النص يتجاوز الحد المسموح للمنصة');
+      }
+      if (compliance && !compliance.used_file_search) {
+        toast.warning('⚠️ لم يتم استخدام file_search - قد لا يكون المحتوى مبنياً على ملفات المعرفة');
       }
 
-      const result = data;
-      setLastAIResult(result);
-
-      if (refineField && lastAIResult) {
-        // Only update the refined field
-        const fieldMap: Record<string, (r: any) => Partial<ContentForm>> = {
-          title: r => ({ title: r.title }),
-          post_text: r => ({ post_text: r.post_text }),
-          cta: r => ({ cta: r.cta }),
-          hashtags: r => ({ hashtags: (r.hashtags || []).join(' ') }),
-          design_text: r => ({ design_text: r.design_text }),
-          design_brief: r => ({ design_notes: r.design_brief }),
-        };
-        const updates = fieldMap[refineField]?.(result);
-        if (updates) setForm(prev => ({ ...prev, ...updates }));
-      } else {
-        // Fill all fields
-        setForm(prev => ({
-          ...prev,
-          title: result.title || prev.title,
-          post_text: result.post_text || prev.post_text,
-          cta: result.cta || prev.cta,
-          hashtags: (result.hashtags || []).join(' '),
-          design_text: result.design_text || prev.design_text,
-          design_notes: result.design_brief || prev.design_notes,
-          content_type: platformToContentType[aiForm.platform] || prev.content_type,
-          channels: prev.channels.length === 0 && platformToChannel[aiForm.platform]
-            ? [platformToChannel[aiForm.platform]]
-            : prev.channels,
-        }));
-      }
-
-      toast.success(refineField ? `تم تحسين ${refineField}` : 'تم توليد المحتوى بنجاح ✨');
+      toast.success('تم توليد المحتوى بنجاح ✨');
     } catch (err: any) {
       console.error('AI generation error:', err);
       toast.error(err.message || 'فشل توليد المحتوى');
     } finally {
       setAILoading(false);
-      setAIRefiningField(null);
     }
   };
 
-  const RefineButton = ({ field, label }: { field: string; label: string }) => (
-    <Button
-      type="button"
-      size="sm"
-      variant="ghost"
-      className="h-6 px-2 text-xs gap-1 text-primary"
-      disabled={aiLoading || !!aiRefiningField || !lastAIResult}
-      onClick={() => handleAIGenerate(field)}
-    >
-      {aiRefiningField === field ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-      تحسين
-    </Button>
-  );
+  // Validation
+  const handleValidate = () => {
+    const issues: string[] = [];
+    const platformLimits: Record<string, number> = { X: 280, LinkedIn: 1200, Instagram: 2200, WhatsApp: 1000 };
+    const limit = platformLimits[aiForm.platform] || 280;
+    if (form.post_text && form.post_text.length > limit) {
+      issues.push(`نص المنشور يتجاوز الحد (${form.post_text.length}/${limit})`);
+    }
+    const banned = ['الأفضل', 'مضمون 100%', 'حل سحري', 'خرافي'];
+    const found = banned.filter(w => form.post_text?.includes(w));
+    if (found.length) issues.push(`كلمات ممنوعة: ${found.join('، ')}`);
+    if (!form.post_text?.includes('https://')) issues.push('لا يوجد رابط في النص');
+    
+    if (issues.length === 0) {
+      toast.success('✅ المحتوى يجتاز جميع الفحوصات');
+    } else {
+      issues.forEach(i => toast.warning(i));
+    }
+  };
 
   // Kanban columns
   const kanbanColumns = [
@@ -481,34 +456,23 @@ export default function ContentCalendarPage() {
                   <div>
                     <label className="text-sm font-medium">وصف فكرة المحتوى *</label>
                     <Textarea
-                      value={aiForm.idea_description}
-                      onChange={e => setAIForm(p => ({ ...p, idea_description: e.target.value }))}
+                      value={aiForm.idea}
+                      onChange={e => setAIForm(p => ({ ...p, idea: e.target.value }))}
                       rows={3}
                       placeholder="مثال: منشور تعريفي بمنصة ويبيان لإدارة الجمعيات الخيرية..."
                       className="mt-1"
                     />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <div>
-                      <label className="text-xs font-medium">مزود الذكاء الاصطناعي</label>
-                      <Select value={aiForm.provider || aiDefaultProvider} onValueChange={v => setAIForm(p => ({ ...p, provider: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="lovable">Lovable AI (مجاني)</SelectItem>
-                          <SelectItem value="openai">OpenAI (ChatGPT)</SelectItem>
-                          <SelectItem value="gemini">Google Gemini</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
                       <label className="text-xs font-medium">المنصة المستهدفة</label>
                       <Select value={aiForm.platform} onValueChange={v => setAIForm(p => ({ ...p, platform: v }))}>
                         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="x">X (تويتر)</SelectItem>
-                          <SelectItem value="linkedin">LinkedIn</SelectItem>
-                          <SelectItem value="instagram">Instagram</SelectItem>
-                          <SelectItem value="website">Website</SelectItem>
+                          <SelectItem value="X">X (تويتر)</SelectItem>
+                          <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                          <SelectItem value="Instagram">Instagram</SelectItem>
+                          <SelectItem value="WhatsApp">WhatsApp</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -517,54 +481,69 @@ export default function ContentCalendarPage() {
                       <Select value={aiForm.tone} onValueChange={v => setAIForm(p => ({ ...p, tone: v }))}>
                         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="formal">رسمي</SelectItem>
-                          <SelectItem value="friendly">ودود</SelectItem>
-                          <SelectItem value="strong">تسويقي قوي</SelectItem>
-                          <SelectItem value="educational">تعليمي</SelectItem>
+                          <SelectItem value="رسمي">رسمي</SelectItem>
+                          <SelectItem value="تنفيذي">تنفيذي</SelectItem>
+                          <SelectItem value="سعودي_أبيض">سعودي أبيض</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <label className="text-xs font-medium">اللغة</label>
-                      <Select value={aiForm.language} onValueChange={v => setAIForm(p => ({ ...p, language: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ar">عربي</SelectItem>
-                          <SelectItem value="en">English</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium">اسم المنتج/الخدمة</label>
-                      <Input className="h-9" value={aiForm.product_name} onChange={e => setAIForm(p => ({ ...p, product_name: e.target.value }))} placeholder="ويبيان" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs font-medium">الجمهور المستهدف</label>
-                      <Input className="h-9" value={aiForm.audience} onChange={e => setAIForm(p => ({ ...p, audience: e.target.value }))} placeholder="جمعيات، مانحين..." />
+                      <Input className="h-9" value={aiForm.audience} onChange={e => setAIForm(p => ({ ...p, audience: e.target.value }))} placeholder="جمعيات أهلية" />
                     </div>
                     <div>
-                      <label className="text-xs font-medium">الميزة الرئيسية</label>
-                      <Input className="h-9" value={aiForm.value_prop} onChange={e => setAIForm(p => ({ ...p, value_prop: e.target.value }))} placeholder="إدارة متكاملة..." />
+                      <label className="text-xs font-medium">CTA</label>
+                      <Select value={aiForm.cta} onValueChange={v => setAIForm(p => ({ ...p, cta: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="تعرف أكثر">تعرف أكثر</SelectItem>
+                          <SelectItem value="اطلب عرض">اطلب عرض</SelectItem>
+                          <SelectItem value="ابدأ الآن">ابدأ الآن</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">الرسالة الرئيسية</label>
+                      <Input className="h-9" value={aiForm.key_message} onChange={e => setAIForm(p => ({ ...p, key_message: e.target.value }))} placeholder="إبراز الأثر، حوكمة..." />
                     </div>
                     <div>
-                      <label className="text-xs font-medium">رابط صفحة الهبوط</label>
-                      <Input className="h-9" value={aiForm.landing_url} onChange={e => setAIForm(p => ({ ...p, landing_url: e.target.value }))} placeholder="https://..." />
+                      <label className="text-xs font-medium">رابط الهبوط</label>
+                      <Input className="h-9" value={aiForm.landing_url} onChange={e => setAIForm(p => ({ ...p, landing_url: e.target.value }))} placeholder="https://webyan.sa" dir="ltr" />
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={() => handleAIGenerate()} disabled={aiLoading || !!aiRefiningField} className="gap-2">
+                    <Button onClick={handleAIGenerate} disabled={aiLoading} className="gap-2">
                       {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                       {aiLoading ? 'جاري التوليد...' : 'توليد المحتوى'}
                     </Button>
                     {lastAIResult && (
-                      <Button variant="outline" onClick={() => handleAIGenerate()} disabled={aiLoading || !!aiRefiningField} className="gap-2">
-                        <RefreshCw className="h-4 w-4" />
-                        إعادة توليد
-                      </Button>
+                      <>
+                        <Button variant="outline" onClick={handleAIGenerate} disabled={aiLoading} className="gap-2">
+                          <RefreshCw className="h-4 w-4" />
+                          إعادة توليد
+                        </Button>
+                        <Button variant="secondary" onClick={handleValidate} className="gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          فحص المحتوى
+                        </Button>
+                      </>
                     )}
                   </div>
+                  {lastAIResult?.meta?.compliance && (
+                    <div className="flex gap-2 text-xs">
+                      <span className={lastAIResult.meta.compliance.within_char_limit ? 'text-green-600' : 'text-destructive'}>
+                        {lastAIResult.meta.compliance.within_char_limit ? '✅' : '❌'} حد الأحرف
+                      </span>
+                      <span className={lastAIResult.meta.compliance.used_file_search ? 'text-green-600' : 'text-destructive'}>
+                        {lastAIResult.meta.compliance.used_file_search ? '✅' : '❌'} File Search
+                      </span>
+                      <span className={lastAIResult.meta.compliance.no_banned_words ? 'text-green-600' : 'text-destructive'}>
+                        {lastAIResult.meta.compliance.no_banned_words ? '✅' : '❌'} كلمات ممنوعة
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -576,7 +555,7 @@ export default function ContentCalendarPage() {
               <div className="col-span-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">عنوان المنشور *</label>
-                  {lastAIResult && <RefineButton field="title" label="تحسين" />}
+                  
                 </div>
                 <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
               </div>
@@ -627,7 +606,7 @@ export default function ContentCalendarPage() {
             <div>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">نص المنشور</label>
-                {lastAIResult && <RefineButton field="post_text" label="تحسين" />}
+                
               </div>
               <Textarea value={form.post_text} onChange={e => setForm({ ...form, post_text: e.target.value })} rows={3} />
             </div>
@@ -635,14 +614,14 @@ export default function ContentCalendarPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">الوسوم (Hashtags)</label>
-                  {lastAIResult && <RefineButton field="hashtags" label="تحسين" />}
+                  
                 </div>
                 <Input value={form.hashtags} onChange={e => setForm({ ...form, hashtags: e.target.value })} placeholder="#تسويق #محتوى" />
               </div>
               <div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">CTA (دعوة للإجراء)</label>
-                  {lastAIResult && <RefineButton field="cta" label="تحسين" />}
+                  
                 </div>
                 <Input value={form.cta} onChange={e => setForm({ ...form, cta: e.target.value })} placeholder="اشترك الآن" />
               </div>
@@ -670,7 +649,7 @@ export default function ContentCalendarPage() {
             <div>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">نص التصميم</label>
-                {lastAIResult && <RefineButton field="design_text" label="تحسين" />}
+                
               </div>
               <p className="text-xs text-muted-foreground mb-1">المحتوى النصي الذي سيظهر داخل التصميم (عناوين، شعارات، نصوص رئيسية)</p>
               <Textarea value={form.design_text} onChange={e => setForm({ ...form, design_text: e.target.value })} rows={2} placeholder="مثال: عنوان التصميم الرئيسي، النص الفرعي، أرقام إحصائية..." />
@@ -678,7 +657,7 @@ export default function ContentCalendarPage() {
             <div>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">ملاحظات التصميم / وصف التصميم</label>
-                {lastAIResult && <RefineButton field="design_brief" label="تحسين" />}
+                
               </div>
               <Textarea value={form.design_notes} onChange={e => setForm({ ...form, design_notes: e.target.value })} rows={2} />
             </div>
