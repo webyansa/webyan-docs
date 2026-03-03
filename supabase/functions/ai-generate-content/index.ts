@@ -119,10 +119,7 @@ async function callResponsesAPI(
 
   // Add file_search tool if vector store configured
   if (settings.vectorStoreId) {
-    body.tools = [{ type: "file_search" }];
-    body.tool_resources = {
-      file_search: { vector_store_ids: [settings.vectorStoreId] },
-    };
+    body.tools = [{ type: "file_search", vector_store_ids: [settings.vectorStoreId] }];
   }
 
   const resp = await fetch("https://api.openai.com/v1/responses", {

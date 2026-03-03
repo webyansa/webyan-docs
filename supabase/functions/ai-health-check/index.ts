@@ -53,8 +53,7 @@ serve(async (req) => {
       };
 
       if (vectorStoreId) {
-        body.tools = [{ type: "file_search" }];
-        body.tool_resources = { file_search: { vector_store_ids: [vectorStoreId] } };
+        body.tools = [{ type: "file_search", vector_store_ids: [vectorStoreId] }];
       }
 
       const resp = await fetch("https://api.openai.com/v1/responses", {
