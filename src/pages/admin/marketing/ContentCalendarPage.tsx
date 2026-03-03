@@ -204,15 +204,22 @@ export default function ContentCalendarPage() {
 
       setLastAIResult(data);
 
-      // Map new schema to form fields
+      // Map AI response to form fields - handle both nested and flat schemas
+      const primaryText = data.post_copy?.primary_text || data.primary_text || '';
+      const headline = data.design_copy?.headline || data.headline || '';
+      const subheadline = data.design_copy?.subheadline || data.subheadline || '';
+      const ctaText = data.design_copy?.cta_text || data.CTA || data.cta_text || '';
+      const hashtags = data.post_copy?.hashtags || data.hashtags || [];
+      const aiTitle = data.title || headline || '';
+
       setForm(prev => ({
         ...prev,
-        title: data.title || prev.title,
-        post_text: data.post_copy?.primary_text || prev.post_text,
-        cta: data.design_copy?.cta_text || prev.cta,
-        hashtags: (data.post_copy?.hashtags || []).join(' '),
-        design_text: [data.design_copy?.headline, data.design_copy?.subheadline].filter(Boolean).join('\n') || prev.design_text,
-        design_notes: data.design_copy?.cta_text ? `CTA: ${data.design_copy.cta_text}` : prev.design_notes,
+        title: aiTitle || prev.title,
+        post_text: primaryText || prev.post_text,
+        cta: ctaText || prev.cta,
+        hashtags: (Array.isArray(hashtags) ? hashtags : []).join(' '),
+        design_text: [headline, subheadline].filter(Boolean).join('\n') || prev.design_text,
+        design_notes: ctaText ? `CTA: ${ctaText}` : prev.design_notes,
         channels: prev.channels.length === 0 ? [aiForm.platform] : prev.channels,
       }));
 
