@@ -47,6 +47,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_generation_logs: {
+        Row: {
+          content_type: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          latency_ms: number | null
+          mode_used: string | null
+          model_used: string | null
+          module: string
+          platform: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          status: string
+          tone: string | null
+          used_file_search: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          mode_used?: string | null
+          model_used?: string | null
+          module?: string
+          platform?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string
+          tone?: string | null
+          used_file_search?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          mode_used?: string | null
+          model_used?: string | null
+          module?: string
+          platform?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string
+          tone?: string | null
+          used_file_search?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ai_generations: {
         Row: {
           content_id: string | null

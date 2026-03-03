@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.assistant-chat]
 verify_jwt = false
+
+[functions.ai-generate-content]
+verify_jwt = false
+
+[functions.ai-health-check]
+verify_jwt = false

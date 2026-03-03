@@ -76,6 +76,7 @@ import SubscriptionRequestsPage from "./pages/admin/SubscriptionRequestsPage";
 import SubscriptionRequestDetailsPage from "./pages/admin/SubscriptionRequestDetailsPage";
 import DiscountsPage from "./pages/admin/DiscountsPage";
 import ModelChatTesterPage from "./pages/admin/ModelChatTesterPage";
+import AIGenerationLogsPage from "./pages/admin/AIGenerationLogsPage";
 
 // Operations pages
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
@@ -262,6 +263,7 @@ const App = () => (
                 <Route path="subscription-requests/:id" element={<SubscriptionRequestDetailsPage />} />
                 <Route path="discounts" element={<DiscountsPage />} />
                 <Route path="ai-chat-tester" element={<ModelChatTesterPage />} />
+                <Route path="ai-logs" element={<AIGenerationLogsPage />} />
               </Route>
               
               {/* Unauthorized Page */}
