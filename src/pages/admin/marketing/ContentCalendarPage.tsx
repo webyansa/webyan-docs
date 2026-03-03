@@ -14,10 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2, CheckCircle2 } from 'lucide-react';
+import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2, CheckCircle2, BrainCircuit } from 'lucide-react';
 import { toast } from 'sonner';
 
 const contentTypeLabels: Record<string, string> = { design: 'تصميم', video: 'فيديو', article: 'مقال', ad: 'إعلان', tweet: 'تغريدة' };
@@ -86,7 +87,16 @@ export default function ContentCalendarPage() {
   const [aiRefiningField, setAIRefiningField] = useState<string | null>(null);
   const [lastAIResult, setLastAIResult] = useState<any>(null);
   const [showAISection, setShowAISection] = useState(false);
-  // No need for provider state - controlled by admin settings only
+
+  // Monthly Plan state
+  const [monthlyPlanOpen, setMonthlyPlanOpen] = useState(false);
+  const [monthlyPlanLoading, setMonthlyPlanLoading] = useState(false);
+  const [monthlyPlanDirective, setMonthlyPlanDirective] = useState('');
+  const [monthlyPlanCount, setMonthlyPlanCount] = useState(12);
+  const [monthlyPlanAudience, setMonthlyPlanAudience] = useState('جمعيات أهلية وكيانات غير ربحية');
+  const [monthlyPlanPlatforms, setMonthlyPlanPlatforms] = useState<string[]>(['X', 'LinkedIn', 'Instagram']);
+  const [monthlyPlanLanding, setMonthlyPlanLanding] = useState('https://webyan.sa');
+  const [monthlyPlanResult, setMonthlyPlanResult] = useState<any>(null);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -150,7 +160,6 @@ export default function ContentCalendarPage() {
       const { data: newContent, error } = await (supabase.from('content_calendar').insert(payload).select('id').single() as any);
       if (error) { toast.error('فشل الإنشاء'); return; }
       toast.success('تم الإنشاء');
-      // Link AI generation if exists
       if (lastAIResult && newContent?.id) {
         await (supabase.from('ai_generations' as any).update({ content_id: newContent.id }).is('content_id', null).order('created_at', { ascending: false }).limit(1) as any);
       }
@@ -173,7 +182,7 @@ export default function ContentCalendarPage() {
     }));
   };
 
-  // AI Generation - uses unified ai-generate-content endpoint
+  // AI Generation
   const handleAIGenerate = async () => {
     if (!aiForm.idea.trim()) {
       toast.error('يرجى كتابة وصف فكرة المحتوى');
@@ -200,12 +209,14 @@ export default function ContentCalendarPage() {
       const { data, error } = await supabase.functions.invoke('ai-generate-content', { body: payload });
 
       if (error) throw error;
+      if (!data) { toast.error('لم يتم استلام رد من الخادم'); return; }
       if (data?.error) { toast.error(data.error); return; }
 
+      console.log('AI Response:', JSON.stringify(data, null, 2));
       setLastAIResult(data);
 
       // Map AI response to form fields - handle both nested and flat schemas
-      const primaryText = data.post_copy?.primary_text || data.primary_text || '';
+      const primaryText = data.post_copy?.primary_text || data.primary_text || data.content || '';
       const headline = data.design_copy?.headline || data.headline || '';
       const subheadline = data.design_copy?.subheadline || data.subheadline || '';
       const ctaText = data.design_copy?.cta_text || data.CTA || data.cta_text || '';
@@ -239,6 +250,55 @@ export default function ContentCalendarPage() {
     } finally {
       setAILoading(false);
     }
+  };
+
+  // Monthly Plan Generation
+  const handleMonthlyPlanGenerate = async () => {
+    if (!monthlyPlanDirective.trim()) {
+      toast.error('يرجى كتابة التوجيه الرئيسي للخطة');
+      return;
+    }
+
+    setMonthlyPlanLoading(true);
+    setMonthlyPlanResult(null);
+
+    try {
+      const now = new Date();
+      const targetMonth = format(addMonths(now, 1), 'yyyy-MM');
+
+      const payload = {
+        action: 'monthly_plan',
+        directive: monthlyPlanDirective,
+        target_month: targetMonth,
+        post_count: monthlyPlanCount,
+        audience: monthlyPlanAudience,
+        platforms: monthlyPlanPlatforms,
+        landing_url: monthlyPlanLanding,
+        campaign_id: filterCampaign || null,
+        auto_save: true,
+      };
+
+      const { data, error } = await supabase.functions.invoke('ai-generate-content', { body: payload });
+
+      if (error) throw error;
+      if (!data) { toast.error('لم يتم استلام رد'); return; }
+      if (data?.error) { toast.error(data.error); return; }
+
+      setMonthlyPlanResult(data);
+      toast.success(`تم إنشاء ${data.saved_count || data.posts_count} منشور بنجاح! ✨`);
+      fetchData();
+    } catch (err: any) {
+      console.error('Monthly plan error:', err);
+      toast.error(err.message || 'فشل إنشاء الخطة');
+    } finally {
+      setMonthlyPlanLoading(false);
+    }
+  };
+
+  const toggleMonthlyPlatform = (p: string) => {
+    setMonthlyPlanPlatforms(prev =>
+      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+    );
   };
 
   // Validation
@@ -297,6 +357,10 @@ export default function ContentCalendarPage() {
               {campaigns.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={() => { setMonthlyPlanResult(null); setMonthlyPlanDirective(''); setMonthlyPlanOpen(true); }} className="gap-2">
+            <BrainCircuit className="h-4 w-4" />
+            خطة شهرية بالذكاء الاصطناعي
+          </Button>
           <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" /> محتوى جديد</Button>
         </div>
       </div>
@@ -560,10 +624,7 @@ export default function ContentCalendarPage() {
             {/* General */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">عنوان المنشور *</label>
-                  
-                </div>
+                <label className="text-sm font-medium">عنوان المنشور *</label>
                 <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
               </div>
               <div>
@@ -611,25 +672,16 @@ export default function ContentCalendarPage() {
 
             {/* Text content */}
             <div>
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">نص المنشور</label>
-                
-              </div>
+              <label className="text-sm font-medium">نص المنشور</label>
               <Textarea value={form.post_text} onChange={e => setForm({ ...form, post_text: e.target.value })} rows={3} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">الوسوم (Hashtags)</label>
-                  
-                </div>
+                <label className="text-sm font-medium">الوسوم (Hashtags)</label>
                 <Input value={form.hashtags} onChange={e => setForm({ ...form, hashtags: e.target.value })} placeholder="#تسويق #محتوى" />
               </div>
               <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">CTA (دعوة للإجراء)</label>
-                  
-                </div>
+                <label className="text-sm font-medium">CTA (دعوة للإجراء)</label>
                 <Input value={form.cta} onChange={e => setForm({ ...form, cta: e.target.value })} placeholder="اشترك الآن" />
               </div>
             </div>
@@ -654,18 +706,12 @@ export default function ContentCalendarPage() {
               </div>
             </div>
             <div>
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">نص التصميم</label>
-                
-              </div>
+              <label className="text-sm font-medium">نص التصميم</label>
               <p className="text-xs text-muted-foreground mb-1">المحتوى النصي الذي سيظهر داخل التصميم (عناوين، شعارات، نصوص رئيسية)</p>
               <Textarea value={form.design_text} onChange={e => setForm({ ...form, design_text: e.target.value })} rows={2} placeholder="مثال: عنوان التصميم الرئيسي، النص الفرعي، أرقام إحصائية..." />
             </div>
             <div>
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">ملاحظات التصميم / وصف التصميم</label>
-                
-              </div>
+              <label className="text-sm font-medium">ملاحظات التصميم / وصف التصميم</label>
               <Textarea value={form.design_notes} onChange={e => setForm({ ...form, design_notes: e.target.value })} rows={2} />
             </div>
 
@@ -701,6 +747,137 @@ export default function ContentCalendarPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
             <Button onClick={handleSave}>{editingId ? 'تحديث' : 'إنشاء'}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Monthly AI Plan Dialog */}
+      <Dialog open={monthlyPlanOpen} onOpenChange={setMonthlyPlanOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BrainCircuit className="h-6 w-6 text-primary" />
+              إنشاء خطة محتوى شهرية بالذكاء الاصطناعي
+            </DialogTitle>
+          </DialogHeader>
+          
+          {!monthlyPlanResult ? (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-l from-primary/5 to-primary/10 rounded-lg p-4 text-sm text-muted-foreground">
+                <p>أدخل توجيهك الرئيسي وسيقوم الذكاء الاصطناعي بإنشاء خطة محتوى متكاملة تتضمن منشورات متنوعة موزعة بذكاء على أيام الشهر مع تحديد المنصات والأوقات المثلى.</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">التوجيه الرئيسي *</label>
+                <Textarea
+                  value={monthlyPlanDirective}
+                  onChange={e => setMonthlyPlanDirective(e.target.value)}
+                  rows={4}
+                  placeholder="مثال: أريد خطة محتوى تركز على التعريف بمنصة ويبيان وخدماتها للجمعيات الأهلية، مع التركيز على مزايا الحوكمة والشفافية والتقارير المالية..."
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium">عدد المنشورات</label>
+                  <Select value={String(monthlyPlanCount)} onValueChange={v => setMonthlyPlanCount(Number(v))}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="8">8 منشورات</SelectItem>
+                      <SelectItem value="12">12 منشور</SelectItem>
+                      <SelectItem value="16">16 منشور</SelectItem>
+                      <SelectItem value="20">20 منشور</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium">الجمهور المستهدف</label>
+                  <Input className="h-9" value={monthlyPlanAudience} onChange={e => setMonthlyPlanAudience(e.target.value)} />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium mb-2 block">المنصات</label>
+                <div className="flex flex-wrap gap-3">
+                  {['X', 'LinkedIn', 'Instagram'].map(p => (
+                    <label key={p} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox checked={monthlyPlanPlatforms.includes(p)} onCheckedChange={() => toggleMonthlyPlatform(p)} />
+                      <span className="text-sm">{p}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium">رابط الهبوط</label>
+                <Input className="h-9" value={monthlyPlanLanding} onChange={e => setMonthlyPlanLanding(e.target.value)} dir="ltr" />
+              </div>
+
+              <Button onClick={handleMonthlyPlanGenerate} disabled={monthlyPlanLoading} className="w-full gap-2" size="lg">
+                {monthlyPlanLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    جاري إنشاء الخطة... قد يستغرق دقيقة
+                  </>
+                ) : (
+                  <>
+                    <BrainCircuit className="h-5 w-5" />
+                    إنشاء الخطة الشهرية
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                <h3 className="font-bold text-green-800 dark:text-green-200 flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" />
+                  {monthlyPlanResult.plan_title}
+                </h3>
+                {monthlyPlanResult.plan_description && (
+                  <p className="text-sm text-green-700 dark:text-green-300 mt-1">{monthlyPlanResult.plan_description}</p>
+                )}
+                <p className="text-sm mt-2 font-medium">
+                  تم إنشاء {monthlyPlanResult.saved_count} منشور وحفظها كمسودات
+                </p>
+              </div>
+
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-3">
+                  {(monthlyPlanResult.posts || []).map((post: any, i: number) => (
+                    <Card key={i}>
+                      <CardContent className="p-3 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{post.title || `منشور ${i + 1}`}</span>
+                          <div className="flex gap-1">
+                            {post.channels?.map((ch: string) => (
+                              <Badge key={ch} variant="secondary" className="text-xs">{ch}</Badge>
+                            )) || <Badge variant="secondary" className="text-xs">{post.platform || 'X'}</Badge>}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {post.post_copy?.primary_text || post.primary_text || ''}
+                        </p>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          {post.publish_date && <span>📅 {post.publish_date}</span>}
+                          {post.publish_time && <span>🕐 {post.publish_time}</span>}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setMonthlyPlanResult(null)}>
+                  إنشاء خطة جديدة
+                </Button>
+                <Button onClick={() => setMonthlyPlanOpen(false)}>
+                  إغلاق
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
