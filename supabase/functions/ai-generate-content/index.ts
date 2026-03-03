@@ -58,10 +58,10 @@ const MONTHLY_PLAN_SYSTEM_PROMPT = `أنت مساعد تسويق رسمي لمن
 1. استخدم أداة file_search دائمًا للبحث في ملفات المعرفة.
 2. ممنوع اختراع مزايا أو أرقام.
 3. الكلمات الممنوعة: "الأفضل"، "مضمون 100%"، "حل سحري"، "خرافي".
-4. وزّع المنشورات بشكل ذكي على أيام الشهر (تجنب الجمعة والسبت).
-5. نوّع بين المنصات (X, LinkedIn, Instagram) والنبرات.
+4. وزّع المنشورات بشكل ذكي على أيام الفترة المحددة (تجنب يوم الجمعة فقط، السبت مسموح).
+5. نوّع بين المنصات (X, LinkedIn, Instagram, WhatsApp) والنبرات.
 6. كل منشور يجب أن يكون مختلفاً ويخدم هدفاً واضحاً.
-7. اجعل الأوقات مناسبة لكل منصة (X: 10am-1pm, LinkedIn: 8am-10am, Instagram: 7pm-9pm).
+7. اجعل الأوقات مناسبة لكل منصة (X: 10am-1pm, LinkedIn: 8am-10am, Instagram: 7pm-9pm, WhatsApp: 9am-12pm).
 
 **قالب الإخراج المطلوب (JSON فقط):**
 {
@@ -118,17 +118,21 @@ function buildUserPrompt(input: any): string {
 function buildMonthlyPlanPrompt(input: any): string {
   const parts: string[] = [];
   parts.push(`التوجيه / الهدف الرئيسي: ${input.directive}`);
-  parts.push(`الشهر المستهدف: ${input.target_month || "الشهر الحالي"}`);
+  if (input.start_date && input.end_date) {
+    parts.push(`الفترة المستهدفة: من ${input.start_date} إلى ${input.end_date}`);
+  } else {
+    parts.push(`الشهر المستهدف: ${input.target_month || "الشهر الحالي"}`);
+  }
   parts.push(`عدد المنشورات المطلوب: ${input.post_count || 12}`);
   parts.push(`الجمهور المستهدف: ${input.audience || "جمعيات أهلية وكيانات غير ربحية"}`);
   if (input.platforms?.length) parts.push(`المنصات: ${input.platforms.join("، ")}`);
-  else parts.push(`المنصات: X، LinkedIn، Instagram`);
+  else parts.push(`المنصات: X، LinkedIn، Instagram، WhatsApp`);
   if (input.landing_url) parts.push(`رابط الهبوط: ${input.landing_url}`);
   parts.push(`\nقواعد مهمة:`);
-  parts.push(`- وزّع المنشورات على أيام الشهر بشكل متوازن (2-3 منشورات أسبوعياً)`);
+  parts.push(`- وزّع المنشورات على أيام الفترة المحددة بشكل متوازن (2-3 منشورات أسبوعياً)`);
   parts.push(`- نوّع بين المنصات والنبرات`);
-  parts.push(`- content_type: tweet لـ X، article لـ LinkedIn، design لـ Instagram`);
-  parts.push(`- تجنب الجمعة والسبت`);
+  parts.push(`- content_type: tweet لـ X، article لـ LinkedIn، design لـ Instagram، message لـ WhatsApp`);
+  parts.push(`- تجنب يوم الجمعة فقط (السبت مسموح)`);
   parts.push(`- الكلمات الممنوعة: ${BANNED_WORDS.join("، ")}`);
   parts.push(`\nأعد الإخراج بصيغة JSON فقط وفق القالب المحدد في تعليمات النظام.`);
   return parts.join("\n");
@@ -537,7 +541,7 @@ async function handleMonthlyPlan(
   supabaseUrl: string,
   startTime: number
 ) {
-  const { directive, target_month, post_count, audience, platforms, landing_url, campaign_id } = body;
+  const { directive, target_month, start_date, end_date, post_count, audience, platforms, landing_url, campaign_id } = body;
 
   if (!directive) {
     return new Response(
@@ -557,6 +561,8 @@ async function handleMonthlyPlan(
   const userPrompt = buildMonthlyPlanPrompt({
     directive,
     target_month,
+    start_date,
+    end_date,
     post_count: post_count || 12,
     audience,
     platforms,

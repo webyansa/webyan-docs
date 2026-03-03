@@ -94,9 +94,13 @@ export default function ContentCalendarPage() {
   const [monthlyPlanDirective, setMonthlyPlanDirective] = useState('');
   const [monthlyPlanCount, setMonthlyPlanCount] = useState(12);
   const [monthlyPlanAudience, setMonthlyPlanAudience] = useState('جمعيات أهلية وكيانات غير ربحية');
-  const [monthlyPlanPlatforms, setMonthlyPlanPlatforms] = useState<string[]>(['X', 'LinkedIn', 'Instagram']);
+  const [monthlyPlanPlatforms, setMonthlyPlanPlatforms] = useState<string[]>(['X', 'LinkedIn', 'Instagram', 'WhatsApp']);
   const [monthlyPlanLanding, setMonthlyPlanLanding] = useState('https://webyan.sa');
   const [monthlyPlanResult, setMonthlyPlanResult] = useState<any>(null);
+  const [monthlyPlanDateMode, setMonthlyPlanDateMode] = useState<'month' | 'range'>('month');
+  const [monthlyPlanMonth, setMonthlyPlanMonth] = useState(() => format(addMonths(new Date(), 0), 'yyyy-MM'));
+  const [monthlyPlanStartDate, setMonthlyPlanStartDate] = useState('');
+  const [monthlyPlanEndDate, setMonthlyPlanEndDate] = useState('');
 
   useEffect(() => { fetchData(); }, []);
 
@@ -263,13 +267,9 @@ export default function ContentCalendarPage() {
     setMonthlyPlanResult(null);
 
     try {
-      const now = new Date();
-      const targetMonth = format(addMonths(now, 1), 'yyyy-MM');
-
-      const payload = {
+      const payload: any = {
         action: 'monthly_plan',
         directive: monthlyPlanDirective,
-        target_month: targetMonth,
         post_count: monthlyPlanCount,
         audience: monthlyPlanAudience,
         platforms: monthlyPlanPlatforms,
@@ -277,6 +277,13 @@ export default function ContentCalendarPage() {
         campaign_id: filterCampaign || null,
         auto_save: true,
       };
+
+      if (monthlyPlanDateMode === 'range' && monthlyPlanStartDate && monthlyPlanEndDate) {
+        payload.start_date = monthlyPlanStartDate;
+        payload.end_date = monthlyPlanEndDate;
+      } else {
+        payload.target_month = monthlyPlanMonth;
+      }
 
       const { data, error } = await supabase.functions.invoke('ai-generate-content', { body: payload });
 
@@ -777,6 +784,33 @@ export default function ContentCalendarPage() {
                 />
               </div>
 
+              {/* Date selection */}
+              <div>
+                <label className="text-xs font-medium mb-2 block">الفترة الزمنية</label>
+                <div className="flex gap-2 mb-2">
+                  <Button type="button" size="sm" variant={monthlyPlanDateMode === 'month' ? 'default' : 'outline'} onClick={() => setMonthlyPlanDateMode('month')}>
+                    شهر محدد
+                  </Button>
+                  <Button type="button" size="sm" variant={monthlyPlanDateMode === 'range' ? 'default' : 'outline'} onClick={() => setMonthlyPlanDateMode('range')}>
+                    بين تاريخين
+                  </Button>
+                </div>
+                {monthlyPlanDateMode === 'month' ? (
+                  <Input type="month" className="h-9" value={monthlyPlanMonth} onChange={e => setMonthlyPlanMonth(e.target.value)} />
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-muted-foreground">من تاريخ</label>
+                      <Input type="date" className="h-9" value={monthlyPlanStartDate} onChange={e => setMonthlyPlanStartDate(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground">إلى تاريخ</label>
+                      <Input type="date" className="h-9" value={monthlyPlanEndDate} onChange={e => setMonthlyPlanEndDate(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium">عدد المنشورات</label>
@@ -799,7 +833,7 @@ export default function ContentCalendarPage() {
               <div>
                 <label className="text-xs font-medium mb-2 block">المنصات</label>
                 <div className="flex flex-wrap gap-3">
-                  {['X', 'LinkedIn', 'Instagram'].map(p => (
+                  {['X', 'LinkedIn', 'Instagram', 'WhatsApp'].map(p => (
                     <label key={p} className="flex items-center gap-2 cursor-pointer">
                       <Checkbox checked={monthlyPlanPlatforms.includes(p)} onCheckedChange={() => toggleMonthlyPlatform(p)} />
                       <span className="text-sm">{p}</span>
