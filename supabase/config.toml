@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.raw-chat-test]
 verify_jwt = false
+
+[functions.assistant-chat]
+verify_jwt = false
