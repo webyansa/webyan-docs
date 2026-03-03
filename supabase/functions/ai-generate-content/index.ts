@@ -50,6 +50,46 @@ const SYSTEM_PROMPT = `أنت مساعد تسويق رسمي لمنصة ويبي
   }
 }`;
 
+const MONTHLY_PLAN_SYSTEM_PROMPT = `أنت مساعد تسويق رسمي لمنصة ويبيان (Webyan) — منصة سعودية متخصصة في بناء المواقع والمنصات الرقمية للقطاع غير الربحي.
+
+**مهمتك:** إنشاء خطة محتوى شهرية متكاملة بناءً على التوجيه المُقدم.
+
+**تعليمات صارمة:**
+1. استخدم أداة file_search دائمًا للبحث في ملفات المعرفة.
+2. ممنوع اختراع مزايا أو أرقام.
+3. الكلمات الممنوعة: "الأفضل"، "مضمون 100%"، "حل سحري"، "خرافي".
+4. وزّع المنشورات بشكل ذكي على أيام الشهر (تجنب الجمعة والسبت).
+5. نوّع بين المنصات (X, LinkedIn, Instagram) والنبرات.
+6. كل منشور يجب أن يكون مختلفاً ويخدم هدفاً واضحاً.
+7. اجعل الأوقات مناسبة لكل منصة (X: 10am-1pm, LinkedIn: 8am-10am, Instagram: 7pm-9pm).
+
+**قالب الإخراج المطلوب (JSON فقط):**
+{
+  "plan_title": "عنوان الخطة",
+  "plan_description": "وصف مختصر للخطة",
+  "posts": [
+    {
+      "title": "عنوان المنشور",
+      "platform": "X",
+      "tone": "رسمي",
+      "content_type": "tweet",
+      "publish_date": "2026-03-15",
+      "publish_time": "10:00",
+      "channels": ["X"],
+      "design_copy": {
+        "headline": "العنوان الرئيسي",
+        "subheadline": "العنوان الفرعي",
+        "cta_text": "نص الزر"
+      },
+      "post_copy": {
+        "primary_text": "نص المنشور الكامل",
+        "hashtags": ["#هاشتاق1"],
+        "links": ["https://webyan.sa"]
+      }
+    }
+  ]
+}`;
+
 function buildUserPrompt(input: any): string {
   const parts: string[] = [];
   parts.push(`المنصة المستهدفة: ${input.platform}`);
@@ -71,6 +111,25 @@ function buildUserPrompt(input: any): string {
   parts.push(`- أقصى عدد هاشتاقات: ${input.constraints?.max_hashtags || 3}`);
   parts.push(`- الكلمات الممنوعة: ${BANNED_WORDS.join("، ")}`);
 
+  parts.push(`\nأعد الإخراج بصيغة JSON فقط وفق القالب المحدد في تعليمات النظام.`);
+  return parts.join("\n");
+}
+
+function buildMonthlyPlanPrompt(input: any): string {
+  const parts: string[] = [];
+  parts.push(`التوجيه / الهدف الرئيسي: ${input.directive}`);
+  parts.push(`الشهر المستهدف: ${input.target_month || "الشهر الحالي"}`);
+  parts.push(`عدد المنشورات المطلوب: ${input.post_count || 12}`);
+  parts.push(`الجمهور المستهدف: ${input.audience || "جمعيات أهلية وكيانات غير ربحية"}`);
+  if (input.platforms?.length) parts.push(`المنصات: ${input.platforms.join("، ")}`);
+  else parts.push(`المنصات: X، LinkedIn، Instagram`);
+  if (input.landing_url) parts.push(`رابط الهبوط: ${input.landing_url}`);
+  parts.push(`\nقواعد مهمة:`);
+  parts.push(`- وزّع المنشورات على أيام الشهر بشكل متوازن (2-3 منشورات أسبوعياً)`);
+  parts.push(`- نوّع بين المنصات والنبرات`);
+  parts.push(`- content_type: tweet لـ X، article لـ LinkedIn، design لـ Instagram`);
+  parts.push(`- تجنب الجمعة والسبت`);
+  parts.push(`- الكلمات الممنوعة: ${BANNED_WORDS.join("، ")}`);
   parts.push(`\nأعد الإخراج بصيغة JSON فقط وفق القالب المحدد في تعليمات النظام.`);
   return parts.join("\n");
 }
@@ -102,8 +161,30 @@ async function getAISettings(supabaseAdmin: any) {
   };
 }
 
+function normalizeResult(result: any): any {
+  // Normalize flat responses into expected nested schema
+  if (!result.post_copy && (result.primary_text || result.content)) {
+    return {
+      title: result.title || result.headline || "",
+      design_copy: {
+        headline: result.headline || "",
+        subheadline: result.subheadline || "",
+        cta_text: result.CTA || result.cta_text || result.cta || "",
+      },
+      post_copy: {
+        primary_text: result.primary_text || result.content || "",
+        hashtags: result.hashtags || [],
+        links: result.links || [result.landing_page, result.landing_url].filter(Boolean),
+      },
+      meta: result.meta || {},
+    };
+  }
+  return result;
+}
+
 async function callResponsesAPI(
   settings: any,
+  systemPrompt: string,
   userPrompt: string
 ): Promise<{ result: any; usedFileSearch: boolean; rawResponse: any }> {
   const body: any = {
@@ -111,7 +192,7 @@ async function callResponsesAPI(
     temperature: settings.temperature,
     top_p: settings.topP,
     input: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
     text: { format: { type: "json_object" } },
@@ -121,6 +202,8 @@ async function callResponsesAPI(
   if (settings.vectorStoreId) {
     body.tools = [{ type: "file_search", vector_store_ids: [settings.vectorStoreId] }];
   }
+
+  console.log("Calling OpenAI Responses API...");
 
   const resp = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -157,6 +240,8 @@ async function callResponsesAPI(
     }
   }
 
+  console.log("OpenAI response received, output length:", outputText.length);
+
   let result: any;
   try {
     result = JSON.parse(outputText);
@@ -164,23 +249,7 @@ async function callResponsesAPI(
     result = { title: "", design_copy: {}, post_copy: { primary_text: outputText, hashtags: [], links: [] }, meta: {} };
   }
 
-  // Normalize flat responses into expected nested schema
-  if (!result.post_copy && result.primary_text) {
-    result = {
-      title: result.title || result.headline || "",
-      design_copy: {
-        headline: result.headline || result.design_copy?.headline || "",
-        subheadline: result.subheadline || result.design_copy?.subheadline || "",
-        cta_text: result.CTA || result.cta_text || result.design_copy?.cta_text || "",
-      },
-      post_copy: {
-        primary_text: result.primary_text || "",
-        hashtags: result.hashtags || [],
-        links: result.links || [result.landing_page].filter(Boolean),
-      },
-      meta: result.meta || {},
-    };
-  }
+  result = normalizeResult(result);
 
   return { result, usedFileSearch, rawResponse: data };
 }
@@ -288,6 +357,8 @@ async function callAssistantsAPI(
     result = { title: "", design_copy: {}, post_copy: { primary_text: outputText, hashtags: [], links: [] }, meta: {} };
   }
 
+  result = normalizeResult(result);
+
   return { result, usedFileSearch, rawResponse: { run, thread_id: thread.id } };
 }
 
@@ -303,6 +374,12 @@ serve(async (req) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
+    
+    // Check if this is a monthly plan request
+    if (body.action === "monthly_plan") {
+      return await handleMonthlyPlan(req, body, supabaseAdmin, supabaseUrl, startTime);
+    }
+
     const {
       platform,
       tone,
@@ -367,31 +444,13 @@ serve(async (req) => {
       usedFileSearch = resp.usedFileSearch;
     } else {
       modelUsed = "gpt-4.1";
-      const resp = await callResponsesAPI(settings, userPrompt);
+      const resp = await callResponsesAPI(settings, SYSTEM_PROMPT, userPrompt);
       result = resp.result;
       usedFileSearch = resp.usedFileSearch;
     }
 
-    // Normalize flat AI responses into expected nested schema
-    if (!result.post_copy && (result.primary_text || result.content)) {
-      result = {
-        title: result.title || result.headline || "",
-        design_copy: {
-          headline: result.headline || "",
-          subheadline: result.subheadline || "",
-          cta_text: result.CTA || result.cta_text || result.cta || "",
-        },
-        post_copy: {
-          primary_text: result.primary_text || result.content || "",
-          hashtags: result.hashtags || [],
-          links: result.links || [result.landing_page, result.landing_url].filter(Boolean),
-        },
-        meta: result.meta || {},
-      };
-    }
-
     // Validate compliance
-    const primaryText = result?.post_copy?.primary_text || result?.primary_text || "";
+    const primaryText = result?.post_copy?.primary_text || "";
     const charLimit = PLATFORM_LIMITS[platform || "X"] || 280;
     const withinCharLimit = primaryText.length <= charLimit;
     const noBannedWords = !BANNED_WORDS.some((w) => primaryText.includes(w));
@@ -416,10 +475,8 @@ serve(async (req) => {
         const userClient = createClient(supabaseUrl, anonKey, {
           global: { headers: { Authorization: authHeader } },
         });
-        const { data: claimsData } = await userClient.auth.getClaims(
-          authHeader.replace("Bearer ", "")
-        );
-        userId = claimsData?.claims?.sub || null;
+        const { data: { user } } = await userClient.auth.getUser();
+        userId = user?.id || null;
       }
 
       await supabaseAdmin.from("ai_generation_logs").insert({
@@ -440,6 +497,7 @@ serve(async (req) => {
       console.error("Audit log error:", logErr);
     }
 
+    console.log("Returning result with keys:", Object.keys(result));
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -471,3 +529,125 @@ serve(async (req) => {
     );
   }
 });
+
+async function handleMonthlyPlan(
+  req: Request,
+  body: any,
+  supabaseAdmin: any,
+  supabaseUrl: string,
+  startTime: number
+) {
+  const { directive, target_month, post_count, audience, platforms, landing_url, campaign_id } = body;
+
+  if (!directive) {
+    return new Response(
+      JSON.stringify({ error: "التوجيه الرئيسي مطلوب (directive)" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const settings = await getAISettings(supabaseAdmin);
+  if (!settings.apiKey) {
+    return new Response(
+      JSON.stringify({ error: "مفتاح OpenAI API غير مُعدّ." }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const userPrompt = buildMonthlyPlanPrompt({
+    directive,
+    target_month,
+    post_count: post_count || 12,
+    audience,
+    platforms,
+    landing_url,
+  });
+
+  let result: any;
+  let usedFileSearch = false;
+  const modelUsed = "gpt-4.1";
+
+  const resp = await callResponsesAPI(settings, MONTHLY_PLAN_SYSTEM_PROMPT, userPrompt);
+  result = resp.result;
+  usedFileSearch = resp.usedFileSearch;
+
+  // Normalize posts
+  const posts = result.posts || result.plan || [];
+  for (let i = 0; i < posts.length; i++) {
+    posts[i] = normalizeResult(posts[i]);
+  }
+
+  // Save posts to content_calendar if requested
+  const savedPosts: any[] = [];
+  if (body.auto_save !== false && posts.length > 0) {
+    for (const post of posts) {
+      const payload = {
+        campaign_id: campaign_id || null,
+        title: post.title || `منشور ${savedPosts.length + 1}`,
+        content_type: post.content_type || "design",
+        publish_date: post.publish_date || null,
+        publish_time: post.publish_time || null,
+        post_text: post.post_copy?.primary_text || post.primary_text || null,
+        hashtags: (post.post_copy?.hashtags || post.hashtags || []).join(" "),
+        cta: post.design_copy?.cta_text || post.cta_text || null,
+        design_text: [post.design_copy?.headline, post.design_copy?.subheadline].filter(Boolean).join("\n") || null,
+        design_notes: post.design_copy?.cta_text ? `CTA: ${post.design_copy.cta_text}` : null,
+        channels: post.channels || [post.platform || "X"],
+        status: "draft",
+        design_status: "draft",
+      };
+
+      const { data: saved, error } = await supabaseAdmin
+        .from("content_calendar")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (!error && saved) {
+        savedPosts.push({ ...payload, id: saved.id });
+      }
+    }
+  }
+
+  const latencyMs = Date.now() - startTime;
+
+  // Log
+  try {
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user } } = await userClient.auth.getUser();
+      userId = user?.id || null;
+    }
+
+    await supabaseAdmin.from("ai_generation_logs").insert({
+      user_id: userId,
+      module: "marketing_monthly_plan",
+      content_type: "monthly_plan",
+      request_payload: body,
+      response_payload: { plan_title: result.plan_title, post_count: posts.length },
+      used_file_search: usedFileSearch,
+      model_used: modelUsed,
+      mode_used: "responses",
+      latency_ms: latencyMs,
+      status: "success",
+    });
+  } catch (logErr) {
+    console.error("Audit log error:", logErr);
+  }
+
+  return new Response(
+    JSON.stringify({
+      plan_title: result.plan_title || "خطة محتوى شهرية",
+      plan_description: result.plan_description || "",
+      posts_count: posts.length,
+      saved_count: savedPosts.length,
+      posts: posts,
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
