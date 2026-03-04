@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffAuth } from '@/hooks/useStaffAuth';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,10 +11,12 @@ import {
   Loader2, Palette, Send, CheckCircle2, Clock, Megaphone,
   ExternalLink, ChevronDown, ChevronUp, Inbox, CalendarDays, Hash,
   Type, FileText, MousePointerClick, Image, MessageSquareText, Sparkles,
-  Clock3, Globe
+  Clock3, Globe, AlertTriangle, Flame, BellRing
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { differenceInDays, format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 const statusLabels: Record<string, string> = {
   draft: 'مسودة', waiting_design: 'بانتظار التصميم', in_design: 'قيد التصميم',
@@ -55,6 +57,28 @@ interface ContentTask {
   cta: string | null;
   updated_at: string;
   content_type: string;
+}
+
+// Urgency helpers
+function getUrgencyInfo(publishDate: string | null) {
+  if (!publishDate) return { level: 'none' as const, label: '', daysLeft: Infinity };
+  const date = parseISO(publishDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = differenceInDays(date, today);
+
+  if (isPast(date) && !isToday(date)) return { level: 'overdue' as const, label: 'متأخر!', daysLeft: days };
+  if (isToday(date)) return { level: 'today' as const, label: 'اليوم!', daysLeft: 0 };
+  if (isTomorrow(date)) return { level: 'tomorrow' as const, label: 'غداً', daysLeft: 1 };
+  if (days <= 3) return { level: 'soon' as const, label: `بعد ${days} أيام`, daysLeft: days };
+  return { level: 'normal' as const, label: '', daysLeft: days };
+}
+
+function formatPublishDate(publishDate: string | null) {
+  if (!publishDate) return null;
+  try {
+    return format(parseISO(publishDate), 'EEEE d MMMM yyyy', { locale: ar });
+  } catch { return publishDate; }
 }
 
 export default function StaffMarketing() {
@@ -104,6 +128,19 @@ export default function StaffMarketing() {
     else toast.success('تم حفظ رابط التصميم');
   };
 
+  // Urgent tasks: need design but publish date is within 3 days or past
+  const urgentDesignTasks = useMemo(() => {
+    return designTasks.filter(t => {
+      if (!['waiting_design', 'in_design', 'draft'].includes(t.status)) return false;
+      const info = getUrgencyInfo(t.publish_date);
+      return info.level === 'overdue' || info.level === 'today' || info.level === 'tomorrow' || info.level === 'soon';
+    }).sort((a, b) => {
+      const aInfo = getUrgencyInfo(a.publish_date);
+      const bInfo = getUrgencyInfo(b.publish_date);
+      return aInfo.daysLeft - bInfo.daysLeft;
+    });
+  }, [designTasks]);
+
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
 
@@ -130,6 +167,53 @@ export default function StaffMarketing() {
     );
   }
 
+  // Date badge component
+  const DateBadge = ({ publishDate, className }: { publishDate: string | null; className?: string }) => {
+    if (!publishDate) return null;
+    const urgency = getUrgencyInfo(publishDate);
+    const formatted = formatPublishDate(publishDate);
+
+    const urgencyStyles = {
+      overdue: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
+      today: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
+      tomorrow: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800',
+      soon: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800',
+      normal: 'bg-muted/50 text-foreground border-border/50',
+      none: '',
+    };
+
+    const urgencyIcons = {
+      overdue: <Flame className="h-3.5 w-3.5 text-red-500 animate-pulse" />,
+      today: <AlertTriangle className="h-3.5 w-3.5 text-red-500" />,
+      tomorrow: <Clock className="h-3.5 w-3.5 text-amber-500" />,
+      soon: <Clock3 className="h-3.5 w-3.5 text-orange-500" />,
+      normal: <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />,
+      none: null,
+    };
+
+    return (
+      <div className={cn(
+        "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium",
+        urgencyStyles[urgency.level],
+        className
+      )}>
+        {urgencyIcons[urgency.level]}
+        <span>{formatted}</span>
+        {urgency.label && (
+          <Badge variant="outline" className={cn(
+            "text-[9px] px-1.5 py-0",
+            urgency.level === 'overdue' && 'border-red-400 text-red-700 dark:text-red-300',
+            urgency.level === 'today' && 'border-red-300 text-red-600 dark:text-red-300',
+            urgency.level === 'tomorrow' && 'border-amber-300 text-amber-700 dark:text-amber-300',
+            urgency.level === 'soon' && 'border-orange-300 text-orange-600 dark:text-orange-300',
+          )}>
+            {urgency.label}
+          </Badge>
+        )}
+      </div>
+    );
+  };
+
   // Detail row helper
   const DetailRow = ({ icon: Icon, label, children, className }: {
     icon: React.ComponentType<{ className?: string }>;
@@ -150,8 +234,8 @@ export default function StaffMarketing() {
     const isDesigner = role === 'designer';
     const cardKey = `${task.id}-${role}`;
     const isExpanded = expandedCards.has(cardKey);
+    const urgency = getUrgencyInfo(task.publish_date);
 
-    // Count how many detail fields exist
     const hasDesignText = !!task.design_text;
     const hasDesignNotes = !!task.design_notes;
     const hasPostText = !!task.post_text;
@@ -161,14 +245,27 @@ export default function StaffMarketing() {
     const hasContentType = !!task.content_type;
     const detailCount = [hasDesignText, hasDesignNotes, hasPostText, hasCta, hasHashtags].filter(Boolean).length;
 
+    // Border color based on urgency for unfinished design tasks
+    const isUrgentDesign = isDesigner && ['waiting_design', 'in_design', 'draft'].includes(task.status);
+    const urgentBorderClass = isUrgentDesign ? {
+      overdue: 'border-red-400 dark:border-red-700 shadow-red-100 dark:shadow-red-900/20 shadow-md',
+      today: 'border-red-300 dark:border-red-800 shadow-red-50 dark:shadow-red-900/10 shadow-sm',
+      tomorrow: 'border-amber-300 dark:border-amber-800',
+      soon: 'border-orange-200 dark:border-orange-800',
+      normal: 'border-border/60',
+      none: 'border-border/60',
+    }[urgency.level] : 'border-border/60';
+
     return (
-      <Card key={cardKey} className="group hover:shadow-md transition-all border-border/60 overflow-hidden">
+      <Card key={cardKey} className={cn("group hover:shadow-md transition-all overflow-hidden", urgentBorderClass)}>
         <CardContent className="p-0">
-          {/* Header strip with role color */}
+          {/* Header strip */}
           <div className={cn(
             "h-1",
             isDesigner
-              ? "bg-gradient-to-l from-purple-400 to-purple-600"
+              ? urgency.level === 'overdue' ? "bg-gradient-to-l from-red-400 to-red-600"
+              : urgency.level === 'today' ? "bg-gradient-to-l from-red-300 to-red-500"
+              : "bg-gradient-to-l from-purple-400 to-purple-600"
               : "bg-gradient-to-l from-emerald-400 to-emerald-600"
           )} />
 
@@ -199,18 +296,15 @@ export default function StaffMarketing() {
                   )}
                 </div>
 
+                {/* Prominent publish date */}
+                <DateBadge publishDate={task.publish_date} />
+
                 {/* Quick meta line */}
                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  {task.publish_date && (
-                    <span className="flex items-center gap-1">
-                      <CalendarDays className="h-3 w-3" />
-                      {task.publish_date}
-                    </span>
-                  )}
                   {hasTime && (
                     <span className="flex items-center gap-1">
                       <Clock3 className="h-3 w-3" />
-                      {task.publish_time}
+                      وقت النشر: {task.publish_time}
                     </span>
                   )}
                   {task.channels && task.channels.length > 0 && (
@@ -274,14 +368,12 @@ export default function StaffMarketing() {
 
                 {isExpanded && (
                   <div className="mt-3 rounded-xl border border-border/60 bg-muted/20 overflow-hidden">
-                    {/* Briefing header */}
                     <div className="px-4 py-2.5 bg-muted/40 border-b border-border/40 flex items-center gap-2">
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
                       <span className="text-xs font-semibold">ملخص المنشور</span>
                     </div>
 
                     <div className="px-4 divide-y divide-border/30">
-                      {/* Design text */}
                       {hasDesignText && (
                         <DetailRow icon={Type} label="نص التصميم">
                           <div className="bg-background rounded-lg border border-border/40 p-3 text-xs leading-relaxed whitespace-pre-wrap">
@@ -289,8 +381,6 @@ export default function StaffMarketing() {
                           </div>
                         </DetailRow>
                       )}
-
-                      {/* Post text */}
                       {hasPostText && (
                         <DetailRow icon={MessageSquareText} label="نص المنشور">
                           <div className="bg-background rounded-lg border border-border/40 p-3 text-xs leading-relaxed whitespace-pre-wrap">
@@ -298,29 +388,19 @@ export default function StaffMarketing() {
                           </div>
                         </DetailRow>
                       )}
-
-                      {/* Design notes */}
                       {hasDesignNotes && (
                         <DetailRow icon={FileText} label="ملاحظات التصميم">
                           <p className="text-xs text-muted-foreground leading-relaxed">{task.design_notes}</p>
                         </DetailRow>
                       )}
-
-                      {/* CTA */}
                       {hasCta && (
                         <DetailRow icon={MousePointerClick} label="CTA">
-                          <Badge variant="outline" className="text-xs font-medium">
-                            {task.cta}
-                          </Badge>
+                          <Badge variant="outline" className="text-xs font-medium">{task.cta}</Badge>
                         </DetailRow>
                       )}
-
-                      {/* Hashtags */}
                       {hasHashtags && (
                         <DetailRow icon={Hash} label="الهاشتاقات">
-                          <p className="text-xs text-muted-foreground leading-relaxed" dir="ltr">
-                            {task.hashtags}
-                          </p>
+                          <p className="text-xs text-muted-foreground leading-relaxed" dir="ltr">{task.hashtags}</p>
                         </DetailRow>
                       )}
                     </div>
@@ -329,7 +409,7 @@ export default function StaffMarketing() {
               </>
             )}
 
-            {/* Design URL - always visible for designer */}
+            {/* Design URL */}
             {isDesigner && task.status !== 'published' && (
               <div className="flex gap-2 items-center max-w-md mt-3">
                 <Image className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -347,7 +427,7 @@ export default function StaffMarketing() {
               </div>
             )}
 
-            {/* Design link - for publisher */}
+            {/* Design link for publisher */}
             {!isDesigner && task.design_file_url && (
               <a
                 href={task.design_file_url}
@@ -381,6 +461,61 @@ export default function StaffMarketing() {
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">المهام المسندة إليك في تقويم المحتوى</p>
       </div>
+
+      {/* Urgent tasks alert banner */}
+      {urgentDesignTasks.length > 0 && (
+        <Card className="border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 overflow-hidden">
+          <CardContent className="p-0">
+            <div className="flex items-center gap-3 px-4 py-3 bg-red-100/60 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800">
+              <div className="p-1.5 rounded-lg bg-red-200/80 dark:bg-red-800/50">
+                <BellRing className="h-4 w-4 text-red-600 dark:text-red-400 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-red-800 dark:text-red-300">
+                  ⚠️ مهام عاجلة تحتاج تصميم ({urgentDesignTasks.length})
+                </h3>
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  منشورات قارب موعد نشرها ولم يكتمل تصميمها بعد
+                </p>
+              </div>
+            </div>
+            <div className="divide-y divide-red-200/60 dark:divide-red-800/40">
+              {urgentDesignTasks.map(task => {
+                const urgency = getUrgencyInfo(task.publish_date);
+                return (
+                  <div key={task.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {urgency.level === 'overdue' && <Flame className="h-4 w-4 text-red-500 shrink-0 animate-pulse" />}
+                      {urgency.level === 'today' && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
+                      {urgency.level === 'tomorrow' && <Clock className="h-4 w-4 text-amber-500 shrink-0" />}
+                      {urgency.level === 'soon' && <Clock3 className="h-4 w-4 text-orange-500 shrink-0" />}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{task.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatPublishDate(task.publish_date)}
+                          {task.publish_time && ` • ${task.publish_time}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className={cn('text-[10px]', {
+                        'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200': urgency.level === 'overdue' || urgency.level === 'today',
+                        'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200': urgency.level === 'tomorrow',
+                        'bg-orange-200 text-orange-800 dark:bg-orange-800 dark:text-orange-200': urgency.level === 'soon',
+                      })}>
+                        {urgency.label}
+                      </Badge>
+                      <Badge className={cn('text-[10px]', statusColors[task.status])}>
+                        {statusLabels[task.status]}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
