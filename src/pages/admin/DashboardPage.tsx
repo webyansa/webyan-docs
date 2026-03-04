@@ -1,439 +1,223 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  FileText,
-  FolderTree,
-  ThumbsUp,
-  ThumbsDown,
-  Eye,
-  Search,
-  AlertTriangle,
-  Plus,
-  TrendingUp,
-  Users,
-  Clock,
-  Image,
-  ArrowUpRight,
-  BarChart3,
-  Loader2,
+  Building2, Ticket, Target, FileText, MessageSquare, Calendar, Rocket,
+  Plus, ArrowUpRight, Loader2, AlertCircle, Clock, Users, BarChart3,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
-interface Stats {
+interface DashboardStats {
+  totalClients: number;
+  openTickets: number;
+  activeOpportunities: number;
+  totalQuotes: number;
   totalArticles: number;
-  publishedArticles: number;
-  draftArticles: number;
-  archivedArticles: number;
-  totalModules: number;
-  totalSubmodules: number;
-  totalFeedback: number;
-  helpfulFeedback: number;
-  notHelpfulFeedback: number;
-  totalSearches: number;
-  openIssues: number;
-  totalViews: number;
-  totalMedia: number;
+  activeConversations: number;
+  pendingMeetings: number;
+  activeProjects: number;
 }
 
-interface RecentArticle {
-  id: string;
-  title: string;
-  status: string;
-  views_count: number;
-  updated_at: string;
-}
-
-interface TopSearch {
-  query: string;
+interface ActionItem {
+  label: string;
   count: number;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+}
+
+interface RecentActivity {
+  id: string;
+  type: 'ticket' | 'client' | 'conversation' | 'opportunity';
+  title: string;
+  time: string;
 }
 
 export default function DashboardPage() {
-  const { isAdmin, user } = useAuth();
-  const [stats, setStats] = useState<Stats>({
-    totalArticles: 0,
-    publishedArticles: 0,
-    draftArticles: 0,
-    archivedArticles: 0,
-    totalModules: 0,
-    totalSubmodules: 0,
-    totalFeedback: 0,
-    helpfulFeedback: 0,
-    notHelpfulFeedback: 0,
-    totalSearches: 0,
-    openIssues: 0,
-    totalViews: 0,
-    totalMedia: 0,
+  const { isAdmin } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({
+    totalClients: 0, openTickets: 0, activeOpportunities: 0, totalQuotes: 0,
+    totalArticles: 0, activeConversations: 0, pendingMeetings: 0, activeProjects: 0,
   });
-  const [recentArticles, setRecentArticles] = useState<RecentArticle[]>([]);
-  const [topSearches, setTopSearches] = useState<TopSearch[]>([]);
+  const [actions, setActions] = useState<ActionItem[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchAll = async () => {
       try {
-        // Fetch articles count and views
-        const { data: articles } = await supabase
-          .from('docs_articles')
-          .select('id, status, views_count');
-
-        const totalArticles = articles?.length || 0;
-        const publishedArticles = articles?.filter(a => a.status === 'published').length || 0;
-        const draftArticles = articles?.filter(a => a.status === 'draft').length || 0;
-        const archivedArticles = articles?.filter(a => a.status === 'archived').length || 0;
-        const totalViews = articles?.reduce((sum, a) => sum + (a.views_count || 0), 0) || 0;
-
-        // Fetch modules count
-        const { count: totalModules } = await supabase
-          .from('docs_modules')
-          .select('*', { count: 'exact', head: true });
-
-        const { count: totalSubmodules } = await supabase
-          .from('docs_submodules')
-          .select('*', { count: 'exact', head: true });
-
-        // Fetch recent articles
-        const { data: recentData } = await supabase
-          .from('docs_articles')
-          .select('id, title, status, views_count, updated_at')
-          .order('updated_at', { ascending: false })
-          .limit(5);
-
-        setRecentArticles(recentData || []);
-
-        // Fetch media count
-        let mediaCount = 0;
-        try {
-          const { data: mediaData } = await supabase.storage
-            .from('docs-media')
-            .list('', { limit: 1000 });
-          mediaCount = mediaData?.filter(f => f.name !== '.emptyFolderPlaceholder').length || 0;
-        } catch (e) {
-          console.log('No media bucket yet');
-        }
-
-        // Fetch feedback stats (admin only)
-        let feedbackStats = { total: 0, helpful: 0, notHelpful: 0 };
-        let searchCount = 0;
-        let issuesCount = 0;
-
-        if (isAdmin) {
-          const { count: totalFeedback } = await supabase
-            .from('docs_feedback')
-            .select('*', { count: 'exact', head: true });
-
-          const { count: helpfulFeedback } = await supabase
-            .from('docs_feedback')
-            .select('*', { count: 'exact', head: true })
-            .eq('is_helpful', true);
-
-          const { count: notHelpfulFeedback } = await supabase
-            .from('docs_feedback')
-            .select('*', { count: 'exact', head: true })
-            .eq('is_helpful', false);
-
-          const { count: totalSearches } = await supabase
-            .from('docs_search_logs')
-            .select('*', { count: 'exact', head: true });
-
-          const { count: openIssues } = await supabase
-            .from('docs_issue_reports')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'open');
-
-          // Fetch top searches
-          const { data: searchData } = await supabase
-            .from('docs_search_logs')
-            .select('query')
-            .order('created_at', { ascending: false })
-            .limit(100);
-
-          if (searchData) {
-            const searchCounts: Record<string, number> = {};
-            searchData.forEach(s => {
-              searchCounts[s.query] = (searchCounts[s.query] || 0) + 1;
-            });
-            const sorted = Object.entries(searchCounts)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 5)
-              .map(([query, count]) => ({ query, count }));
-            setTopSearches(sorted);
-          }
-
-          feedbackStats = {
-            total: totalFeedback || 0,
-            helpful: helpfulFeedback || 0,
-            notHelpful: notHelpfulFeedback || 0,
-          };
-          searchCount = totalSearches || 0;
-          issuesCount = openIssues || 0;
-        }
+        const [
+          { count: clientsCount },
+          { count: ticketsCount },
+          { count: oppsCount },
+          { count: quotesCount },
+          { count: articlesCount },
+          { count: convsCount },
+          { count: meetingsCount },
+          { count: projectsCount },
+          { count: unreadTickets },
+          { count: waitingChats },
+        ] = await Promise.all([
+          supabase.from('client_organizations').select('*', { count: 'exact', head: true }),
+          supabase.from('support_tickets').select('*', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
+          supabase.from('crm_opportunities').select('*', { count: 'exact', head: true }).not('stage', 'in', '("closed_won","closed_lost")'),
+          supabase.from('crm_quotes').select('*', { count: 'exact', head: true }),
+          supabase.from('docs_articles').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+          supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('status', 'assigned'),
+          supabase.from('meeting_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('crm_implementations').select('*', { count: 'exact', head: true }).in('status', ['in_progress', 'planning']),
+          supabase.from('support_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+          supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('status', 'assigned'),
+        ]);
 
         setStats({
-          totalArticles,
-          publishedArticles,
-          draftArticles,
-          archivedArticles,
-          totalModules: totalModules || 0,
-          totalSubmodules: totalSubmodules || 0,
-          totalFeedback: feedbackStats.total,
-          helpfulFeedback: feedbackStats.helpful,
-          notHelpfulFeedback: feedbackStats.notHelpful,
-          totalSearches: searchCount,
-          openIssues: issuesCount,
-          totalViews,
-          totalMedia: mediaCount,
+          totalClients: clientsCount || 0,
+          openTickets: ticketsCount || 0,
+          activeOpportunities: oppsCount || 0,
+          totalQuotes: quotesCount || 0,
+          totalArticles: articlesCount || 0,
+          activeConversations: convsCount || 0,
+          pendingMeetings: meetingsCount || 0,
+          activeProjects: projectsCount || 0,
         });
+
+        const actionItems: ActionItem[] = [];
+        if ((unreadTickets || 0) > 0) actionItems.push({ label: 'تذاكر جديدة', count: unreadTickets || 0, href: '/admin/tickets', icon: Ticket, color: 'text-red-600' });
+        if ((waitingChats || 0) > 0) actionItems.push({ label: 'محادثات نشطة', count: waitingChats || 0, href: '/admin/chat', icon: MessageSquare, color: 'text-green-600' });
+        if ((meetingsCount || 0) > 0) actionItems.push({ label: 'اجتماعات معلقة', count: meetingsCount || 0, href: '/admin/meetings', icon: Calendar, color: 'text-cyan-600' });
+        setActions(actionItems);
+
+        // Recent activity
+        const { data: recentTickets } = await supabase.from('support_tickets').select('id, subject, created_at').order('created_at', { ascending: false }).limit(3);
+        const { data: recentClients } = await supabase.from('client_organizations').select('id, name, created_at').order('created_at', { ascending: false }).limit(2);
+
+        const activities: RecentActivity[] = [
+          ...(recentTickets || []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.subject, time: t.created_at })),
+          ...(recentClients || []).map((c: any) => ({ id: c.id, type: 'client' as const, title: c.name, time: c.created_at })),
+        ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 6);
+
+        setRecentActivity(activities);
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error('Dashboard fetch error:', error);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchStats();
-  }, [isAdmin]);
-
-  const helpfulRate = stats.totalFeedback > 0 
-    ? Math.round((stats.helpfulFeedback / stats.totalFeedback) * 100) 
-    : 0;
-
-  const publishedRate = stats.totalArticles > 0
-    ? Math.round((stats.publishedArticles / stats.totalArticles) * 100)
-    : 0;
+    fetchAll();
+  }, []);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+
+  const kpiCards = [
+    { label: 'العملاء', value: stats.totalClients, icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50', href: '/admin/clients' },
+    { label: 'التذاكر المفتوحة', value: stats.openTickets, icon: Ticket, color: 'text-red-600', bg: 'bg-red-50', href: '/admin/tickets' },
+    { label: 'الفرص النشطة', value: stats.activeOpportunities, icon: Target, color: 'text-purple-600', bg: 'bg-purple-50', href: '/admin/crm/deals' },
+    { label: 'عروض الأسعار', value: stats.totalQuotes, icon: FileText, color: 'text-orange-600', bg: 'bg-orange-50', href: '/admin/crm/quotes' },
+  ];
+
+  const secondaryCards = [
+    { label: 'المقالات المنشورة', value: stats.totalArticles, icon: FileText, href: '/admin/articles' },
+    { label: 'المحادثات النشطة', value: stats.activeConversations, icon: MessageSquare, href: '/admin/chat' },
+    { label: 'الاجتماعات المعلقة', value: stats.pendingMeetings, icon: Calendar, href: '/admin/meetings' },
+    { label: 'المشاريع النشطة', value: stats.activeProjects, icon: Rocket, href: '/admin/projects' },
+  ];
+
+  const typeConfig: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string; color: string }> = {
+    ticket: { icon: Ticket, label: 'تذكرة', color: 'bg-red-100 text-red-700' },
+    client: { icon: Building2, label: 'عميل جديد', color: 'bg-blue-100 text-blue-700' },
+    conversation: { icon: MessageSquare, label: 'محادثة', color: 'bg-green-100 text-green-700' },
+    opportunity: { icon: Target, label: 'فرصة', color: 'bg-purple-100 text-purple-700' },
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">لوحة التحكم</h1>
-          <p className="text-muted-foreground">
-            مرحباً بك في لوحة تحكم دليل ويبيان
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">لوحة التحكم</h1>
+          <p className="text-muted-foreground text-sm">نظرة عامة على أداء النظام</p>
         </div>
         <div className="flex gap-2">
+          <Link to="/admin/crm/leads">
+            <Button size="sm" className="gap-2"><Plus className="h-4 w-4" />عميل محتمل</Button>
+          </Link>
           <Link to="/admin/articles/new">
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              مقال جديد
-            </Button>
+            <Button size="sm" variant="outline" className="gap-2"><Plus className="h-4 w-4" />مقال جديد</Button>
           </Link>
         </div>
       </div>
 
-      {/* Main Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">المقالات</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalArticles}</div>
-            <div className="flex gap-2 mt-2 flex-wrap">
-              <Badge variant="default" className="text-xs bg-green-500">
-                {stats.publishedArticles} منشور
-              </Badge>
-              <Badge variant="secondary" className="text-xs">
-                {stats.draftArticles} مسودة
-              </Badge>
-              {stats.archivedArticles > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  {stats.archivedArticles} مؤرشف
-                </Badge>
-              )}
-            </div>
-            <Progress value={publishedRate} className="mt-3 h-2" />
-            <p className="text-xs text-muted-foreground mt-1">
-              {publishedRate}% معدل النشر
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">المشاهدات</CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalViews.toLocaleString('ar-EG')}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              إجمالي مشاهدات المقالات
-            </p>
-            <div className="flex items-center gap-1 mt-2 text-green-600 text-sm">
-              <TrendingUp className="h-3 w-3" />
-              <span>نشط</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">هيكل المحتوى</CardTitle>
-            <FolderTree className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalModules}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              وحدة رئيسية
-            </p>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline">{stats.totalSubmodules} قسم فرعي</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">الوسائط</CardTitle>
-            <Image className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalMedia}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              ملف مرفوع
-            </p>
-            <Link to="/admin/media" className="text-primary text-sm flex items-center gap-1 mt-2 hover:underline">
-              إدارة الوسائط
-              <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </CardContent>
-        </Card>
+      {/* KPI Cards */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {kpiCards.map((kpi) => (
+          <Link key={kpi.label} to={kpi.href}>
+            <Card className="rounded-xl hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className={cn("p-2 rounded-lg", kpi.bg)}>
+                    <kpi.icon className={cn("h-5 w-5", kpi.color)} />
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="text-3xl font-bold text-foreground">{kpi.value}</div>
+                <p className="text-sm text-muted-foreground mt-1">{kpi.label}</p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
 
-      {/* Admin-only stats */}
-      {isAdmin && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">معدل الإفادة</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{helpfulRate}%</div>
-              <div className="flex gap-4 mt-2 text-sm">
-                <span className="flex items-center gap-1 text-green-600">
-                  <ThumbsUp className="h-4 w-4" />
-                  {stats.helpfulFeedback}
-                </span>
-                <span className="flex items-center gap-1 text-red-600">
-                  <ThumbsDown className="h-4 w-4" />
-                  {stats.notHelpfulFeedback}
-                </span>
-              </div>
-              <Progress value={helpfulRate} className="mt-3 h-2" />
-            </CardContent>
-          </Card>
+      {/* Secondary Cards */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {secondaryCards.map((card) => (
+          <Link key={card.label} to={card.href}>
+            <Card className="rounded-xl hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-4 flex items-center gap-3">
+                <card.icon className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xl font-bold text-foreground">{card.value}</div>
+                  <p className="text-xs text-muted-foreground truncate">{card.label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">عمليات البحث</CardTitle>
-              <Search className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalSearches}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                إجمالي عمليات البحث
-              </p>
-              <Link to="/admin/search-logs" className="text-primary text-sm flex items-center gap-1 mt-2 hover:underline">
-                عرض السجلات
-                <ArrowUpRight className="h-3 w-3" />
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className={stats.openIssues > 0 ? 'border-orange-200 bg-orange-50 dark:bg-orange-950/20' : ''}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">البلاغات المفتوحة</CardTitle>
-              <AlertTriangle className={`h-4 w-4 ${stats.openIssues > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.openIssues}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                بلاغ يحتاج مراجعة
-              </p>
-              {stats.openIssues > 0 && (
-                <Link to="/admin/issues">
-                  <Button size="sm" variant="outline" className="mt-2 w-full border-orange-300 text-orange-700 hover:bg-orange-100">
-                    مراجعة البلاغات
-                  </Button>
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Recent Activity & Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {/* Recent Articles */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5 text-muted-foreground" />
-              آخر المقالات المحدثة
+      {/* Action Items + Recent Activity */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Needs Action */}
+        <Card className="rounded-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              يحتاج إجراء
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {recentArticles.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                لا توجد مقالات حديثة
-              </p>
+            {actions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">لا توجد إجراءات مطلوبة حالياً ✓</p>
             ) : (
-              <div className="space-y-3">
-                {recentArticles.map((article) => (
-                  <Link
-                    key={article.id}
-                    to={`/admin/articles/${article.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors"
-                  >
+              <div className="space-y-2">
+                {actions.map((action) => (
+                  <Link key={action.href} to={action.href} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
                     <div className="flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium text-sm">{article.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(article.updated_at), 'dd MMM yyyy', { locale: ar })}
-                        </p>
-                      </div>
+                      <action.icon className={cn("h-5 w-5", action.color)} />
+                      <span className="text-sm font-medium">{action.label}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          article.status === 'published'
-                            ? 'default'
-                            : article.status === 'draft'
-                            ? 'secondary'
-                            : 'outline'
-                        }
-                        className="text-xs"
-                      >
-                        {article.status === 'published'
-                          ? 'منشور'
-                          : article.status === 'draft'
-                          ? 'مسودة'
-                          : 'مؤرشف'}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        {article.views_count || 0}
-                      </span>
-                    </div>
+                    <Badge variant="secondary" className="font-bold">{action.count}</Badge>
                   </Link>
                 ))}
               </div>
@@ -441,65 +225,67 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">إجراءات سريعة</CardTitle>
-            <CardDescription>الأعمال الأكثر شيوعاً</CardDescription>
+        {/* Recent Activity */}
+        <Card className="rounded-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              أحدث النشاط
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <Link to="/admin/articles/new" className="block">
-              <Button variant="outline" className="w-full justify-start gap-2">
-                <Plus className="h-4 w-4" />
-                إضافة مقال جديد
-              </Button>
-            </Link>
-            <Link to="/admin/content-tree" className="block">
-              <Button variant="outline" className="w-full justify-start gap-2">
-                <FolderTree className="h-4 w-4" />
-                إدارة شجرة المحتوى
-              </Button>
-            </Link>
-            <Link to="/admin/media" className="block">
-              <Button variant="outline" className="w-full justify-start gap-2">
-                <Image className="h-4 w-4" />
-                رفع صور جديدة
-              </Button>
-            </Link>
-            <Link to="/admin/articles" className="block">
-              <Button variant="outline" className="w-full justify-start gap-2">
-                <FileText className="h-4 w-4" />
-                إدارة المقالات
-              </Button>
-            </Link>
+          <CardContent>
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">لا يوجد نشاط حديث</p>
+            ) : (
+              <div className="space-y-3">
+                {recentActivity.map((activity) => {
+                  const config = typeConfig[activity.type];
+                  return (
+                    <div key={`${activity.type}-${activity.id}`} className="flex items-start gap-3">
+                      <div className="mt-0.5">
+                        <config.icon className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", config.color)}>{config.label}</Badge>
+                        </div>
+                        <p className="text-sm font-medium truncate mt-0.5">{activity.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(activity.time), 'dd MMM yyyy, HH:mm', { locale: ar })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Searches (Admin only) */}
-      {isAdmin && topSearches.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Search className="h-5 w-5 text-muted-foreground" />
-              أكثر عمليات البحث
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 md:grid-cols-5">
-              {topSearches.map((search, index) => (
-                <div
-                  key={search.query}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted"
-                >
-                  <span className="text-sm font-medium truncate">{search.query}</span>
-                  <Badge variant="secondary">{search.count}</Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Quick Actions */}
+      <Card className="rounded-xl">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">إجراءات سريعة</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'عميل محتمل جديد', href: '/admin/crm/leads', icon: Users },
+              { label: 'عرض سعر جديد', href: '/admin/crm/quotes', icon: FileText },
+              { label: 'مقال جديد', href: '/admin/articles/new', icon: FileText },
+              { label: 'عرض التقارير', href: '/admin/reports', icon: BarChart3 },
+            ].map((action) => (
+              <Link key={action.href} to={action.href}>
+                <Button variant="outline" className="w-full justify-start gap-2 h-11">
+                  <action.icon className="h-4 w-4" />
+                  <span className="text-sm">{action.label}</span>
+                </Button>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
