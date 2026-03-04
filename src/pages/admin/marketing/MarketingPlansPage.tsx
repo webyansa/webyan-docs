@@ -14,6 +14,9 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Plus, CalendarIcon, Target, Edit, Trash2, Eye, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { KpiTargetsEditor } from '@/components/marketing/KpiTargetsEditor';
+import { KpiPerformanceDashboard } from '@/components/marketing/KpiPerformanceDashboard';
+import { aggregateMetrics, type KpiTargets } from '@/lib/marketing/kpiConfig';
 
 const statusLabels: Record<string, string> = {
   planning: 'تخطيط',
@@ -36,11 +39,12 @@ interface PlanForm {
   responsible_id: string;
   status: string;
   notes: string;
+  kpi_targets: KpiTargets;
 }
 
 const emptyForm: PlanForm = {
   name: '', objective: '', start_date: undefined, end_date: undefined,
-  budget: '', responsible_id: '', status: 'planning', notes: '',
+  budget: '', responsible_id: '', status: 'planning', notes: '', kpi_targets: {},
 };
 
 export default function MarketingPlansPage() {
