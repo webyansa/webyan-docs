@@ -175,8 +175,16 @@ export default function PlanDetailsPage() {
                   </div>
                   <Badge variant="outline" className="text-xs">{campaignTypeLabels[c.campaign_type]}</Badge>
                   {c.target_audience && <p className="text-xs text-muted-foreground">🎯 {c.target_audience}</p>}
-                  {c.target_kpi && <p className="text-xs text-muted-foreground">📊 {c.target_kpi}</p>}
                   {c.start_date && <p className="text-xs text-muted-foreground">📅 {c.start_date} → {c.end_date || '—'}</p>}
+                  {/* Campaign KPI compact bar */}
+                  {(() => {
+                    const campTargets = (c.kpi_targets as KpiTargets) || {};
+                    const hasT = Object.keys(campTargets).some(k => campTargets[k] > 0);
+                    if (!hasT) return null;
+                    const campContent = contentItems.filter((ci: any) => ci.campaign_id === c.id);
+                    const campActuals = aggregateMetrics(campContent);
+                    return <KpiPerformanceDashboard targets={campTargets} actuals={campActuals} compact />;
+                  })()}
                   <div className="flex gap-2 pt-2 border-t">
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/marketing/content?campaign=${c.id}`)}>
                       <Eye className="h-4 w-4" />
