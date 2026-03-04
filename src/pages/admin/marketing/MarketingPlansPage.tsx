@@ -88,6 +88,7 @@ export default function MarketingPlansPage() {
       responsible_id: plan.responsible_id || '',
       status: plan.status,
       notes: plan.notes || '',
+      kpi_targets: (plan.kpi_targets as KpiTargets) || {},
     });
     setDialogOpen(true);
   };
@@ -97,7 +98,7 @@ export default function MarketingPlansPage() {
       toast.error('يرجى ملء الحقول الإجبارية');
       return;
     }
-    const payload = {
+    const payload: any = {
       name: form.name,
       objective: form.objective || null,
       start_date: format(form.start_date, 'yyyy-MM-dd'),
@@ -106,6 +107,7 @@ export default function MarketingPlansPage() {
       responsible_id: form.responsible_id || null,
       status: form.status,
       notes: form.notes || null,
+      kpi_targets: form.kpi_targets,
     };
 
     if (editingId) {
