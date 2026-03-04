@@ -44,10 +44,10 @@ export default function StaffLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading, isStaff, permissions, signOut } = useStaffAuth();
-  // Initialize staff notifications with sound
   useStaffNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [staffName, setStaffName] = useState<string>('');
+  const [hasMarketingTasks, setHasMarketingTasks] = useState(false);
 
   useEffect(() => {
     // Only redirect when loading is complete
@@ -62,20 +62,18 @@ export default function StaffLayout() {
   }, [user, loading, isStaff, navigate]);
 
   useEffect(() => {
-    const fetchStaffName = async () => {
+    const fetchStaffData = async () => {
       if (permissions.staffId) {
-        const { data } = await supabase
-          .from('staff_members')
-          .select('full_name')
-          .eq('id', permissions.staffId)
-          .single();
-        
-        if (data) {
-          setStaffName(data.full_name);
-        }
+        const [nameRes, designRes, publishRes] = await Promise.all([
+          supabase.from('staff_members').select('full_name').eq('id', permissions.staffId).single(),
+          supabase.from('content_calendar').select('id', { count: 'exact', head: true }).eq('designer_id', permissions.staffId).limit(1) as any,
+          supabase.from('content_calendar').select('id', { count: 'exact', head: true }).eq('publisher_id', permissions.staffId).limit(1) as any,
+        ]);
+        if (nameRes.data) setStaffName(nameRes.data.full_name);
+        setHasMarketingTasks((designRes.count ?? 0) > 0 || (publishRes.count ?? 0) > 0);
       }
     };
-    fetchStaffName();
+    fetchStaffData();
   }, [permissions.staffId]);
 
   const handleSignOut = async () => {
@@ -107,10 +105,14 @@ export default function StaffLayout() {
     { title: 'المحادثات', href: '/support/chat', icon: MessageCircle, permission: 'canReplyTickets' },
     { title: 'الاجتماعات الموجهة', href: '/support/meetings', icon: Calendar, permission: 'canAttendMeetings' },
     { title: 'إدارة المحتوى', href: '/support/content', icon: FileText, permission: 'canManageContent' },
-    { title: 'إدارة التسويق', href: '/support/marketing', icon: Megaphone, permission: 'canManageMarketing' },
+    { title: 'إدارة التسويق', href: '/support/marketing', icon: Megaphone },
   ];
 
   const filteredNavItems = navItems.filter(item => {
+    // Marketing: show if has permission OR has assigned tasks
+    if (item.href === '/support/marketing') {
+      return permissions.canManageMarketing || hasMarketingTasks;
+    }
     if (!item.permission) return true;
     return permissions[item.permission];
   });

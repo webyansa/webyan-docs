@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffAuth } from '@/hooks/useStaffAuth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Palette, Send, CheckCircle2, Clock, Megaphone } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Loader2, Palette, Send, CheckCircle2, Clock, Megaphone,
+  ExternalLink, ChevronDown, Inbox, CalendarDays, Hash
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -15,18 +18,37 @@ const statusLabels: Record<string, string> = {
   design_done: 'تم التصميم', ready: 'جاهز للنشر', published: 'تم النشر'
 };
 const statusColors: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-800', waiting_design: 'bg-purple-100 text-purple-800',
-  in_design: 'bg-orange-100 text-orange-800', design_done: 'bg-cyan-100 text-cyan-800',
-  ready: 'bg-blue-100 text-blue-800', published: 'bg-green-100 text-green-800'
+  draft: 'bg-muted text-muted-foreground',
+  waiting_design: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  in_design: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  design_done: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
+  ready: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  published: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
 };
+
+interface ContentTask {
+  id: string;
+  title: string;
+  status: string;
+  channels: string[] | null;
+  publish_date: string | null;
+  design_notes: string | null;
+  design_text: string | null;
+  post_text: string | null;
+  design_file_url: string | null;
+  hashtags: string | null;
+  updated_at: string;
+  content_type: string;
+}
 
 export default function StaffMarketing() {
   const { permissions } = useStaffAuth();
   const staffId = permissions.staffId;
-  const [designTasks, setDesignTasks] = useState<any[]>([]);
-  const [publishTasks, setPublishTasks] = useState<any[]>([]);
+  const [designTasks, setDesignTasks] = useState<ContentTask[]>([]);
+  const [publishTasks, setPublishTasks] = useState<ContentTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [completedOpen, setCompletedOpen] = useState(false);
 
   useEffect(() => {
     if (staffId) fetchTasks();
@@ -36,7 +58,7 @@ export default function StaffMarketing() {
     setLoading(true);
     const [designRes, publishRes] = await Promise.all([
       supabase.from('content_calendar').select('*').eq('designer_id', staffId).order('publish_date') as any,
-      supabase.from('content_calendar').select('*').eq('publisher_id', staffId).in('status', ['design_done', 'ready']).order('publish_date') as any,
+      supabase.from('content_calendar').select('*').eq('publisher_id', staffId).order('publish_date') as any,
     ]);
     setDesignTasks(designRes.data || []);
     setPublishTasks(publishRes.data || []);
@@ -46,7 +68,7 @@ export default function StaffMarketing() {
   const updateStatus = async (id: string, newStatus: string) => {
     setUpdating(id);
     const { error } = await (supabase.from('content_calendar').update({ status: newStatus }).eq('id', id) as any);
-    if (error) { toast.error('فشل تحديث الحالة'); }
+    if (error) toast.error('فشل تحديث الحالة');
     else { toast.success('تم تحديث الحالة'); fetchTasks(); }
     setUpdating(null);
   };
@@ -57,13 +79,28 @@ export default function StaffMarketing() {
     else toast.success('تم حفظ رابط التصميم');
   };
 
+  // KPI calculations
+  const activeDesignTasks = designTasks.filter(t => !['published', 'design_done'].includes(t.status) || (t.status === 'design_done' && !publishTasks.find(p => p.id === t.id)));
+  const activePublishTasks = publishTasks.filter(t => ['design_done', 'ready'].includes(t.status));
+  
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  
+  const allTasks = [...designTasks, ...publishTasks];
+  const uniqueIds = new Set<string>();
+  const allUnique = allTasks.filter(t => {
+    if (uniqueIds.has(t.id)) return false;
+    uniqueIds.add(t.id);
+    return true;
+  });
+
+  const completedRecently = allUnique.filter(t =>
+    t.status === 'published' && new Date(t.updated_at) >= weekAgo
+  );
+
   const inProgressCount = designTasks.filter(t => ['waiting_design', 'in_design'].includes(t.status)).length;
-  const awaitingPublish = publishTasks.length;
-  const publishedThisWeek = [...designTasks, ...publishTasks].filter(t => {
-    if (t.status !== 'published') return false;
-    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-    return new Date(t.updated_at) >= weekAgo;
-  }).length;
+  const awaitingPublish = activePublishTasks.length;
+  const completedCount = completedRecently.length;
 
   if (loading) {
     return (
@@ -73,179 +110,252 @@ export default function StaffMarketing() {
     );
   }
 
+  const renderTaskCard = (task: ContentTask, role: 'designer' | 'publisher') => {
+    const isDesigner = role === 'designer';
+    return (
+      <Card key={`${task.id}-${role}`} className="group hover:shadow-md transition-shadow border-border/60">
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-3 min-w-0">
+              {/* Title + badges row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'text-[10px] font-semibold shrink-0',
+                    isDesigner
+                      ? 'border-purple-300 text-purple-700 bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:bg-purple-900/20'
+                      : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:bg-emerald-900/20'
+                  )}
+                >
+                  {isDesigner ? '🎨 مصمم' : '📢 ناشر'}
+                </Badge>
+                <h3 className="font-semibold text-sm truncate">{task.title}</h3>
+                <Badge className={cn('text-[10px]', statusColors[task.status])}>
+                  {statusLabels[task.status]}
+                </Badge>
+              </div>
+
+              {/* Meta info */}
+              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                {task.publish_date && (
+                  <span className="flex items-center gap-1">
+                    <CalendarDays className="h-3 w-3" />
+                    {task.publish_date}
+                  </span>
+                )}
+                {task.channels && task.channels.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Hash className="h-3 w-3" />
+                    {task.channels.map(ch => (
+                      <Badge key={ch} variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {ch}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Content preview */}
+              {isDesigner && task.design_text && (
+                <p className="text-xs bg-muted/50 p-2.5 rounded-lg border border-border/40 line-clamp-2">
+                  {task.design_text}
+                </p>
+              )}
+              {isDesigner && task.design_notes && (
+                <p className="text-xs text-muted-foreground">📝 {task.design_notes}</p>
+              )}
+              {!isDesigner && task.post_text && (
+                <p className="text-xs bg-muted/50 p-2.5 rounded-lg border border-border/40 line-clamp-2">
+                  {task.post_text}
+                </p>
+              )}
+
+              {/* Design URL - for designer */}
+              {isDesigner && task.status !== 'published' && (
+                <div className="flex gap-2 items-center max-w-md">
+                  <Input
+                    placeholder="رابط التصميم (Figma, Drive...)"
+                    defaultValue={task.design_file_url || ''}
+                    dir="ltr"
+                    className="h-8 text-xs"
+                    onBlur={(e) => {
+                      if (e.target.value !== (task.design_file_url || '')) {
+                        updateDesignUrl(task.id, e.target.value);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Design link - for publisher */}
+              {!isDesigner && task.design_file_url && (
+                <a
+                  href={task.design_file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  عرض التصميم
+                </a>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-1.5 min-w-[110px] items-stretch shrink-0">
+              {isDesigner && task.status === 'waiting_design' && (
+                <Button size="sm" variant="outline" className="text-xs h-8" disabled={updating === task.id}
+                  onClick={() => updateStatus(task.id, 'in_design')}>
+                  {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '▶ بدء التصميم'}
+                </Button>
+              )}
+              {isDesigner && task.status === 'in_design' && (
+                <Button size="sm" className="text-xs h-8" disabled={updating === task.id}
+                  onClick={() => updateStatus(task.id, 'design_done')}>
+                  {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ تم التصميم'}
+                </Button>
+              )}
+              {isDesigner && task.status === 'design_done' && (
+                <span className="text-xs text-center py-1.5 rounded-md bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                  ✓ مكتمل
+                </span>
+              )}
+              {isDesigner && task.status === 'draft' && (
+                <span className="text-xs text-center py-1.5 text-muted-foreground">مسودة</span>
+              )}
+
+              {!isDesigner && (task.status === 'design_done' || task.status === 'ready') && (
+                <Button size="sm" className="text-xs h-8" disabled={updating === task.id}
+                  onClick={() => updateStatus(task.id, 'published')}>
+                  {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ تم النشر'}
+                </Button>
+              )}
+              {!isDesigner && task.status === 'published' && (
+                <span className="text-xs text-center py-1.5 rounded-md bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                  ✓ تم النشر
+                </span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const activeDesignList = designTasks.filter(t => t.status !== 'published');
+  const activePublishList = publishTasks.filter(t => ['design_done', 'ready'].includes(t.status));
+  const hasNoTasks = activeDesignList.length === 0 && activePublishList.length === 0;
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-3">
-          <Megaphone className="h-7 w-7 text-primary" />
-          إدارة التسويق
+          <div className="p-2 rounded-xl bg-primary/10">
+            <Megaphone className="h-6 w-6 text-primary" />
+          </div>
+          مهام التسويق
         </h1>
-        <p className="text-muted-foreground mt-1">مهام التصميم والنشر المسندة إليك</p>
+        <p className="text-muted-foreground mt-1 text-sm">المهام المسندة إليك في تقويم المحتوى</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-orange-100">
-                <Clock className="h-5 w-5 text-orange-700" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{inProgressCount}</p>
-                <p className="text-xs text-muted-foreground">قيد التنفيذ</p>
-              </div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border-orange-200/50 dark:border-orange-800/30">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-2.5 rounded-xl bg-orange-100 dark:bg-orange-900/30">
+              <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{inProgressCount}</p>
+              <p className="text-xs text-muted-foreground">قيد التنفيذ</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <Send className="h-5 w-5 text-blue-700" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{awaitingPublish}</p>
-                <p className="text-xs text-muted-foreground">بانتظار النشر</p>
-              </div>
+        <Card className="border-blue-200/50 dark:border-blue-800/30">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/30">
+              <Send className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{awaitingPublish}</p>
+              <p className="text-xs text-muted-foreground">بانتظار النشر</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-100">
-                <CheckCircle2 className="h-5 w-5 text-green-700" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{publishedThisWeek}</p>
-                <p className="text-xs text-muted-foreground">تم النشر هذا الأسبوع</p>
-              </div>
+        <Card className="border-green-200/50 dark:border-green-800/30">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-2.5 rounded-xl bg-green-100 dark:bg-green-900/30">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{completedCount}</p>
+              <p className="text-xs text-muted-foreground">تم الإنجاز هذا الأسبوع</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tasks */}
-      <Tabs defaultValue="design">
-        <TabsList>
-          <TabsTrigger value="design" className="gap-2">
-            <Palette className="h-4 w-4" />
-            مهام التصميم ({designTasks.length})
-          </TabsTrigger>
-          <TabsTrigger value="publish" className="gap-2">
-            <Send className="h-4 w-4" />
-            مهام النشر ({publishTasks.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Empty state */}
+      {hasNoTasks && completedRecently.length === 0 && (
+        <Card>
+          <CardContent className="py-16 flex flex-col items-center justify-center text-center">
+            <div className="p-4 rounded-full bg-muted/50 mb-4">
+              <Inbox className="h-10 w-10 text-muted-foreground/50" />
+            </div>
+            <h3 className="font-semibold text-lg mb-1">لا توجد مهام حالياً</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              عندما يتم إسناد منشورات إليك كمصمم أو ناشر، ستظهر هنا
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="design" className="space-y-3">
-          {designTasks.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد مهام تصميم مسندة إليك</CardContent></Card>
-          ) : designTasks.map(task => (
-            <Card key={task.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{task.title}</h3>
-                      <Badge className={cn('text-xs', statusColors[task.status])}>{statusLabels[task.status]}</Badge>
-                    </div>
-                    {task.channels?.length > 0 && (
-                      <div className="flex gap-1">
-                        {task.channels.map((ch: string) => <Badge key={ch} variant="secondary" className="text-xs">{ch}</Badge>)}
-                      </div>
-                    )}
-                    {task.publish_date && <p className="text-xs text-muted-foreground">📅 {task.publish_date}</p>}
-                    {task.design_notes && <p className="text-xs text-muted-foreground">📝 {task.design_notes}</p>}
-                    {task.design_text && <p className="text-xs bg-muted/50 p-2 rounded">{task.design_text}</p>}
+      {/* Design Tasks */}
+      {activeDesignList.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Palette className="h-4 w-4 text-purple-600" />
+            <h2 className="font-semibold text-base">مهام التصميم</h2>
+            <Badge variant="secondary" className="text-xs">{activeDesignList.length}</Badge>
+          </div>
+          <div className="space-y-3">
+            {activeDesignList.map(task => renderTaskCard(task, 'designer'))}
+          </div>
+        </div>
+      )}
 
-                    {/* Design URL input */}
-                    <div className="flex gap-2 items-center">
-                      <Input
-                        placeholder="رابط التصميم..."
-                        defaultValue={task.design_file_url || ''}
-                        dir="ltr"
-                        className="h-8 text-sm"
-                        onBlur={(e) => {
-                          if (e.target.value !== (task.design_file_url || '')) {
-                            updateDesignUrl(task.id, e.target.value);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
+      {/* Publish Tasks */}
+      {activePublishList.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Send className="h-4 w-4 text-emerald-600" />
+            <h2 className="font-semibold text-base">مهام النشر</h2>
+            <Badge variant="secondary" className="text-xs">{activePublishList.length}</Badge>
+          </div>
+          <div className="space-y-3">
+            {activePublishList.map(task => renderTaskCard(task, 'publisher'))}
+          </div>
+        </div>
+      )}
 
-                  {/* Status actions */}
-                  <div className="flex flex-col gap-1.5 min-w-[120px]">
-                    {task.status === 'waiting_design' && (
-                      <Button size="sm" variant="outline" className="text-xs" disabled={updating === task.id}
-                        onClick={() => updateStatus(task.id, 'in_design')}>
-                        {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'بدء التصميم'}
-                      </Button>
-                    )}
-                    {task.status === 'in_design' && (
-                      <Button size="sm" className="text-xs" disabled={updating === task.id}
-                        onClick={() => updateStatus(task.id, 'design_done')}>
-                        {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تم التصميم ✓'}
-                      </Button>
-                    )}
-                    {task.status === 'draft' && (
-                      <span className="text-xs text-muted-foreground text-center">مسودة</span>
-                    )}
-                    {task.status === 'design_done' && (
-                      <span className="text-xs text-green-600 text-center">✓ مكتمل</span>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-
-        <TabsContent value="publish" className="space-y-3">
-          {publishTasks.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد مهام نشر مسندة إليك</CardContent></Card>
-          ) : publishTasks.map(task => (
-            <Card key={task.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{task.title}</h3>
-                      <Badge className={cn('text-xs', statusColors[task.status])}>{statusLabels[task.status]}</Badge>
-                    </div>
-                    {task.channels?.length > 0 && (
-                      <div className="flex gap-1">
-                        {task.channels.map((ch: string) => <Badge key={ch} variant="secondary" className="text-xs">{ch}</Badge>)}
-                      </div>
-                    )}
-                    {task.publish_date && <p className="text-xs text-muted-foreground">📅 {task.publish_date}</p>}
-                    {task.post_text && <p className="text-xs bg-muted/50 p-2 rounded line-clamp-2">{task.post_text}</p>}
-                    {task.design_file_url && (
-                      <a href={task.design_file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">
-                        🎨 عرض التصميم
-                      </a>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 min-w-[120px]">
-                    {(task.status === 'design_done' || task.status === 'ready') && (
-                      <Button size="sm" className="text-xs" disabled={updating === task.id}
-                        onClick={() => updateStatus(task.id, 'published')}>
-                        {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تم النشر ✓'}
-                      </Button>
-                    )}
-                    {task.status === 'published' && (
-                      <span className="text-xs text-green-600 text-center">✓ تم النشر</span>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-      </Tabs>
+      {/* Completed recently */}
+      {completedRecently.length > 0 && (
+        <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>
+          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full">
+            <ChevronDown className={cn('h-4 w-4 transition-transform', completedOpen && 'rotate-180')} />
+            <CheckCircle2 className="h-4 w-4" />
+            <span>تم الإنجاز مؤخراً ({completedRecently.length})</span>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 mt-3">
+            {completedRecently.map(task => {
+              const isDesigner = designTasks.some(d => d.id === task.id);
+              return renderTaskCard(task, isDesigner ? 'designer' : 'publisher');
+            })}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   );
 }
