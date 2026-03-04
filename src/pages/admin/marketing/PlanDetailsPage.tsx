@@ -52,7 +52,7 @@ export default function PlanDetailsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CampaignForm>(emptyCampaignForm);
-
+  const [contentItems, setContentItems] = useState<any[]>([]);
   useEffect(() => {
     if (planId) fetchData();
   }, [planId]);
