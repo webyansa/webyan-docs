@@ -93,6 +93,10 @@ export default function ContentCalendarPage() {
   const [lastAIResult, setLastAIResult] = useState<any>(null);
   const [showAISection, setShowAISection] = useState(false);
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   // Monthly Plan state
   const [monthlyPlanOpen, setMonthlyPlanOpen] = useState(false);
   const [monthlyPlanLoading, setMonthlyPlanLoading] = useState(false);
@@ -198,7 +202,36 @@ export default function ContentCalendarPage() {
     }));
   };
 
-  // AI Generation
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`حذف ${selectedIds.size} محتوى؟`)) return;
+    setBulkDeleting(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await (supabase.from('content_calendar').delete().in('id', ids) as any);
+    if (error) { toast.error('فشل الحذف'); }
+    else { toast.success(`تم حذف ${ids.length} محتوى`); setSelectedIds(new Set()); }
+    setBulkDeleting(false);
+    fetchData();
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredItems.map((i: any) => i.id)));
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // AI Generation - uses generate-marketing-content with tool calling for structured output
   const handleAIGenerate = async () => {
     if (!aiForm.idea.trim()) {
       toast.error('يرجى كتابة وصف فكرة المحتوى');
@@ -208,21 +241,21 @@ export default function ContentCalendarPage() {
     setAILoading(true);
 
     try {
+      const toneMap: Record<string, string> = { 'رسمي': 'formal', 'تنفيذي': 'formal', 'سعودي_أبيض': 'friendly', 'ودود': 'friendly', 'تسويقي قوي': 'strong', 'تعليمي': 'educational' };
+      const platformMap: Record<string, string> = { 'X': 'x', 'LinkedIn': 'linkedin', 'Instagram': 'instagram', 'WhatsApp': 'website', 'Website': 'website' };
+
       const payload = {
-        product: 'Webyan',
-        platform: aiForm.platform,
-        tone: aiForm.tone,
-        content_type: form.content_type || 'Post',
+        platform: platformMap[aiForm.platform] || 'x',
+        tone: toneMap[aiForm.tone] || 'formal',
+        language: 'ar',
+        idea_description: aiForm.idea,
+        product_name: 'ويبيان - Webyan',
         audience: aiForm.audience,
-        key_message: aiForm.key_message,
-        cta: aiForm.cta,
+        value_prop: aiForm.key_message,
         landing_url: aiForm.landing_url,
-        demos: { plus: 'https://Plus.webyan.sa', basic: 'https://basic.webyan.sa' },
-        constraints: { max_hashtags: 3, no_exaggeration: true, avoid_words: ['الأفضل', 'مضمون 100%', 'حل سحري', 'خرافي'], x_max_chars: 280 },
-        idea: aiForm.idea,
       };
 
-      const { data, error } = await supabase.functions.invoke('ai-generate-content', { body: payload });
+      const { data, error } = await supabase.functions.invoke('generate-marketing-content', { body: payload });
 
       if (error) throw error;
       if (!data) { toast.error('لم يتم استلام رد من الخادم'); return; }
@@ -231,33 +264,17 @@ export default function ContentCalendarPage() {
       console.log('AI Response:', JSON.stringify(data, null, 2));
       setLastAIResult(data);
 
-      // Map AI response to form fields - handle both nested and flat schemas
-      const primaryText = data.post_copy?.primary_text || data.primary_text || data.content || '';
-      const headline = data.design_copy?.headline || data.headline || '';
-      const subheadline = data.design_copy?.subheadline || data.subheadline || '';
-      const ctaText = data.design_copy?.cta_text || data.CTA || data.cta_text || '';
-      const hashtags = data.post_copy?.hashtags || data.hashtags || [];
-      const aiTitle = data.title || headline || '';
-
+      // Map structured tool-calling response to form fields
       setForm(prev => ({
         ...prev,
-        title: aiTitle || prev.title,
-        post_text: primaryText || prev.post_text,
-        cta: ctaText || prev.cta,
-        hashtags: (Array.isArray(hashtags) ? hashtags : []).join(' '),
-        design_text: [headline, subheadline].filter(Boolean).join('\n') || prev.design_text,
-        design_notes: ctaText ? `CTA: ${ctaText}` : prev.design_notes,
+        title: data.title || prev.title,
+        post_text: data.post_text || prev.post_text,
+        cta: data.cta || prev.cta,
+        hashtags: (Array.isArray(data.hashtags) ? data.hashtags : []).join(' '),
+        design_text: data.design_text || prev.design_text,
+        design_notes: data.design_brief || prev.design_notes,
         channels: prev.channels.length === 0 ? [aiForm.platform] : prev.channels,
       }));
-
-      // Show compliance info
-      const compliance = data.meta?.compliance;
-      if (compliance && !compliance.within_char_limit) {
-        toast.warning('⚠️ النص يتجاوز الحد المسموح للمنصة');
-      }
-      if (compliance && !compliance.used_file_search) {
-        toast.warning('⚠️ لم يتم استخدام file_search - قد لا يكون المحتوى مبنياً على ملفات المعرفة');
-      }
 
       toast.success('تم توليد المحتوى بنجاح ✨');
     } catch (err: any) {
@@ -473,49 +490,67 @@ export default function ContentCalendarPage() {
         {/* Table View */}
         <TabsContent value="table">
           {loading ? <div className="text-center py-8 text-muted-foreground">جاري التحميل...</div> : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>العنوان</TableHead>
-                      <TableHead>النوع</TableHead>
-                      <TableHead>الحملة</TableHead>
-                      <TableHead>تاريخ النشر</TableHead>
-                      <TableHead>القنوات</TableHead>
-                      <TableHead>الحالة</TableHead>
-                      <TableHead>التصميم</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredItems.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">لا يوجد محتوى</TableCell></TableRow>
-                    ) : filteredItems.map((item: any) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.title}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-xs">{contentTypeLabels[item.content_type]}</Badge></TableCell>
-                        <TableCell className="text-sm">{item.campaign?.name || '—'}</TableCell>
-                        <TableCell className="text-sm">{item.publish_date || '—'} {item.publish_time || ''}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 flex-wrap">
-                            {item.channels?.map((ch: string) => <Badge key={ch} variant="secondary" className="text-xs">{ch}</Badge>)}
-                          </div>
-                        </TableCell>
-                        <TableCell><Badge className={cn('text-xs', statusColors[item.status])}>{statusLabels[item.status]}</Badge></TableCell>
-                        <TableCell><Badge variant="outline" className="text-xs">{designStatusLabels[item.design_status] || '—'}</Badge></TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => openEdit(item)}><Edit className="h-4 w-4" /></Button>
-                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
-                          </div>
-                        </TableCell>
+            <>
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-3 mb-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <span className="text-sm font-medium">تم تحديد {selectedIds.size} محتوى</span>
+                  <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDeleting} className="gap-2">
+                    {bulkDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    حذف المحدد
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>إلغاء التحديد</Button>
+                </div>
+              )}
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length} onCheckedChange={toggleSelectAll} />
+                        </TableHead>
+                        <TableHead>العنوان</TableHead>
+                        <TableHead>النوع</TableHead>
+                        <TableHead>الحملة</TableHead>
+                        <TableHead>تاريخ النشر</TableHead>
+                        <TableHead>القنوات</TableHead>
+                        <TableHead>الحالة</TableHead>
+                        <TableHead>التصميم</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredItems.length === 0 ? (
+                        <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">لا يوجد محتوى</TableCell></TableRow>
+                      ) : filteredItems.map((item: any) => (
+                        <TableRow key={item.id} className={cn(selectedIds.has(item.id) && 'bg-primary/5')}>
+                          <TableCell>
+                            <Checkbox checked={selectedIds.has(item.id)} onCheckedChange={() => toggleSelectItem(item.id)} />
+                          </TableCell>
+                          <TableCell className="font-medium">{item.title}</TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs">{contentTypeLabels[item.content_type]}</Badge></TableCell>
+                          <TableCell className="text-sm">{item.campaign?.name || '—'}</TableCell>
+                          <TableCell className="text-sm">{item.publish_date || '—'} {item.publish_time || ''}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 flex-wrap">
+                              {item.channels?.map((ch: string) => <Badge key={ch} variant="secondary" className="text-xs">{ch}</Badge>)}
+                            </div>
+                          </TableCell>
+                          <TableCell><Badge className={cn('text-xs', statusColors[item.status])}>{statusLabels[item.status]}</Badge></TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs">{designStatusLabels[item.design_status] || '—'}</Badge></TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(item)}><Edit className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </>
           )}
         </TabsContent>
       </Tabs>
@@ -622,17 +657,9 @@ export default function ContentCalendarPage() {
                       </>
                     )}
                   </div>
-                  {lastAIResult?.meta?.compliance && (
-                    <div className="flex gap-2 text-xs">
-                      <span className={lastAIResult.meta.compliance.within_char_limit ? 'text-green-600' : 'text-destructive'}>
-                        {lastAIResult.meta.compliance.within_char_limit ? '✅' : '❌'} حد الأحرف
-                      </span>
-                      <span className={lastAIResult.meta.compliance.used_file_search ? 'text-green-600' : 'text-destructive'}>
-                        {lastAIResult.meta.compliance.used_file_search ? '✅' : '❌'} File Search
-                      </span>
-                      <span className={lastAIResult.meta.compliance.no_banned_words ? 'text-green-600' : 'text-destructive'}>
-                        {lastAIResult.meta.compliance.no_banned_words ? '✅' : '❌'} كلمات ممنوعة
-                      </span>
+                   {lastAIResult && (
+                    <div className="flex gap-2 text-xs text-green-600">
+                      ✅ تم توليد جميع حقول المحتوى (العنوان، النص، نص التصميم، ملاحظات التصميم، CTA، الهاشتاقات)
                     </div>
                   )}
                 </div>
