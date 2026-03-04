@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,9 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ArrowRight, Plus, CalendarIcon, Edit, Trash2, Eye, Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { KpiTargetsEditor } from '@/components/marketing/KpiTargetsEditor';
+import { KpiPerformanceDashboard } from '@/components/marketing/KpiPerformanceDashboard';
+import { aggregateMetrics, type KpiTargets, type KpiMetrics } from '@/lib/marketing/kpiConfig';
 
 const statusLabels: Record<string, string> = { planning: 'تخطيط', in_progress: 'قيد التنفيذ', completed: 'مكتملة' };
 const statusColors: Record<string, string> = { planning: 'bg-blue-100 text-blue-800', in_progress: 'bg-amber-100 text-amber-800', completed: 'bg-green-100 text-green-800' };
@@ -28,6 +31,7 @@ interface CampaignForm {
   target_audience: string;
   key_message: string;
   target_kpi: string;
+  kpi_targets: KpiTargets;
   start_date: Date | undefined;
   end_date: Date | undefined;
   status: string;
@@ -36,7 +40,7 @@ interface CampaignForm {
 
 const emptyCampaignForm: CampaignForm = {
   name: '', campaign_type: 'awareness', target_audience: '', key_message: '',
-  target_kpi: '', start_date: undefined, end_date: undefined, status: 'planning', notes: '',
+  target_kpi: '', kpi_targets: {}, start_date: undefined, end_date: undefined, status: 'planning', notes: '',
 };
 
 export default function PlanDetailsPage() {
