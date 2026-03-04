@@ -262,6 +262,7 @@ export default function MarketingPlansPage() {
                 </SelectContent>
               </Select>
             </div>
+            <KpiTargetsEditor value={form.kpi_targets} onChange={(v) => setForm({ ...form, kpi_targets: v })} />
             <div>
               <label className="text-sm font-medium">ملاحظات</label>
               <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
