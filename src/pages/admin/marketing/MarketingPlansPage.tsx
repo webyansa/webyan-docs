@@ -14,6 +14,9 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Plus, CalendarIcon, Target, Edit, Trash2, Eye, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { KpiTargetsEditor } from '@/components/marketing/KpiTargetsEditor';
+import { KpiPerformanceDashboard } from '@/components/marketing/KpiPerformanceDashboard';
+import { aggregateMetrics, type KpiTargets } from '@/lib/marketing/kpiConfig';
 
 const statusLabels: Record<string, string> = {
   planning: 'تخطيط',
@@ -36,11 +39,12 @@ interface PlanForm {
   responsible_id: string;
   status: string;
   notes: string;
+  kpi_targets: KpiTargets;
 }
 
 const emptyForm: PlanForm = {
   name: '', objective: '', start_date: undefined, end_date: undefined,
-  budget: '', responsible_id: '', status: 'planning', notes: '',
+  budget: '', responsible_id: '', status: 'planning', notes: '', kpi_targets: {},
 };
 
 export default function MarketingPlansPage() {
@@ -84,6 +88,7 @@ export default function MarketingPlansPage() {
       responsible_id: plan.responsible_id || '',
       status: plan.status,
       notes: plan.notes || '',
+      kpi_targets: (plan.kpi_targets as KpiTargets) || {},
     });
     setDialogOpen(true);
   };
@@ -93,7 +98,7 @@ export default function MarketingPlansPage() {
       toast.error('يرجى ملء الحقول الإجبارية');
       return;
     }
-    const payload = {
+    const payload: any = {
       name: form.name,
       objective: form.objective || null,
       start_date: format(form.start_date, 'yyyy-MM-dd'),
@@ -102,6 +107,7 @@ export default function MarketingPlansPage() {
       responsible_id: form.responsible_id || null,
       status: form.status,
       notes: form.notes || null,
+      kpi_targets: form.kpi_targets,
     };
 
     if (editingId) {
@@ -256,6 +262,7 @@ export default function MarketingPlansPage() {
                 </SelectContent>
               </Select>
             </div>
+            <KpiTargetsEditor value={form.kpi_targets} onChange={(v) => setForm({ ...form, kpi_targets: v })} />
             <div>
               <label className="text-sm font-medium">ملاحظات</label>
               <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />

@@ -20,6 +20,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay
 import { ar } from 'date-fns/locale';
 import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2, CheckCircle2, BrainCircuit } from 'lucide-react';
 import { toast } from 'sonner';
+import { PostMetricsEditor } from '@/components/marketing/PostMetricsEditor';
 
 const contentTypeLabels: Record<string, string> = { design: 'تصميم', video: 'فيديو', article: 'مقال', ad: 'إعلان', tweet: 'تغريدة' };
 const designStatusLabels: Record<string, string> = { draft: 'مسودة', in_progress: 'قيد التنفيذ', ready: 'جاهز', approved: 'معتمد' };
@@ -48,6 +49,7 @@ interface ContentForm {
   status: string;
   designer_id: string;
   publisher_id: string;
+  metrics: Record<string, number>;
 }
 
 interface AIForm {
@@ -64,7 +66,7 @@ const emptyForm: ContentForm = {
   campaign_id: '', title: '', content_type: 'design', publish_date: undefined,
   publish_time: '', post_text: '', hashtags: '', cta: '', design_file_url: '',
   design_text: '', design_notes: '', design_status: 'draft', channels: [], status: 'draft',
-  designer_id: '', publisher_id: '',
+  designer_id: '', publisher_id: '', metrics: {},
 };
 
 const emptyAIForm: AIForm = {
@@ -145,6 +147,7 @@ export default function ContentCalendarPage() {
       design_text: item.design_text || '', design_notes: item.design_notes || '', design_status: item.design_status || 'draft',
       channels: item.channels || [], status: item.status,
       designer_id: item.designer_id || '', publisher_id: item.publisher_id || '',
+      metrics: (item.metrics as Record<string, number>) || {},
     });
     setAIForm({ ...emptyAIForm });
     setLastAIResult(null);
@@ -163,6 +166,7 @@ export default function ContentCalendarPage() {
       design_notes: form.design_notes || null,
       design_status: form.design_status, channels: form.channels, status: form.status,
       designer_id: form.designer_id || null, publisher_id: form.publisher_id || null,
+      metrics: form.metrics,
     };
     if (editingId) {
       const { error } = await (supabase.from('content_calendar').update(payload).eq('id', editingId) as any);
@@ -787,6 +791,14 @@ export default function ContentCalendarPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Post Metrics - only show for published or ready content */}
+            {(form.status === 'published' || form.status === 'ready') && (
+              <>
+                <Separator />
+                <PostMetricsEditor value={form.metrics} onChange={(v) => setForm({ ...form, metrics: v })} />
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>

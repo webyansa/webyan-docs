@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,9 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ArrowRight, Plus, CalendarIcon, Edit, Trash2, Eye, Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { KpiTargetsEditor } from '@/components/marketing/KpiTargetsEditor';
+import { KpiPerformanceDashboard } from '@/components/marketing/KpiPerformanceDashboard';
+import { aggregateMetrics, type KpiTargets, type KpiMetrics } from '@/lib/marketing/kpiConfig';
 
 const statusLabels: Record<string, string> = { planning: 'تخطيط', in_progress: 'قيد التنفيذ', completed: 'مكتملة' };
 const statusColors: Record<string, string> = { planning: 'bg-blue-100 text-blue-800', in_progress: 'bg-amber-100 text-amber-800', completed: 'bg-green-100 text-green-800' };
@@ -28,6 +31,7 @@ interface CampaignForm {
   target_audience: string;
   key_message: string;
   target_kpi: string;
+  kpi_targets: KpiTargets;
   start_date: Date | undefined;
   end_date: Date | undefined;
   status: string;
@@ -36,7 +40,7 @@ interface CampaignForm {
 
 const emptyCampaignForm: CampaignForm = {
   name: '', campaign_type: 'awareness', target_audience: '', key_message: '',
-  target_kpi: '', start_date: undefined, end_date: undefined, status: 'planning', notes: '',
+  target_kpi: '', kpi_targets: {}, start_date: undefined, end_date: undefined, status: 'planning', notes: '',
 };
 
 export default function PlanDetailsPage() {
@@ -48,19 +52,21 @@ export default function PlanDetailsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CampaignForm>(emptyCampaignForm);
-
+  const [contentItems, setContentItems] = useState<any[]>([]);
   useEffect(() => {
     if (planId) fetchData();
   }, [planId]);
 
   const fetchData = async () => {
     setLoading(true);
-    const [planRes, campsRes] = await Promise.all([
+    const [planRes, campsRes, contentRes] = await Promise.all([
       supabase.from('marketing_plans').select('*, responsible:staff_members!marketing_plans_responsible_id_fkey(full_name)').eq('id', planId).single() as any,
       supabase.from('marketing_plan_campaigns').select('*').eq('plan_id', planId).order('created_at', { ascending: false }) as any,
+      supabase.from('content_calendar').select('id, campaign_id, metrics').not('campaign_id', 'is', null) as any,
     ]);
     setPlan(planRes.data);
     setCampaigns(campsRes.data || []);
+    setContentItems(contentRes.data || []);
     setLoading(false);
   };
 
@@ -71,6 +77,7 @@ export default function PlanDetailsPage() {
     setForm({
       name: c.name, campaign_type: c.campaign_type, target_audience: c.target_audience || '',
       key_message: c.key_message || '', target_kpi: c.target_kpi || '',
+      kpi_targets: (c.kpi_targets as KpiTargets) || {},
       start_date: c.start_date ? new Date(c.start_date) : undefined,
       end_date: c.end_date ? new Date(c.end_date) : undefined,
       status: c.status, notes: c.notes || '',
@@ -80,11 +87,12 @@ export default function PlanDetailsPage() {
 
   const handleSave = async () => {
     if (!form.name) { toast.error('اسم الحملة مطلوب'); return; }
-    const payload = {
+    const payload: any = {
       plan_id: planId,
       name: form.name, campaign_type: form.campaign_type,
       target_audience: form.target_audience || null, key_message: form.key_message || null,
       target_kpi: form.target_kpi || null,
+      kpi_targets: form.kpi_targets,
       start_date: form.start_date ? format(form.start_date, 'yyyy-MM-dd') : null,
       end_date: form.end_date ? format(form.end_date, 'yyyy-MM-dd') : null,
       status: form.status, notes: form.notes || null,
@@ -139,6 +147,17 @@ export default function PlanDetailsPage() {
         </Card>
       )}
 
+      {/* Plan-level KPI Dashboard */}
+      {(() => {
+        const planTargets = (plan.kpi_targets as KpiTargets) || {};
+        const campaignIds = campaigns.map((c: any) => c.id);
+        const planContent = contentItems.filter((ci: any) => campaignIds.includes(ci.campaign_id));
+        const planActuals = aggregateMetrics(planContent);
+        const hasTargets = Object.keys(planTargets).some(k => planTargets[k] > 0);
+        if (!hasTargets) return null;
+        return <KpiPerformanceDashboard targets={planTargets} actuals={planActuals} title="أداء مؤشرات الخطة" />;
+      })()}
+
       <div>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Megaphone className="h-5 w-5" /> الحملات ({campaigns.length})
@@ -156,8 +175,16 @@ export default function PlanDetailsPage() {
                   </div>
                   <Badge variant="outline" className="text-xs">{campaignTypeLabels[c.campaign_type]}</Badge>
                   {c.target_audience && <p className="text-xs text-muted-foreground">🎯 {c.target_audience}</p>}
-                  {c.target_kpi && <p className="text-xs text-muted-foreground">📊 {c.target_kpi}</p>}
                   {c.start_date && <p className="text-xs text-muted-foreground">📅 {c.start_date} → {c.end_date || '—'}</p>}
+                  {/* Campaign KPI compact bar */}
+                  {(() => {
+                    const campTargets = (c.kpi_targets as KpiTargets) || {};
+                    const hasT = Object.keys(campTargets).some(k => campTargets[k] > 0);
+                    if (!hasT) return null;
+                    const campContent = contentItems.filter((ci: any) => ci.campaign_id === c.id);
+                    const campActuals = aggregateMetrics(campContent);
+                    return <KpiPerformanceDashboard targets={campTargets} actuals={campActuals} compact />;
+                  })()}
                   <div className="flex gap-2 pt-2 border-t">
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/marketing/content?campaign=${c.id}`)}>
                       <Eye className="h-4 w-4" />
@@ -220,10 +247,7 @@ export default function PlanDetailsPage() {
               <label className="text-sm font-medium">الرسالة الرئيسية</label>
               <Textarea value={form.key_message} onChange={(e) => setForm({ ...form, key_message: e.target.value })} rows={2} />
             </div>
-            <div>
-              <label className="text-sm font-medium">KPI مستهدف</label>
-              <Input value={form.target_kpi} onChange={(e) => setForm({ ...form, target_kpi: e.target.value })} placeholder="مثال: 1000 متابع جديد" />
-            </div>
+            <KpiTargetsEditor value={form.kpi_targets} onChange={(v) => setForm({ ...form, kpi_targets: v })} compact />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium">تاريخ البداية</label>
