@@ -1,110 +1,150 @@
 
 
-# خطة تطوير نظام التسويق داخل بوابة الموظف
+# خطة إعادة تصميم القائمة الجانبية ولوحة التحكم بمستوى ERP احترافي
 
-## ملخص
-إضافة صلاحية `can_manage_marketing` للموظفين، وإضافة حقلي `designer_id` و `publisher_id` لجدول `content_calendar`، وتحديث حالات المنشور، وبناء صفحة مهام التسويق في بوابة الموظف.
+## الوضع الحالي
+- القائمة الجانبية في `AdminLayout.tsx` (480 سطر) تعرض 10 أقسام بشكل مسطح مع فواصل، بدون طي/فتح
+- عرض ثابت 64 (w-64)، لا يوجد وضع مطوي (أيقونات فقط)
+- لا يوجد بحث سريع (Ctrl+K)
+- لوحة التحكم `DashboardPage.tsx` تركز على إحصائيات المحتوى فقط (مقالات، وسائط، بحث) ولا تعكس نظام ERP متكامل
+- الصلاحيات موجودة وتعمل عبر `permissions.ts` — سيتم الحفاظ عليها
 
----
+## التنظيم المقترح للوحدات (من الموجود فعلياً)
+
+```text
+┌─────────────────────────────────────────┐
+│ 🔍 بحث سريع (Ctrl+K)                   │
+├─────────────────────────────────────────┤
+│ 📊 لوحة التحكم          /admin         │
+│    └ التقارير            /admin/reports  │
+├─────────────────────────────────────────┤
+│ 👥 إدارة العملاء (CRM)                  │
+│    ├ طلبات الموقع        /website-requests│
+│    ├ العملاء المحتملون   /crm/leads     │
+│    ├ الفرص               /crm/deals     │
+│    ├ عروض الأسعار        /crm/quotes    │
+│    ├ العملاء             /clients       │
+│    ├ طلبات الاشتراك      /subscription-* │
+│    └ الخصومات            /discounts     │
+├─────────────────────────────────────────┤
+│ ⚙️ العمليات والمشاريع                   │
+│    ├ لوحة العمليات       /operations    │
+│    ├ المشاريع            /projects      │
+│    ├ مراحل المشاريع      /project-stages│
+│    └ خط التسليم          /crm/delivery  │
+├─────────────────────────────────────────┤
+│ 📣 التسويق                              │
+│    ├ الخطط التسويقية     /marketing/plans│
+│    ├ تقويم المحتوى       /marketing/content│
+│    ├ الحملات البريدية     /marketing/email│
+│    └ القوالب البريدية     /marketing/templates│
+├─────────────────────────────────────────┤
+│ 🎫 الدعم الفني                          │
+│    ├ التذاكر             /tickets       │
+│    ├ البلاغات            /issues        │
+│    ├ إعدادات التصعيد     /escalation-*  │
+│    └ تضمين التذاكر       /embed-settings│
+├─────────────────────────────────────────┤
+│ 💬 المحادثات                             │
+│    ├ صندوق الوارد        /chat          │
+│    ├ المؤرشفة            /archived-chats│
+│    ├ الردود السريعة      /quick-replies │
+│    ├ إعدادات الشات       /chat-settings │
+│    └ تضمين الدردشة       /chat-embed    │
+├─────────────────────────────────────────┤
+│ 📅 الاجتماعات                           │
+│    ├ طلبات الاجتماعات    /meetings      │
+│    └ إعدادات المواعيد    /meeting-settings│
+├─────────────────────────────────────────┤
+│ 📝 المحتوى                              │
+│    ├ المقالات            /articles      │
+│    ├ شجرة المحتوى        /content-tree  │
+│    ├ الوسائط             /media         │
+│    ├ الوسوم              /tags          │
+│    └ سجل التحديثات       /changelog     │
+├─────────────────────────────────────────┤
+│ 👨‍💼 فريق العمل                          │
+│    ├ الموظفين            /staff         │
+│    └ أداء الموظفين       /staff-performance│
+├─────────────────────────────────────────┤
+│ ⚙️ النظام                               │
+│    ├ إعدادات التسعير     /pricing-settings│
+│    ├ إعدادات عروض الأسعار/quote-settings│
+│    ├ المستخدمين          /users         │
+│    ├ الأدوار والصلاحيات  /roles         │
+│    ├ سجل النشاط          /activity-log  │
+│    ├ سجل البحث           /search-logs   │
+│    ├ سجل البريد          /email-logs    │
+│    ├ سجل توليد AI        /ai-logs       │
+│    ├ إعدادات SMTP        /smtp-settings │
+│    ├ الإعدادات العامة    /settings      │
+│    └ اختبار نماذج AI     /ai-chat-tester│
+└─────────────────────────────────────────┘
+```
 
 ## المهام
 
-### 1. Database Migration
+### 1. إنشاء مكون AdminSidebar منفصل
+**ملف جديد: `src/components/admin/AdminSidebar.tsx`**
 
-```sql
--- إضافة صلاحية التسويق
-ALTER TABLE public.staff_members 
-  ADD COLUMN can_manage_marketing BOOLEAN NOT NULL DEFAULT false;
+- استخراج منطق القائمة من `AdminLayout.tsx` إلى مكون مستقل
+- بناء Sidebar بوضعين: **موسعة** (w-64) و **مطوية** (w-16 أيقونات فقط)
+- كل وحدة = Collapsible group مع:
+  - أيقونة ملونة مميزة (لون ثابت لكل وحدة)
+  - عنوان + سهم فتح/إغلاق
+  - عناصر فرعية بأيقونات رمادية
+- حالة Active: خلفية مميزة + شريط جانبي ملون (border-right 3px)
+- في الوضع المطوي: أيقونات فقط + Tooltip عند Hover يعرض اسم الوحدة
+- حفظ حالة الطي/الفتح لكل وحدة في `localStorage`
+- حفظ وضع القائمة (موسعة/مطوية) في `localStorage`
+- Lazy render: لا يتم رندر العناصر الفرعية إلا عند فتح الوحدة
+- كل وحدة لها لون: CRM=blue, عمليات=purple, تسويق=orange, دعم=red, محادثات=green, اجتماعات=cyan, محتوى=indigo, فريق=amber, نظام=slate
 
--- إضافة حقلي الإسناد
-ALTER TABLE public.content_calendar 
-  ADD COLUMN designer_id UUID REFERENCES public.staff_members(id),
-  ADD COLUMN publisher_id UUID REFERENCES public.staff_members(id);
+### 2. إنشاء مكون البحث السريع (Command Palette)
+**ملف جديد: `src/components/admin/AdminCommandPalette.tsx`**
 
--- تحديث حالات المنشور (إزالة القيد القديم إن وجد وإضافة الجديد)
--- الحالات: draft, waiting_design, in_design, design_done, ready, published
+- استخدام `cmdk` (المثبت مسبقاً) مع `CommandDialog`
+- اختصار `Ctrl+K` لفتح البحث
+- يعرض جميع صفحات النظام مجمعة حسب الوحدات
+- فلترة فورية بالكتابة
+- عند الاختيار يتم التنقل مباشرة
+- حقل بحث صغير أعلى القائمة الجانبية يفتح الـ Command Palette عند الضغط
 
--- RLS: السماح للموظف التسويقي بقراءة وتحديث المنشورات المسندة إليه
-CREATE POLICY "Marketing staff can view assigned content"
-  ON public.content_calendar FOR SELECT TO authenticated
-  USING (
-    designer_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
-    OR publisher_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
-    OR public.is_admin_or_editor(auth.uid())
-  );
+### 3. تحديث AdminLayout
+**تعديل: `src/pages/admin/AdminLayout.tsx`**
 
-CREATE POLICY "Marketing staff can update assigned content"
-  ON public.content_calendar FOR UPDATE TO authenticated
-  USING (
-    designer_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
-    OR publisher_id IN (SELECT id FROM staff_members WHERE user_id = auth.uid())
-  );
-```
+- استبدال كود القائمة الجانبية الحالي بـ `<AdminSidebar />`
+- إضافة زر طي/فتح القائمة في Header (يعمل على Desktop أيضاً)
+- تحديث `main` padding ليتكيف مع عرض القائمة المتغير (pr-64 أو pr-16)
+- تبسيط الملف بشكل كبير (من ~480 سطر إلى ~150)
 
-تحديث `get_staff_permissions` RPC لإرجاع `can_manage_marketing`.
+### 4. إعادة بناء DashboardPage
+**تعديل: `src/pages/admin/DashboardPage.tsx`**
 
-### 2. تحديث useStaffAuth Hook
+- **بطاقات KPI رئيسية** (صف أول): إجمالي العملاء، التذاكر المفتوحة، الفرص النشطة، الإيرادات/عروض الأسعار
+- **بطاقات ثانوية**: المقالات، المحادثات، الاجتماعات، المشاريع
+- **قسم "يحتاج إجراء"**: تذاكر غير مقروءة، محادثات بانتظار رد، اجتماعات اليوم، تصعيدات
+- **قسم "أحدث النشاط"**: Timeline يعرض آخر الأحداث (تذاكر، محادثات، عملاء جدد)
+- **قسم "إجراءات سريعة"**: أزرار مباشرة للعمليات الأكثر استخداماً
+- تصميم بطاقات موحد: rounded-xl، shadow-sm، padding متناسق، أرقام KPI كبيرة بخط bold
+- البيانات تُجلب من الجداول الموجودة فعلياً (tickets, chat_conversations, clients, crm_opportunities, projects)
 
-- إضافة `canManageMarketing: boolean` في `StaffPermissions` interface
-- تمريرها من نتيجة RPC
-
-### 3. تحديث StaffLayout (Sidebar)
-
-- إضافة nav item: "إدارة التسويق" → `/support/marketing` بصلاحية `canManageMarketing`
-- عرض شارة "التسويق الإلكتروني" في قسم صلاحياتي
-
-### 4. تحديث StaffPage (إدارة الموظفين - Admin)
-
-- إضافة `can_manage_marketing` كـ Switch في نموذج إنشاء/تعديل الموظف
-- إضافة شارة "التسويق" في جدول الموظفين
-- تحديث `getPermissionsForStaffRole` ليشمل الصلاحية
-
-### 5. تحديث ContentCalendarPage (Admin)
-
-- إضافة قسم "إسناد التنفيذ" في نموذج المحتوى:
-  - Dropdown "مسؤول التصميم" (موظفون بصلاحية `can_manage_marketing`)
-  - Dropdown "مسؤول النشر" (موظفون بصلاحية `can_manage_marketing`)
-- تحديث `statusLabels` و `statusColors` للحالات الجديدة:
-  - `draft` → مسودة
-  - `waiting_design` → بانتظار التصميم  
-  - `in_design` → قيد التصميم
-  - `design_done` → تم التصميم
-  - `ready` → جاهز للنشر
-  - `published` → تم النشر
-- تحديث Kanban columns
-
-### 6. صفحة StaffMarketing (بوابة الموظف) — جديدة
-
-`src/pages/staff/StaffMarketing.tsx`
-
-- 3 بطاقات إحصائية: قيد التنفيذ، بانتظار النشر، تم النشر
-- تبويب "مهام التصميم": المنشورات حيث `designer_id = staffId`
-  - أزرار تغيير الحالة: بانتظار التصميم → قيد التصميم → تم التصميم
-  - حقل رابط التصميم (الموجود مسبقاً `design_file_url`)
-- تبويب "مهام النشر": المنشورات حيث `publisher_id = staffId` والحالة `design_done`+
-  - زر تغيير الحالة إلى "تم النشر"
-- **القيود المطبقة:**
-  - لا يمكن "تم النشر" إلا من حالة "تم التصميم" أو "جاهز للنشر"
-  - لا يمكن بدء التصميم بدون تعيين مسؤول تصميم
-
-### 7. Routes
-
-إضافة في `App.tsx`:
-```
-<Route path="marketing" element={<StaffMarketing />} />
-```
-
----
+### 5. ملفات CSS/Tailwind
+- لا حاجة لتعديل `tailwind.config.ts` — كل الأنماط عبر Tailwind classes
+- تحسين التناسق: rounded-xl للبطاقات، text-2xl/3xl للأرقام، gap-6 بين الأقسام
 
 ## الملفات المتأثرة
 
 | الملف | الإجراء |
 |---|---|
-| DB Migration | أعمدة جديدة + RLS + تحديث RPC |
-| `src/hooks/useStaffAuth.tsx` | إضافة `canManageMarketing` |
-| `src/pages/staff/StaffLayout.tsx` | رابط التسويق + شارة الصلاحية |
-| `src/pages/staff/StaffMarketing.tsx` | **إنشاء جديد** |
-| `src/pages/admin/StaffPage.tsx` | Switch صلاحية التسويق |
-| `src/pages/admin/marketing/ContentCalendarPage.tsx` | حقول الإسناد + حالات جديدة |
-| `src/App.tsx` | Route جديد |
+| `src/components/admin/AdminSidebar.tsx` | **إنشاء جديد** |
+| `src/components/admin/AdminCommandPalette.tsx` | **إنشاء جديد** |
+| `src/pages/admin/AdminLayout.tsx` | تبسيط — استخدام المكونات الجديدة |
+| `src/pages/admin/DashboardPage.tsx` | إعادة بناء بتصميم ERP |
+
+## ملاحظات
+- جميع الروابط الحالية (Routes) تبقى كما هي بدون أي تغيير
+- منطق الصلاحيات يبقى كما هو عبر `permissions.ts`
+- لا يتم إضافة صفحات أو مسارات جديدة
+- قسم "التقييمات" (`/admin/feedback`) سيُدمج ضمن وحدة "المحتوى" بدلاً من قسم "العملاء (قديم)" المنفصل
 
