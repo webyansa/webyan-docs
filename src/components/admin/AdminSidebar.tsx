@@ -302,20 +302,20 @@ export default function AdminSidebar({ permissions, collapsed, onToggleCollapse 
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="mt-1 mr-4 border-r-2 border-sidebar-border pr-2 space-y-0.5">
+                    <div className="mt-1 mr-6 border-r-2 border-sidebar-border pr-3 space-y-0.5">
                       {mod.items.map((item) => (
                         <Link
                           key={item.href}
                           to={item.href}
                           className={cn(
-                            "flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                            "flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-colors flex-row-reverse",
                             isActive(item.href)
                               ? "bg-primary text-primary-foreground font-medium"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           )}
                         >
                           <item.icon className="h-3.5 w-3.5 shrink-0" />
-                          <span>{item.title}</span>
+                          <span className="flex-1 text-right">{item.title}</span>
                         </Link>
                       ))}
                     </div>
