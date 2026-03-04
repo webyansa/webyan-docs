@@ -147,6 +147,17 @@ export default function PlanDetailsPage() {
         </Card>
       )}
 
+      {/* Plan-level KPI Dashboard */}
+      {(() => {
+        const planTargets = (plan.kpi_targets as KpiTargets) || {};
+        const campaignIds = campaigns.map((c: any) => c.id);
+        const planContent = contentItems.filter((ci: any) => campaignIds.includes(ci.campaign_id));
+        const planActuals = aggregateMetrics(planContent);
+        const hasTargets = Object.keys(planTargets).some(k => planTargets[k] > 0);
+        if (!hasTargets) return null;
+        return <KpiPerformanceDashboard targets={planTargets} actuals={planActuals} title="أداء مؤشرات الخطة" />;
+      })()}
+
       <div>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Megaphone className="h-5 w-5" /> الحملات ({campaigns.length})
