@@ -146,6 +146,7 @@ export default function ContentCalendarPage() {
       design_text: item.design_text || '', design_notes: item.design_notes || '', design_status: item.design_status || 'draft',
       channels: item.channels || [], status: item.status,
       designer_id: item.designer_id || '', publisher_id: item.publisher_id || '',
+      metrics: (item.metrics as Record<string, number>) || {},
     });
     setAIForm({ ...emptyAIForm });
     setLastAIResult(null);
