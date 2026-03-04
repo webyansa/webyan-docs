@@ -87,11 +87,12 @@ export default function PlanDetailsPage() {
 
   const handleSave = async () => {
     if (!form.name) { toast.error('اسم الحملة مطلوب'); return; }
-    const payload = {
+    const payload: any = {
       plan_id: planId,
       name: form.name, campaign_type: form.campaign_type,
       target_audience: form.target_audience || null, key_message: form.key_message || null,
       target_kpi: form.target_kpi || null,
+      kpi_targets: form.kpi_targets,
       start_date: form.start_date ? format(form.start_date, 'yyyy-MM-dd') : null,
       end_date: form.end_date ? format(form.end_date, 'yyyy-MM-dd') : null,
       status: form.status, notes: form.notes || null,
