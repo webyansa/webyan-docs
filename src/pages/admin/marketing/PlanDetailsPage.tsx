@@ -247,10 +247,7 @@ export default function PlanDetailsPage() {
               <label className="text-sm font-medium">الرسالة الرئيسية</label>
               <Textarea value={form.key_message} onChange={(e) => setForm({ ...form, key_message: e.target.value })} rows={2} />
             </div>
-            <div>
-              <label className="text-sm font-medium">KPI مستهدف</label>
-              <Input value={form.target_kpi} onChange={(e) => setForm({ ...form, target_kpi: e.target.value })} placeholder="مثال: 1000 متابع جديد" />
-            </div>
+            <KpiTargetsEditor value={form.kpi_targets} onChange={(v) => setForm({ ...form, kpi_targets: v })} compact />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium">تاريخ البداية</label>
