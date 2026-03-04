@@ -20,6 +20,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay
 import { ar } from 'date-fns/locale';
 import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2, CheckCircle2, BrainCircuit } from 'lucide-react';
 import { toast } from 'sonner';
+import { PostMetricsEditor } from '@/components/marketing/PostMetricsEditor';
 
 const contentTypeLabels: Record<string, string> = { design: 'تصميم', video: 'فيديو', article: 'مقال', ad: 'إعلان', tweet: 'تغريدة' };
 const designStatusLabels: Record<string, string> = { draft: 'مسودة', in_progress: 'قيد التنفيذ', ready: 'جاهز', approved: 'معتمد' };
@@ -165,6 +166,7 @@ export default function ContentCalendarPage() {
       design_notes: form.design_notes || null,
       design_status: form.design_status, channels: form.channels, status: form.status,
       designer_id: form.designer_id || null, publisher_id: form.publisher_id || null,
+      metrics: form.metrics,
     };
     if (editingId) {
       const { error } = await (supabase.from('content_calendar').update(payload).eq('id', editingId) as any);
