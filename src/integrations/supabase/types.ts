@@ -850,6 +850,7 @@ export type Database = {
           designer_id: string | null
           hashtags: string | null
           id: string
+          metrics: Json | null
           post_text: string | null
           publish_date: string | null
           publish_time: string | null
@@ -872,6 +873,7 @@ export type Database = {
           designer_id?: string | null
           hashtags?: string | null
           id?: string
+          metrics?: Json | null
           post_text?: string | null
           publish_date?: string | null
           publish_time?: string | null
@@ -894,6 +896,7 @@ export type Database = {
           designer_id?: string | null
           hashtags?: string | null
           id?: string
+          metrics?: Json | null
           post_text?: string | null
           publish_date?: string | null
           publish_time?: string | null
@@ -3147,6 +3150,7 @@ export type Database = {
           end_date: string | null
           id: string
           key_message: string | null
+          kpi_targets: Json | null
           name: string
           notes: string | null
           plan_id: string
@@ -3163,6 +3167,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           key_message?: string | null
+          kpi_targets?: Json | null
           name: string
           notes?: string | null
           plan_id: string
@@ -3179,6 +3184,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           key_message?: string | null
+          kpi_targets?: Json | null
           name?: string
           notes?: string | null
           plan_id?: string
@@ -3205,6 +3211,7 @@ export type Database = {
           created_by: string | null
           end_date: string
           id: string
+          kpi_targets: Json | null
           name: string
           notes: string | null
           objective: string | null
@@ -3219,6 +3226,7 @@ export type Database = {
           created_by?: string | null
           end_date: string
           id?: string
+          kpi_targets?: Json | null
           name: string
           notes?: string | null
           objective?: string | null
@@ -3233,6 +3241,7 @@ export type Database = {
           created_by?: string | null
           end_date?: string
           id?: string
+          kpi_targets?: Json | null
           name?: string
           notes?: string | null
           objective?: string | null
