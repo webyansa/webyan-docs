@@ -1,243 +1,58 @@
 import { useState, useEffect } from 'react';
 import { useBrowserNotification } from '@/hooks/useBrowserNotification';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useStaffNotifications } from '@/hooks/useStaffNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  LayoutDashboard,
-  FileText,
-  FolderTree,
-  Image,
-  Tags,
-  History,
-  ThumbsUp,
-  AlertTriangle,
-  Search,
-  BarChart3,
-  Users,
-  Settings,
-  Menu,
-  LogOut,
-  Ticket,
-  Building2,
-  Calendar,
-  UserCog,
-  CalendarDays,
-  Zap,
-  Code2,
-  MessageSquare,
-  BookOpen,
-  Home,
-  Loader2,
-  Archive,
-  Shield,
-  Mail,
-  Target,
-  FolderKanban,
-  Rocket,
-  UserPlus,
-  Globe,
-  Layers,
-  Tag,
-  Sparkles,
+  AlertTriangle, Menu, LogOut, BookOpen, Home, Loader2,
 } from 'lucide-react';
 import { ChatNotificationDropdown } from '@/components/layout/ChatNotificationDropdown';
 import { AdminNotificationDropdown } from '@/components/layout/AdminNotificationDropdown';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import webyanLogo from '@/assets/webyan-logo.svg';
-import { rolePermissions, rolesInfo, type AppRole, type RolePermissions } from '@/lib/permissions';
+import { rolePermissions, rolesInfo, type AppRole } from '@/lib/permissions';
+import AdminSidebar from '@/components/admin/AdminSidebar';
+import AdminCommandPalette from '@/components/admin/AdminCommandPalette';
 
-interface NavItem {
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: number;
-  permission?: keyof RolePermissions;
-}
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-  sectionPermission?: keyof RolePermissions;
-}
-
-// Dashboard Section
-const dashboardSection: NavSection = {
-  title: 'الرئيسية',
-  items: [
-    { title: 'لوحة التحكم', href: '/admin', icon: LayoutDashboard, permission: 'canAccessAdminDashboard' },
-    { title: 'التقارير والإحصائيات', href: '/admin/reports', icon: BarChart3, permission: 'canViewReports' },
-  ]
-};
-
-// Content Section - Documentation related
-const contentSection: NavSection = {
-  title: 'إدارة المحتوى',
-  items: [
-    { title: 'المقالات', href: '/admin/articles', icon: FileText, permission: 'canManageArticles' },
-    { title: 'شجرة المحتوى', href: '/admin/content-tree', icon: FolderTree, permission: 'canManageContentTree' },
-    { title: 'الوسائط', href: '/admin/media', icon: Image, permission: 'canManageMedia' },
-    { title: 'الوسوم', href: '/admin/tags', icon: Tags, permission: 'canManageTags' },
-    { title: 'سجل التحديثات', href: '/admin/changelog', icon: History, permission: 'canManageChangelog' },
-  ]
-};
-
-// Chat & Conversations Section
-const chatSection: NavSection = {
-  title: 'المحادثات',
-  sectionPermission: 'canViewAllChats',
-  items: [
-    { title: 'صندوق الوارد', href: '/admin/chat', icon: MessageSquare, permission: 'canViewAllChats' },
-    { title: 'المحادثات المؤرشفة', href: '/admin/archived-chats', icon: Archive, permission: 'canViewAllChats' },
-    { title: 'الردود السريعة', href: '/admin/quick-replies', icon: Zap, permission: 'canManageQuickReplies' },
-    { title: 'إعدادات الشات', href: '/admin/chat-settings', icon: Settings, permission: 'canManageSystemSettings' },
-    { title: 'تضمين الدردشة', href: '/admin/chat-embed', icon: Code2, permission: 'canManageEmbedSettings' },
-  ]
-};
-
-// Support Tickets Section
-const ticketsSection: NavSection = {
-  title: 'تذاكر الدعم',
-  sectionPermission: 'canViewAllTickets',
-  items: [
-    { title: 'جميع التذاكر', href: '/admin/tickets', icon: Ticket, permission: 'canViewAllTickets' },
-    { title: 'إعدادات التصعيد', href: '/admin/escalation-settings', icon: AlertTriangle, permission: 'canManageEscalation' },
-    { title: 'البلاغات', href: '/admin/issues', icon: AlertTriangle, permission: 'canViewAllTickets' },
-    { title: 'تضمين تذاكر الدعم', href: '/admin/embed-settings', icon: Code2, permission: 'canManageEmbedSettings' },
-  ]
-};
-
-// Meetings Section
-const meetingsSection: NavSection = {
-  title: 'الاجتماعات',
-  sectionPermission: 'canViewAllMeetings',
-  items: [
-    { title: 'طلبات الاجتماعات', href: '/admin/meetings', icon: CalendarDays, permission: 'canViewAllMeetings' },
-    { title: 'إعدادات المواعيد', href: '/admin/meeting-settings', icon: Calendar, permission: 'canManageMeetingSettings' },
-  ]
-};
-
-// CRM Section
-const crmSection: NavSection = {
-  title: 'إدارة العملاء',
-  sectionPermission: 'canManageClients',
-  items: [
-    { title: 'طلبات الموقع', href: '/admin/website-requests', icon: Globe, permission: 'canManageClients' },
-    { title: 'العملاء المحتملون', href: '/admin/crm/leads', icon: UserPlus, permission: 'canManageClients' },
-    { title: 'الفرص', href: '/admin/crm/deals', icon: Target, permission: 'canManageClients' },
-    { title: 'عروض الأسعار', href: '/admin/crm/quotes', icon: FileText, permission: 'canManageClients' },
-    { title: 'العملاء', href: '/admin/clients', icon: Building2, permission: 'canManageClients' },
-    { title: 'طلبات الاشتراك', href: '/admin/subscription-requests', icon: FileText, permission: 'canManageClients' },
-    { title: 'الخصومات والعروض', href: '/admin/discounts', icon: Tag, permission: 'canManageClients' },
-  ]
-};
-
-// Operations Section
-const operationsSection: NavSection = {
-  title: 'العمليات',
-  sectionPermission: 'canManageClients',
-  items: [
-    { title: 'لوحة العمليات', href: '/admin/operations', icon: FolderKanban, permission: 'canManageClients' },
-    { title: 'المشاريع', href: '/admin/projects', icon: Rocket, permission: 'canManageClients' },
-    { title: 'مراحل المشاريع', href: '/admin/project-stages', icon: Layers, permission: 'canManageClients' },
-    { title: 'خط التسليم', href: '/admin/crm/delivery', icon: FolderKanban, permission: 'canManageClients' },
-  ]
-};
-
-// Marketing Section
-const marketingSection: NavSection = {
-  title: 'التسويق',
-  sectionPermission: 'canManageClients',
-  items: [
-    { title: 'الخطط التسويقية', href: '/admin/marketing/plans', icon: Target, permission: 'canManageClients' },
-    { title: 'تقويم المحتوى', href: '/admin/marketing/content', icon: CalendarDays, permission: 'canManageClients' },
-    { title: 'الحملات البريدية', href: '/admin/marketing/email', icon: Mail, permission: 'canManageClients' },
-    { title: 'القوالب البريدية', href: '/admin/marketing/templates', icon: FileText, permission: 'canManageClients' },
-  ]
-};
-
-// Clients Section (legacy - redirect to CRM)
-const clientsSection: NavSection = {
-  title: 'العملاء (قديم)',
-  sectionPermission: 'canManageClients',
-  items: [
-    { title: 'التقييمات', href: '/admin/feedback', icon: ThumbsUp, permission: 'canManageClients' },
-  ]
-};
-
-// Staff Management Section
-const staffSection: NavSection = {
-  title: 'فريق العمل',
-  sectionPermission: 'canManageStaff',
-  items: [
-    { title: 'الموظفين', href: '/admin/staff', icon: UserCog, permission: 'canManageStaff' },
-    { title: 'أداء الموظفين', href: '/admin/staff-performance', icon: BarChart3, permission: 'canViewStaffPerformance' },
-  ]
-};
-
-// System Settings Section
-const settingsSection: NavSection = {
-  title: 'النظام',
-  sectionPermission: 'canManageSystemSettings',
-  items: [
-    { title: 'إعدادات التسعير', href: '/admin/pricing-settings', icon: Settings, permission: 'canManageSystemSettings' },
-    { title: 'إعدادات عروض الأسعار', href: '/admin/quote-settings', icon: FileText, permission: 'canManageSystemSettings' },
-    { title: 'المستخدمين', href: '/admin/users', icon: Users, permission: 'canManageUsers' },
-    { title: 'الأدوار والصلاحيات', href: '/admin/roles', icon: Shield, permission: 'canManageRoles' },
-    { title: 'سجل النشاط', href: '/admin/activity-log', icon: History, permission: 'canViewActivityLogs' },
-    { title: 'سجل البحث', href: '/admin/search-logs', icon: Search, permission: 'canViewSearchLogs' },
-    { title: 'سجل البريد', href: '/admin/email-logs', icon: Mail, permission: 'canManageSystemSettings' },
-    { title: 'سجل توليد AI', href: '/admin/ai-logs', icon: Sparkles, permission: 'canManageSystemSettings' },
-    { title: 'إعدادات SMTP', href: '/admin/smtp-settings', icon: Mail, permission: 'canManageSystemSettings' },
-    { title: 'الإعدادات العامة', href: '/admin/settings', icon: Settings, permission: 'canManageSystemSettings' },
-    { title: 'اختبار نماذج AI', href: '/admin/ai-chat-tester', icon: Sparkles, permission: 'canManageSystemSettings' },
-  ]
-};
+const STORAGE_KEY_COLLAPSED = 'admin-sidebar-collapsed';
 
 export default function AdminLayout() {
-  const location = useLocation();
   const navigate = useNavigate();
   const { user, role, loading, authStatus, authError, signOut, isAdminOrEditor } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY_COLLAPSED) === 'true'; } catch { return false; }
+  });
 
-  // Activate staff notifications (realtime + save to DB)
   useStaffNotifications();
-
-  // Request browser notification permission early
   const { requestPermission } = useBrowserNotification();
   useEffect(() => { requestPermission(); }, [requestPermission]);
 
   useEffect(() => {
-    // Never redirect based on partial/unknown state.
     if (authStatus === 'unauthenticated') {
       navigate('/admin/login', { replace: true });
       return;
     }
-
-    // Only decide "unauthorized" after we are fully done checking.
     if (authStatus === 'authenticated' && !loading && user && !isAdminOrEditor) {
       navigate('/unauthorized?portal=admin&returnUrl=/admin', { replace: true });
     }
   }, [authStatus, loading, user, isAdminOrEditor, navigate]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_COLLAPSED, String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/admin/login', { replace: true });
   };
 
-  // Get current user's permissions
   const currentRole = role as AppRole | null;
   const permissions = currentRole ? rolePermissions[currentRole] : null;
 
@@ -255,19 +70,14 @@ export default function AdminLayout() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <Button onClick={() => window.location.reload()} className="w-full sm:w-auto">
-              إعادة المحاولة
-            </Button>
-            <Button variant="outline" onClick={handleSignOut} className="w-full sm:w-auto">
-              تسجيل الخروج
-            </Button>
+            <Button onClick={() => window.location.reload()} className="w-full sm:w-auto">إعادة المحاولة</Button>
+            <Button variant="outline" onClick={handleSignOut} className="w-full sm:w-auto">تسجيل الخروج</Button>
           </div>
         </div>
       </div>
     );
   }
 
-  // Show loading while auth is being checked
   if (authStatus === 'unknown' || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -279,97 +89,35 @@ export default function AdminLayout() {
     );
   }
 
-  // Redirect is handled by the guard above
-  if (authStatus !== 'authenticated') return null;
+  if (authStatus !== 'authenticated' || !user || !isAdminOrEditor) return null;
 
-  // Don't render until we confirm user has access
-  if (!user || !isAdminOrEditor) {
-    return null;
-  }
+  const getRoleLabel = () => currentRole && rolesInfo[currentRole] ? rolesInfo[currentRole].name : 'زائر';
+  const getRoleBadgeColor = () => currentRole && rolesInfo[currentRole] ? rolesInfo[currentRole].badgeColor : 'bg-gray-100 text-gray-700';
 
-  const getRoleLabel = () => {
-    if (currentRole && rolesInfo[currentRole]) {
-      return rolesInfo[currentRole].name;
-    }
-    return 'زائر';
-  };
-
-  const getRoleBadgeColor = () => {
-    if (currentRole && rolesInfo[currentRole]) {
-      return rolesInfo[currentRole].badgeColor;
-    }
-    return 'bg-gray-100 text-gray-700';
-  };
-
-  const allSections = [
-    dashboardSection,
-    crmSection,
-    operationsSection,
-    marketingSection,
-    contentSection,
-    chatSection,
-    ticketsSection,
-    meetingsSection,
-    staffSection,
-    settingsSection
-  ];
-  
-  // Filter sections and items based on permissions
-  const getFilteredSections = () => {
-    if (!permissions) return [];
-    
-    return allSections
-      .filter(section => {
-        // If section has a permission requirement, check it
-        if (section.sectionPermission) {
-          return permissions[section.sectionPermission];
-        }
-        return true;
-      })
-      .map(section => ({
-        ...section,
-        items: section.items.filter(item => {
-          // If item has a permission requirement, check it
-          if (item.permission) {
-            return permissions[item.permission];
-          }
-          return true;
-        })
-      }))
-      .filter(section => section.items.length > 0); // Remove empty sections
-  };
-  
-  const filteredSections = getFilteredSections();
+  const sidebarWidth = sidebarCollapsed ? 'lg:pr-16' : 'lg:pr-64';
 
   return (
     <div className="min-h-screen bg-muted/30" dir="rtl">
+      <AdminCommandPalette permissions={permissions} />
+
       {/* Top Header */}
       <header className="fixed top-0 right-0 left-0 z-50 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-full items-center justify-between px-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden"
-            >
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
               <Menu className="h-5 w-5" />
             </Button>
             <Link to="/admin" className="flex items-center gap-2">
               <img src={webyanLogo} alt="ويبيان" className="h-8 w-auto" />
-              <span className="font-bold text-lg hidden sm:inline">لوحة تحكم الدليل</span>
+              <span className="font-bold text-lg hidden sm:inline">لوحة التحكم</span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Admin notifications bell */}
+          <div className="flex items-center gap-3">
             <AdminNotificationDropdown />
-
-            {/* Chat notifications */}
             {permissions?.canViewAllChats && (
               <ChatNotificationDropdown userType="admin" linkTo="/admin/chat" />
             )}
-
             <Link to="/">
               <Button variant="outline" size="sm" className="gap-2">
                 <BookOpen className="h-4 w-4" />
@@ -413,64 +161,31 @@ export default function AdminLayout() {
         </div>
       </header>
 
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-64 border-l bg-background transition-transform duration-300",
-          sidebarOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
-        )}
-      >
-        <ScrollArea className="h-full py-4">
-          {filteredSections.map((section, index) => (
-            <div key={section.title}>
-              {index > 0 && <Separator className="my-4" />}
-              <div className="px-3 py-2">
-                <h3 className="mb-2 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {section.title}
-                </h3>
-                <nav className="space-y-1">
-                  {section.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        location.pathname === item.href
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.title}
-                      {item.badge && (
-                        <span className="mr-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  ))}
-                </nav>
-              </div>
-            </div>
-          ))}
-        </ScrollArea>
-      </aside>
-
-      {/* Overlay for mobile */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+      {/* Sidebar - Desktop */}
+      <div className="hidden lg:block">
+        <AdminSidebar
+          permissions={permissions}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
         />
+      </div>
+
+      {/* Sidebar - Mobile */}
+      {sidebarOpen && (
+        <>
+          <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+          <div className="lg:hidden">
+            <AdminSidebar
+              permissions={permissions}
+              collapsed={false}
+              onToggleCollapse={() => setSidebarOpen(false)}
+            />
+          </div>
+        </>
       )}
 
       {/* Main Content */}
-      <main
-        className={cn(
-          "min-h-screen pt-16 transition-all duration-300",
-          "lg:pr-64"
-        )}
-      >
+      <main className={cn("min-h-screen pt-16 transition-all duration-300", sidebarWidth)}>
         <div className="p-6">
           <Outlet />
         </div>
