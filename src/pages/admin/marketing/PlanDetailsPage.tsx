@@ -59,12 +59,14 @@ export default function PlanDetailsPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [planRes, campsRes] = await Promise.all([
+    const [planRes, campsRes, contentRes] = await Promise.all([
       supabase.from('marketing_plans').select('*, responsible:staff_members!marketing_plans_responsible_id_fkey(full_name)').eq('id', planId).single() as any,
       supabase.from('marketing_plan_campaigns').select('*').eq('plan_id', planId).order('created_at', { ascending: false }) as any,
+      supabase.from('content_calendar').select('id, campaign_id, metrics').not('campaign_id', 'is', null) as any,
     ]);
     setPlan(planRes.data);
     setCampaigns(campsRes.data || []);
+    setContentItems(contentRes.data || []);
     setLoading(false);
   };
 
@@ -75,6 +77,7 @@ export default function PlanDetailsPage() {
     setForm({
       name: c.name, campaign_type: c.campaign_type, target_audience: c.target_audience || '',
       key_message: c.key_message || '', target_kpi: c.target_kpi || '',
+      kpi_targets: (c.kpi_targets as KpiTargets) || {},
       start_date: c.start_date ? new Date(c.start_date) : undefined,
       end_date: c.end_date ? new Date(c.end_date) : undefined,
       status: c.status, notes: c.notes || '',
