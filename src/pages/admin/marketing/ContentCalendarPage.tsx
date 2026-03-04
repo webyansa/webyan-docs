@@ -48,6 +48,7 @@ interface ContentForm {
   status: string;
   designer_id: string;
   publisher_id: string;
+  metrics: Record<string, number>;
 }
 
 interface AIForm {
@@ -64,7 +65,7 @@ const emptyForm: ContentForm = {
   campaign_id: '', title: '', content_type: 'design', publish_date: undefined,
   publish_time: '', post_text: '', hashtags: '', cta: '', design_file_url: '',
   design_text: '', design_notes: '', design_status: 'draft', channels: [], status: 'draft',
-  designer_id: '', publisher_id: '',
+  designer_id: '', publisher_id: '', metrics: {},
 };
 
 const emptyAIForm: AIForm = {
