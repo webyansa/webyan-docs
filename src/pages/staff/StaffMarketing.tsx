@@ -5,10 +5,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Loader2, Palette, Send, CheckCircle2, Clock, Megaphone,
-  ExternalLink, ChevronDown, Inbox, CalendarDays, Hash
+  ExternalLink, ChevronDown, ChevronUp, Inbox, CalendarDays, Hash,
+  Type, FileText, MousePointerClick, Image, MessageSquareText, Sparkles,
+  Clock3, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -26,17 +29,30 @@ const statusColors: Record<string, string> = {
   published: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
 };
 
+const contentTypeLabels: Record<string, string> = {
+  post: 'منشور', article: 'مقال', video: 'فيديو', story: 'ستوري',
+  infographic: 'إنفوجرافيك', carousel: 'كاروسيل', reel: 'ريلز',
+};
+
+const channelIcons: Record<string, string> = {
+  X: '𝕏', LinkedIn: '💼', Instagram: '📸', Website: '🌐',
+  Email: '📧', WhatsApp: '💬',
+};
+
 interface ContentTask {
   id: string;
   title: string;
   status: string;
   channels: string[] | null;
   publish_date: string | null;
+  publish_time: string | null;
   design_notes: string | null;
   design_text: string | null;
+  design_status: string | null;
   post_text: string | null;
   design_file_url: string | null;
   hashtags: string | null;
+  cta: string | null;
   updated_at: string;
   content_type: string;
 }
@@ -49,6 +65,15 @@ export default function StaffMarketing() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [completedOpen, setCompletedOpen] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (key: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (staffId) fetchTasks();
@@ -79,13 +104,9 @@ export default function StaffMarketing() {
     else toast.success('تم حفظ رابط التصميم');
   };
 
-  // KPI calculations
-  const activeDesignTasks = designTasks.filter(t => !['published', 'design_done'].includes(t.status) || (t.status === 'design_done' && !publishTasks.find(p => p.id === t.id)));
-  const activePublishTasks = publishTasks.filter(t => ['design_done', 'ready'].includes(t.status));
-  
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  
+
   const allTasks = [...designTasks, ...publishTasks];
   const uniqueIds = new Set<string>();
   const allUnique = allTasks.filter(t => {
@@ -93,12 +114,11 @@ export default function StaffMarketing() {
     uniqueIds.add(t.id);
     return true;
   });
-
   const completedRecently = allUnique.filter(t =>
     t.status === 'published' && new Date(t.updated_at) >= weekAgo
   );
-
   const inProgressCount = designTasks.filter(t => ['waiting_design', 'in_design'].includes(t.status)).length;
+  const activePublishTasks = publishTasks.filter(t => ['design_done', 'ready'].includes(t.status));
   const awaitingPublish = activePublishTasks.length;
   const completedCount = completedRecently.length;
 
@@ -110,133 +130,235 @@ export default function StaffMarketing() {
     );
   }
 
+  // Detail row helper
+  const DetailRow = ({ icon: Icon, label, children, className }: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <div className={cn("flex items-start gap-2.5 py-2", className)}>
+      <div className="flex items-center gap-1.5 min-w-[100px] shrink-0 text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        <span className="text-xs font-medium">{label}</span>
+      </div>
+      <div className="flex-1 text-sm">{children}</div>
+    </div>
+  );
+
   const renderTaskCard = (task: ContentTask, role: 'designer' | 'publisher') => {
     const isDesigner = role === 'designer';
+    const cardKey = `${task.id}-${role}`;
+    const isExpanded = expandedCards.has(cardKey);
+
+    // Count how many detail fields exist
+    const hasDesignText = !!task.design_text;
+    const hasDesignNotes = !!task.design_notes;
+    const hasPostText = !!task.post_text;
+    const hasCta = !!task.cta;
+    const hasHashtags = !!task.hashtags;
+    const hasTime = !!task.publish_time;
+    const hasContentType = !!task.content_type;
+    const detailCount = [hasDesignText, hasDesignNotes, hasPostText, hasCta, hasHashtags].filter(Boolean).length;
+
     return (
-      <Card key={`${task.id}-${role}`} className="group hover:shadow-md transition-shadow border-border/60">
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 space-y-3 min-w-0">
-              {/* Title + badges row */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    'text-[10px] font-semibold shrink-0',
-                    isDesigner
-                      ? 'border-purple-300 text-purple-700 bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:bg-purple-900/20'
-                      : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:bg-emerald-900/20'
+      <Card key={cardKey} className="group hover:shadow-md transition-all border-border/60 overflow-hidden">
+        <CardContent className="p-0">
+          {/* Header strip with role color */}
+          <div className={cn(
+            "h-1",
+            isDesigner
+              ? "bg-gradient-to-l from-purple-400 to-purple-600"
+              : "bg-gradient-to-l from-emerald-400 to-emerald-600"
+          )} />
+
+          <div className="p-5">
+            {/* Top row: title + status + action */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      'text-[10px] font-semibold shrink-0',
+                      isDesigner
+                        ? 'border-purple-300 text-purple-700 bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:bg-purple-900/20'
+                        : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:bg-emerald-900/20'
+                    )}
+                  >
+                    {isDesigner ? '🎨 مصمم' : '📢 ناشر'}
+                  </Badge>
+                  <h3 className="font-semibold text-sm">{task.title}</h3>
+                  <Badge className={cn('text-[10px]', statusColors[task.status])}>
+                    {statusLabels[task.status]}
+                  </Badge>
+                  {hasContentType && (
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                      {contentTypeLabels[task.content_type] || task.content_type}
+                    </Badge>
                   )}
-                >
-                  {isDesigner ? '🎨 مصمم' : '📢 ناشر'}
-                </Badge>
-                <h3 className="font-semibold text-sm truncate">{task.title}</h3>
-                <Badge className={cn('text-[10px]', statusColors[task.status])}>
-                  {statusLabels[task.status]}
-                </Badge>
+                </div>
+
+                {/* Quick meta line */}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  {task.publish_date && (
+                    <span className="flex items-center gap-1">
+                      <CalendarDays className="h-3 w-3" />
+                      {task.publish_date}
+                    </span>
+                  )}
+                  {hasTime && (
+                    <span className="flex items-center gap-1">
+                      <Clock3 className="h-3 w-3" />
+                      {task.publish_time}
+                    </span>
+                  )}
+                  {task.channels && task.channels.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {task.channels.map(ch => (
+                        <span key={ch} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted text-[10px] font-medium">
+                          {channelIcons[ch] || '📌'} {ch}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Meta info */}
-              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                {task.publish_date && (
-                  <span className="flex items-center gap-1">
-                    <CalendarDays className="h-3 w-3" />
-                    {task.publish_date}
+              {/* Action buttons */}
+              <div className="flex flex-col gap-1.5 min-w-[110px] items-stretch shrink-0">
+                {isDesigner && task.status === 'waiting_design' && (
+                  <Button size="sm" variant="outline" className="text-xs h-8" disabled={updating === task.id}
+                    onClick={() => updateStatus(task.id, 'in_design')}>
+                    {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '▶ بدء التصميم'}
+                  </Button>
+                )}
+                {isDesigner && task.status === 'in_design' && (
+                  <Button size="sm" className="text-xs h-8" disabled={updating === task.id}
+                    onClick={() => updateStatus(task.id, 'design_done')}>
+                    {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ تم التصميم'}
+                  </Button>
+                )}
+                {isDesigner && task.status === 'design_done' && (
+                  <span className="text-xs text-center py-1.5 rounded-md bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                    ✓ مكتمل
                   </span>
                 )}
-                {task.channels && task.channels.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Hash className="h-3 w-3" />
-                    {task.channels.map(ch => (
-                      <Badge key={ch} variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {ch}
-                      </Badge>
-                    ))}
-                  </div>
+                {isDesigner && task.status === 'draft' && (
+                  <span className="text-xs text-center py-1.5 text-muted-foreground">مسودة</span>
+                )}
+                {!isDesigner && (task.status === 'design_done' || task.status === 'ready') && (
+                  <Button size="sm" className="text-xs h-8" disabled={updating === task.id}
+                    onClick={() => updateStatus(task.id, 'published')}>
+                    {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ تم النشر'}
+                  </Button>
+                )}
+                {!isDesigner && task.status === 'published' && (
+                  <span className="text-xs text-center py-1.5 rounded-md bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                    ✓ تم النشر
+                  </span>
                 )}
               </div>
+            </div>
 
-              {/* Content preview */}
-              {isDesigner && task.design_text && (
-                <p className="text-xs bg-muted/50 p-2.5 rounded-lg border border-border/40 line-clamp-2">
-                  {task.design_text}
-                </p>
-              )}
-              {isDesigner && task.design_notes && (
-                <p className="text-xs text-muted-foreground">📝 {task.design_notes}</p>
-              )}
-              {!isDesigner && task.post_text && (
-                <p className="text-xs bg-muted/50 p-2.5 rounded-lg border border-border/40 line-clamp-2">
-                  {task.post_text}
-                </p>
-              )}
-
-              {/* Design URL - for designer */}
-              {isDesigner && task.status !== 'published' && (
-                <div className="flex gap-2 items-center max-w-md">
-                  <Input
-                    placeholder="رابط التصميم (Figma, Drive...)"
-                    defaultValue={task.design_file_url || ''}
-                    dir="ltr"
-                    className="h-8 text-xs"
-                    onBlur={(e) => {
-                      if (e.target.value !== (task.design_file_url || '')) {
-                        updateDesignUrl(task.id, e.target.value);
-                      }
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Design link - for publisher */}
-              {!isDesigner && task.design_file_url && (
-                <a
-                  href={task.design_file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+            {/* Expandable briefing section */}
+            {detailCount > 0 && (
+              <>
+                <button
+                  onClick={() => toggleExpand(cardKey)}
+                  className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
                 >
-                  <ExternalLink className="h-3 w-3" />
-                  عرض التصميم
-                </a>
-              )}
-            </div>
+                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  {isExpanded ? 'إخفاء التفاصيل' : `عرض ملخص المنشور (${detailCount} حقول)`}
+                </button>
 
-            {/* Action buttons */}
-            <div className="flex flex-col gap-1.5 min-w-[110px] items-stretch shrink-0">
-              {isDesigner && task.status === 'waiting_design' && (
-                <Button size="sm" variant="outline" className="text-xs h-8" disabled={updating === task.id}
-                  onClick={() => updateStatus(task.id, 'in_design')}>
-                  {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '▶ بدء التصميم'}
-                </Button>
-              )}
-              {isDesigner && task.status === 'in_design' && (
-                <Button size="sm" className="text-xs h-8" disabled={updating === task.id}
-                  onClick={() => updateStatus(task.id, 'design_done')}>
-                  {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ تم التصميم'}
-                </Button>
-              )}
-              {isDesigner && task.status === 'design_done' && (
-                <span className="text-xs text-center py-1.5 rounded-md bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                  ✓ مكتمل
-                </span>
-              )}
-              {isDesigner && task.status === 'draft' && (
-                <span className="text-xs text-center py-1.5 text-muted-foreground">مسودة</span>
-              )}
+                {isExpanded && (
+                  <div className="mt-3 rounded-xl border border-border/60 bg-muted/20 overflow-hidden">
+                    {/* Briefing header */}
+                    <div className="px-4 py-2.5 bg-muted/40 border-b border-border/40 flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-semibold">ملخص المنشور</span>
+                    </div>
 
-              {!isDesigner && (task.status === 'design_done' || task.status === 'ready') && (
-                <Button size="sm" className="text-xs h-8" disabled={updating === task.id}
-                  onClick={() => updateStatus(task.id, 'published')}>
-                  {updating === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ تم النشر'}
-                </Button>
-              )}
-              {!isDesigner && task.status === 'published' && (
-                <span className="text-xs text-center py-1.5 rounded-md bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                  ✓ تم النشر
-                </span>
-              )}
-            </div>
+                    <div className="px-4 divide-y divide-border/30">
+                      {/* Design text */}
+                      {hasDesignText && (
+                        <DetailRow icon={Type} label="نص التصميم">
+                          <div className="bg-background rounded-lg border border-border/40 p-3 text-xs leading-relaxed whitespace-pre-wrap">
+                            {task.design_text}
+                          </div>
+                        </DetailRow>
+                      )}
+
+                      {/* Post text */}
+                      {hasPostText && (
+                        <DetailRow icon={MessageSquareText} label="نص المنشور">
+                          <div className="bg-background rounded-lg border border-border/40 p-3 text-xs leading-relaxed whitespace-pre-wrap">
+                            {task.post_text}
+                          </div>
+                        </DetailRow>
+                      )}
+
+                      {/* Design notes */}
+                      {hasDesignNotes && (
+                        <DetailRow icon={FileText} label="ملاحظات التصميم">
+                          <p className="text-xs text-muted-foreground leading-relaxed">{task.design_notes}</p>
+                        </DetailRow>
+                      )}
+
+                      {/* CTA */}
+                      {hasCta && (
+                        <DetailRow icon={MousePointerClick} label="CTA">
+                          <Badge variant="outline" className="text-xs font-medium">
+                            {task.cta}
+                          </Badge>
+                        </DetailRow>
+                      )}
+
+                      {/* Hashtags */}
+                      {hasHashtags && (
+                        <DetailRow icon={Hash} label="الهاشتاقات">
+                          <p className="text-xs text-muted-foreground leading-relaxed" dir="ltr">
+                            {task.hashtags}
+                          </p>
+                        </DetailRow>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Design URL - always visible for designer */}
+            {isDesigner && task.status !== 'published' && (
+              <div className="flex gap-2 items-center max-w-md mt-3">
+                <Image className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <Input
+                  placeholder="رابط التصميم (Figma, Drive...)"
+                  defaultValue={task.design_file_url || ''}
+                  dir="ltr"
+                  className="h-8 text-xs"
+                  onBlur={(e) => {
+                    if (e.target.value !== (task.design_file_url || '')) {
+                      updateDesignUrl(task.id, e.target.value);
+                    }
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Design link - for publisher */}
+            {!isDesigner && task.design_file_url && (
+              <a
+                href={task.design_file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline mt-3"
+              >
+                <ExternalLink className="h-3 w-3" />
+                عرض التصميم
+              </a>
+            )}
           </div>
         </CardContent>
       </Card>
