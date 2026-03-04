@@ -791,6 +791,14 @@ export default function ContentCalendarPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Post Metrics - only show for published or ready content */}
+            {(form.status === 'published' || form.status === 'ready') && (
+              <>
+                <Separator />
+                <PostMetricsEditor value={form.metrics} onChange={(v) => setForm({ ...form, metrics: v })} />
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
