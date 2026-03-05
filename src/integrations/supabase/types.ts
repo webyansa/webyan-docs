@@ -3145,6 +3145,7 @@ export type Database = {
       marketing_plan_campaigns: {
         Row: {
           campaign_type: string
+          campaign_types: string[] | null
           created_at: string
           created_by: string | null
           end_date: string | null
@@ -3162,6 +3163,7 @@ export type Database = {
         }
         Insert: {
           campaign_type?: string
+          campaign_types?: string[] | null
           created_at?: string
           created_by?: string | null
           end_date?: string | null
@@ -3179,6 +3181,7 @@ export type Database = {
         }
         Update: {
           campaign_type?: string
+          campaign_types?: string[] | null
           created_at?: string
           created_by?: string | null
           end_date?: string | null
