@@ -99,6 +99,15 @@ export default function ContentCalendarPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // Metrics dialog state
+  const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
+  const [metricsDialogPost, setMetricsDialogPost] = useState<{ id: string; title: string; metrics: KpiMetrics } | null>(null);
+
+  const openMetricsDialog = (item: any) => {
+    setMetricsDialogPost({ id: item.id, title: item.title, metrics: (item.metrics as KpiMetrics) || {} });
+    setMetricsDialogOpen(true);
+  };
+
   // Monthly Plan state
   const [monthlyPlanOpen, setMonthlyPlanOpen] = useState(false);
   const [monthlyPlanLoading, setMonthlyPlanLoading] = useState(false);
