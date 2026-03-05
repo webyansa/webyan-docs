@@ -1014,6 +1014,18 @@ export default function ContentCalendarPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Post Metrics Dialog */}
+      {metricsDialogPost && (
+        <PostMetricsDialog
+          open={metricsDialogOpen}
+          onOpenChange={setMetricsDialogOpen}
+          postId={metricsDialogPost.id}
+          postTitle={metricsDialogPost.title}
+          currentMetrics={metricsDialogPost.metrics}
+          onSaved={fetchData}
+        />
+      )}
     </div>
   );
 }
