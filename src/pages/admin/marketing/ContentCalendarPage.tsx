@@ -562,6 +562,7 @@ export default function ContentCalendarPage() {
                           <TableCell><Badge variant="outline" className="text-xs">{designStatusLabels[item.design_status] || '—'}</Badge></TableCell>
                           <TableCell>
                             <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => openMetricsDialog(item)} title="نتائج المؤشرات"><BarChart3 className="h-4 w-4 text-primary" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => openEdit(item)}><Edit className="h-4 w-4" /></Button>
                               <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
                             </div>
