@@ -445,7 +445,18 @@ export default function ContentCalendarPage() {
                             </div>
                             {item.publish_date && <div className="text-xs text-muted-foreground">📅 {item.publish_date} {item.publish_time || ''}</div>}
                             {item.campaign && <div className="text-xs text-muted-foreground">📢 {item.campaign.name}</div>}
+                            {/* Mini metrics badges */}
+                            {item.metrics && Object.keys(item.metrics).length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {item.metrics.reach && <Badge variant="secondary" className="text-[10px] px-1 py-0 gap-0.5"><Eye className="h-2.5 w-2.5" />{item.metrics.reach.toLocaleString()}</Badge>}
+                                {item.metrics.engagement && <Badge variant="secondary" className="text-[10px] px-1 py-0 gap-0.5"><Heart className="h-2.5 w-2.5" />{item.metrics.engagement.toLocaleString()}</Badge>}
+                                {item.metrics.new_followers && <Badge variant="secondary" className="text-[10px] px-1 py-0 gap-0.5"><UserPlus className="h-2.5 w-2.5" />{item.metrics.new_followers.toLocaleString()}</Badge>}
+                              </div>
+                            )}
                             <div className="flex gap-1 pt-1" onClick={e => e.stopPropagation()}>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-primary" onClick={() => openMetricsDialog(item)} title="نتائج المؤشرات">
+                                <BarChart3 className="h-3 w-3" />
+                              </Button>
                               <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDelete(item.id)}>
                                 <Trash2 className="h-3 w-3" />
                               </Button>
