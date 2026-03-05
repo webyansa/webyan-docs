@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -20,14 +21,18 @@ import { aggregateMetrics, type KpiTargets, type KpiMetrics } from '@/lib/market
 
 const statusLabels: Record<string, string> = { planning: 'تخطيط', in_progress: 'قيد التنفيذ', completed: 'مكتملة' };
 const statusColors: Record<string, string> = { planning: 'bg-blue-100 text-blue-800', in_progress: 'bg-amber-100 text-amber-800', completed: 'bg-green-100 text-green-800' };
-const campaignTypeLabels: Record<string, string> = { sales: 'بيعية', awareness: 'توعوية', launch: 'إطلاق', engagement: 'تفاعل' };
+const campaignTypeLabels: Record<string, string> = {
+  awareness: 'توعوية', launch: 'إطلاق', product_intro: 'تعريف بالمنتج',
+  value_highlight: 'إبراز القيمة', success_story: 'قصة نجاح',
+  engagement: 'تفاعل', sales: 'بيعية', trial_invite: 'دعوة للتجربة',
+};
 
 const campaignStatusLabels: Record<string, string> = { planning: 'تخطيط', active: 'نشطة', paused: 'متوقفة', completed: 'مكتملة' };
 const campaignStatusColors: Record<string, string> = { planning: 'bg-blue-100 text-blue-800', active: 'bg-green-100 text-green-800', paused: 'bg-amber-100 text-amber-800', completed: 'bg-gray-100 text-gray-800' };
 
 interface CampaignForm {
   name: string;
-  campaign_type: string;
+  campaign_types: string[];
   target_audience: string;
   key_message: string;
   target_kpi: string;
@@ -39,7 +44,7 @@ interface CampaignForm {
 }
 
 const emptyCampaignForm: CampaignForm = {
-  name: '', campaign_type: 'awareness', target_audience: '', key_message: '',
+  name: '', campaign_types: [], target_audience: '', key_message: '',
   target_kpi: '', kpi_targets: {}, start_date: undefined, end_date: undefined, status: 'planning', notes: '',
 };
 
@@ -74,8 +79,9 @@ export default function PlanDetailsPage() {
 
   const openEdit = (c: any) => {
     setEditingId(c.id);
+    const types = c.campaign_types?.length ? c.campaign_types : (c.campaign_type ? [c.campaign_type] : []);
     setForm({
-      name: c.name, campaign_type: c.campaign_type, target_audience: c.target_audience || '',
+      name: c.name, campaign_types: types, target_audience: c.target_audience || '',
       key_message: c.key_message || '', target_kpi: c.target_kpi || '',
       kpi_targets: (c.kpi_targets as KpiTargets) || {},
       start_date: c.start_date ? new Date(c.start_date) : undefined,
@@ -89,7 +95,7 @@ export default function PlanDetailsPage() {
     if (!form.name) { toast.error('اسم الحملة مطلوب'); return; }
     const payload: any = {
       plan_id: planId,
-      name: form.name, campaign_type: form.campaign_type,
+      name: form.name, campaign_types: form.campaign_types, campaign_type: form.campaign_types[0] || 'awareness',
       target_audience: form.target_audience || null, key_message: form.key_message || null,
       target_kpi: form.target_kpi || null,
       kpi_targets: form.kpi_targets,
@@ -173,7 +179,11 @@ export default function PlanDetailsPage() {
                     <h3 className="font-semibold">{c.name}</h3>
                     <Badge className={cn('text-xs', campaignStatusColors[c.status])}>{campaignStatusLabels[c.status]}</Badge>
                   </div>
-                  <Badge variant="outline" className="text-xs">{campaignTypeLabels[c.campaign_type]}</Badge>
+                  <div className="flex flex-wrap gap-1">
+                    {(c.campaign_types?.length ? c.campaign_types : (c.campaign_type ? [c.campaign_type] : [])).map((t: string) => (
+                      <Badge key={t} variant="outline" className="text-xs">{campaignTypeLabels[t] || t}</Badge>
+                    ))}
+                  </div>
                   {c.target_audience && <p className="text-xs text-muted-foreground">🎯 {c.target_audience}</p>}
                   {c.start_date && <p className="text-xs text-muted-foreground">📅 {c.start_date} → {c.end_date || '—'}</p>}
                   {/* Campaign KPI compact bar */}
@@ -214,17 +224,26 @@ export default function PlanDetailsPage() {
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">نوع الحملة</label>
-                <Select value={form.campaign_type} onValueChange={(v) => setForm({ ...form, campaign_type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sales">بيعية</SelectItem>
-                    <SelectItem value="awareness">توعوية</SelectItem>
-                    <SelectItem value="launch">إطلاق</SelectItem>
-                    <SelectItem value="engagement">تفاعل</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="col-span-2">
+                <label className="text-sm font-medium mb-2 block">أنواع الحملة</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {Object.entries(campaignTypeLabels).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <Checkbox
+                        checked={form.campaign_types.includes(key)}
+                        onCheckedChange={(checked) => {
+                          setForm(prev => ({
+                            ...prev,
+                            campaign_types: checked
+                              ? [...prev.campaign_types, key]
+                              : prev.campaign_types.filter(t => t !== key),
+                          }));
+                        }}
+                      />
+                      <span className="text-sm">{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">الحالة</label>
