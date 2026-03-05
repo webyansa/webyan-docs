@@ -228,7 +228,7 @@ export default function PlanDetailsPage() {
                 <label className="text-sm font-medium mb-2 block">أنواع الحملة</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {Object.entries(campaignTypeLabels).map(([key, label]) => (
-                    <label key={key} className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                    <label key={key} className={cn("flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors", form.campaign_types.includes(key) && "border-primary bg-primary/5")}>
                       <Checkbox
                         checked={form.campaign_types.includes(key)}
                         onCheckedChange={(checked) => {
