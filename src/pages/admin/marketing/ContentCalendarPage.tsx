@@ -18,9 +18,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2, CheckCircle2, BrainCircuit } from 'lucide-react';
+import { Plus, CalendarIcon, Edit, Trash2, LayoutGrid, CalendarDays, List, ChevronRight, ChevronLeft, Sparkles, RefreshCw, Loader2, Wand2, CheckCircle2, BrainCircuit, BarChart3, Eye, Heart, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { PostMetricsEditor } from '@/components/marketing/PostMetricsEditor';
+import { PostMetricsDialog } from '@/components/marketing/PostMetricsDialog';
+import { KPI_METRICS, type KpiMetrics } from '@/lib/marketing/kpiConfig';
 
 const contentTypeLabels: Record<string, string> = { design: 'تصميم', video: 'فيديو', article: 'مقال', ad: 'إعلان', tweet: 'تغريدة' };
 const designStatusLabels: Record<string, string> = { draft: 'مسودة', in_progress: 'قيد التنفيذ', ready: 'جاهز', approved: 'معتمد' };
@@ -96,6 +98,15 @@ export default function ContentCalendarPage() {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Metrics dialog state
+  const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
+  const [metricsDialogPost, setMetricsDialogPost] = useState<{ id: string; title: string; metrics: KpiMetrics } | null>(null);
+
+  const openMetricsDialog = (item: any) => {
+    setMetricsDialogPost({ id: item.id, title: item.title, metrics: (item.metrics as KpiMetrics) || {} });
+    setMetricsDialogOpen(true);
+  };
 
   // Monthly Plan state
   const [monthlyPlanOpen, setMonthlyPlanOpen] = useState(false);
@@ -434,7 +445,18 @@ export default function ContentCalendarPage() {
                             </div>
                             {item.publish_date && <div className="text-xs text-muted-foreground">📅 {item.publish_date} {item.publish_time || ''}</div>}
                             {item.campaign && <div className="text-xs text-muted-foreground">📢 {item.campaign.name}</div>}
+                            {/* Mini metrics badges */}
+                            {item.metrics && Object.keys(item.metrics).length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {item.metrics.reach && <Badge variant="secondary" className="text-[10px] px-1 py-0 gap-0.5"><Eye className="h-2.5 w-2.5" />{item.metrics.reach.toLocaleString()}</Badge>}
+                                {item.metrics.engagement && <Badge variant="secondary" className="text-[10px] px-1 py-0 gap-0.5"><Heart className="h-2.5 w-2.5" />{item.metrics.engagement.toLocaleString()}</Badge>}
+                                {item.metrics.new_followers && <Badge variant="secondary" className="text-[10px] px-1 py-0 gap-0.5"><UserPlus className="h-2.5 w-2.5" />{item.metrics.new_followers.toLocaleString()}</Badge>}
+                              </div>
+                            )}
                             <div className="flex gap-1 pt-1" onClick={e => e.stopPropagation()}>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-primary" onClick={() => openMetricsDialog(item)} title="نتائج المؤشرات">
+                                <BarChart3 className="h-3 w-3" />
+                              </Button>
                               <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDelete(item.id)}>
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -540,6 +562,7 @@ export default function ContentCalendarPage() {
                           <TableCell><Badge variant="outline" className="text-xs">{designStatusLabels[item.design_status] || '—'}</Badge></TableCell>
                           <TableCell>
                             <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => openMetricsDialog(item)} title="نتائج المؤشرات"><BarChart3 className="h-4 w-4 text-primary" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => openEdit(item)}><Edit className="h-4 w-4" /></Button>
                               <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
                             </div>
@@ -991,6 +1014,18 @@ export default function ContentCalendarPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Post Metrics Dialog */}
+      {metricsDialogPost && (
+        <PostMetricsDialog
+          open={metricsDialogOpen}
+          onOpenChange={setMetricsDialogOpen}
+          postId={metricsDialogPost.id}
+          postTitle={metricsDialogPost.title}
+          currentMetrics={metricsDialogPost.metrics}
+          onSaved={fetchData}
+        />
+      )}
     </div>
   );
 }
