@@ -221,7 +221,7 @@ export default function QuoteDetailsPage() {
         .from('crm_quotes')
         .select(`
           *,
-          account:client_organizations!crm_quotes_account_id_fkey(id, name, contact_email, contact_phone, city, address),
+          account:client_organizations!crm_quotes_account_id_fkey(id, name, contact_email, contact_phone, city, address, registration_number, tax_number),
           opportunity:crm_opportunities!crm_quotes_opportunity_id_fkey(id, name, stage),
           plan:pricing_plans!crm_quotes_plan_id_fkey(id, name, description, monthly_price, yearly_price, features)
         `)
@@ -879,6 +879,19 @@ export default function QuoteDetailsPage() {
                       </p>
                     )}
                   </div>
+                  {(quote.account.registration_number || quote.account.tax_number) && (
+                    <>
+                      <Separator className="my-2" />
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        {quote.account.registration_number && (
+                          <p>رقم الترخيص: {quote.account.registration_number}</p>
+                        )}
+                        {quote.account.tax_number && (
+                          <p>الرقم الضريبي: {quote.account.tax_number}</p>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <p className="text-muted-foreground">لا يوجد عميل مرتبط</p>

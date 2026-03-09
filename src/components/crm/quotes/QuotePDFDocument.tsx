@@ -502,6 +502,8 @@ interface QuotePDFProps {
       contact_phone?: string;
       city?: string;
       address?: string;
+      registration_number?: string;
+      tax_number?: string;
     };
     company?: {
       name: string;
@@ -656,6 +658,16 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
                 <Text style={styles.partyDetail}>
                   {[data.account?.city, data.account?.address].filter(Boolean).join('، ')}
                 </Text>
+              )}
+              {(data.account?.registration_number || data.account?.tax_number) && (
+                <View style={styles.partyLegalInfo}>
+                  {data.account?.registration_number && (
+                    <Text style={styles.partyLegalText}>رقم الترخيص: {data.account.registration_number}</Text>
+                  )}
+                  {data.account?.tax_number && (
+                    <Text style={styles.partyLegalText}>الرقم الضريبي: {data.account.tax_number}</Text>
+                  )}
+                </View>
               )}
             </View>
           </View>
