@@ -923,7 +923,7 @@ const ClientsPage = () => {
                     <Select value={orgForm.subscription_plan} onValueChange={(v) => setOrgForm({ ...orgForm, subscription_plan: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {subscriptionPlans.map(p => (
+                        {pricingPlans.map(p => (
                           <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                         ))}
                       </SelectContent>
