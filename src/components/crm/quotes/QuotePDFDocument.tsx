@@ -502,6 +502,8 @@ interface QuotePDFProps {
       contact_phone?: string;
       city?: string;
       address?: string;
+      registration_number?: string;
+      tax_number?: string;
     };
     company?: {
       name: string;
