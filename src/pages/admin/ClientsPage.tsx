@@ -97,11 +97,11 @@ const subscriptionStatuses = [
   { value: 'cancelled', label: 'ملغي', color: 'gray' },
 ];
 
-const subscriptionPlans = [
-  { value: 'basic', label: 'الأساسية' },
-  { value: 'professional', label: 'الاحترافية' },
-  { value: 'enterprise', label: 'المؤسسية' },
-];
+const legacyPlanLabels: Record<string, string> = {
+  basic: 'الأساسية',
+  professional: 'الاحترافية',
+  enterprise: 'المؤسسية',
+};
 
 const sortOptions = [
   { value: 'created_desc', label: 'الأحدث أولاً' },
@@ -175,6 +175,9 @@ const ClientsPage = () => {
   const [showInactiveOnly, setShowInactiveOnly] = useState(false);
   const [sortBy, setSortBy] = useState('created_desc');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+  
+  // Dynamic plans from DB
+  const [pricingPlans, setPricingPlans] = useState<{ value: string; label: string }[]>([]);
 
   const [orgForm, setOrgForm] = useState({
     name: '',
@@ -213,7 +216,26 @@ const ClientsPage = () => {
 
   useEffect(() => {
     fetchData();
+    fetchPricingPlans();
   }, []);
+
+  const fetchPricingPlans = async () => {
+    const { data } = await supabase
+      .from('pricing_plans')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('sort_order');
+    
+    const plans = (data || []).map(p => ({ value: p.id, label: p.name }));
+    // Add legacy values if any orgs still use them
+    Object.entries(legacyPlanLabels).forEach(([key, label]) => {
+      if (!plans.find(p => p.value === key)) {
+        plans.push({ value: key, label });
+      }
+    });
+    setPricingPlans(plans);
+  };
+
 
   const fetchData = async () => {
     try {
@@ -901,7 +923,7 @@ const ClientsPage = () => {
                     <Select value={orgForm.subscription_plan} onValueChange={(v) => setOrgForm({ ...orgForm, subscription_plan: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {subscriptionPlans.map(p => (
+                        {pricingPlans.map(p => (
                           <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1124,7 +1146,7 @@ const ClientsPage = () => {
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">الباقة</Label>
                   <div className="flex flex-wrap gap-2">
-                    {subscriptionPlans.map(plan => (
+                    {pricingPlans.map(plan => (
                       <button
                         key={plan.value}
                         onClick={() => {
@@ -1218,7 +1240,7 @@ const ClientsPage = () => {
           ))}
           {selectedPlans.map(plan => (
             <Badge key={plan} variant="secondary" className="gap-1">
-              {subscriptionPlans.find(p => p.value === plan)?.label}
+              {pricingPlans.find(p => p.value === plan)?.label || legacyPlanLabels[plan] || plan}
               <button onClick={() => setSelectedPlans(prev => prev.filter(p => p !== plan))}>
                 <X className="w-3 h-3" />
               </button>
