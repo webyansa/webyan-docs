@@ -325,8 +325,14 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                 </div>
                 {organization.registration_number && (
                   <div className="flex justify-between items-start">
-                    <span className="text-muted-foreground">رقم السجل</span>
+                    <span className="text-muted-foreground">رقم الترخيص</span>
                     <span>{organization.registration_number}</span>
+                  </div>
+                )}
+                {organization.tax_number && (
+                  <div className="flex justify-between items-start">
+                    <span className="text-muted-foreground">الرقم الضريبي</span>
+                    <span>{organization.tax_number}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-start">
