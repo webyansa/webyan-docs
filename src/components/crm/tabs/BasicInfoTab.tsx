@@ -290,13 +290,23 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>رقم السجل</Label>
-                  <Input
-                    value={form.registration_number}
-                    onChange={(e) => setForm({ ...form, registration_number: e.target.value })}
-                    placeholder="اختياري"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>رقم الترخيص</Label>
+                    <Input
+                      value={form.registration_number}
+                      onChange={(e) => setForm({ ...form, registration_number: e.target.value })}
+                      placeholder="اختياري"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>الرقم الضريبي</Label>
+                    <Input
+                      value={form.tax_number}
+                      onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+                      placeholder="اختياري"
+                    />
+                  </div>
                 </div>
               </>
             ) : (
