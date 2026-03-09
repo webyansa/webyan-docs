@@ -175,6 +175,9 @@ const ClientsPage = () => {
   const [showInactiveOnly, setShowInactiveOnly] = useState(false);
   const [sortBy, setSortBy] = useState('created_desc');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+  
+  // Dynamic plans from DB
+  const [pricingPlans, setPricingPlans] = useState<{ value: string; label: string }[]>([]);
 
   const [orgForm, setOrgForm] = useState({
     name: '',
