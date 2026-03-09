@@ -1240,7 +1240,7 @@ const ClientsPage = () => {
           ))}
           {selectedPlans.map(plan => (
             <Badge key={plan} variant="secondary" className="gap-1">
-              {subscriptionPlans.find(p => p.value === plan)?.label}
+              {pricingPlans.find(p => p.value === plan)?.label || legacyPlanLabels[plan] || plan}
               <button onClick={() => setSelectedPlans(prev => prev.filter(p => p !== plan))}>
                 <X className="w-3 h-3" />
               </button>
