@@ -879,6 +879,19 @@ export default function QuoteDetailsPage() {
                       </p>
                     )}
                   </div>
+                  {(quote.account.registration_number || quote.account.tax_number) && (
+                    <>
+                      <Separator className="my-2" />
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        {quote.account.registration_number && (
+                          <p>رقم الترخيص: {quote.account.registration_number}</p>
+                        )}
+                        {quote.account.tax_number && (
+                          <p>الرقم الضريبي: {quote.account.tax_number}</p>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <p className="text-muted-foreground">لا يوجد عميل مرتبط</p>

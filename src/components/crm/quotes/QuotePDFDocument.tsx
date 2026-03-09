@@ -657,6 +657,16 @@ const QuotePDFDocument = ({ data }: QuotePDFProps) => {
                   {[data.account?.city, data.account?.address].filter(Boolean).join('، ')}
                 </Text>
               )}
+              {(data.account?.registration_number || data.account?.tax_number) && (
+                <View style={styles.partyLegalInfo}>
+                  {data.account?.registration_number && (
+                    <Text style={styles.partyLegalText}>رقم الترخيص: {data.account.registration_number}</Text>
+                  )}
+                  {data.account?.tax_number && (
+                    <Text style={styles.partyLegalText}>الرقم الضريبي: {data.account.tax_number}</Text>
+                  )}
+                </View>
+              )}
             </View>
           </View>
 
