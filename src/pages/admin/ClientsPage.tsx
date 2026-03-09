@@ -97,11 +97,11 @@ const subscriptionStatuses = [
   { value: 'cancelled', label: 'ملغي', color: 'gray' },
 ];
 
-const subscriptionPlans = [
-  { value: 'basic', label: 'الأساسية' },
-  { value: 'professional', label: 'الاحترافية' },
-  { value: 'enterprise', label: 'المؤسسية' },
-];
+const legacyPlanLabels: Record<string, string> = {
+  basic: 'الأساسية',
+  professional: 'الاحترافية',
+  enterprise: 'المؤسسية',
+};
 
 const sortOptions = [
   { value: 'created_desc', label: 'الأحدث أولاً' },
