@@ -216,7 +216,26 @@ const ClientsPage = () => {
 
   useEffect(() => {
     fetchData();
+    fetchPricingPlans();
   }, []);
+
+  const fetchPricingPlans = async () => {
+    const { data } = await supabase
+      .from('pricing_plans')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('sort_order');
+    
+    const plans = (data || []).map(p => ({ value: p.id, label: p.name }));
+    // Add legacy values if any orgs still use them
+    Object.entries(legacyPlanLabels).forEach(([key, label]) => {
+      if (!plans.find(p => p.value === key)) {
+        plans.push({ value: key, label });
+      }
+    });
+    setPricingPlans(plans);
+  };
+
 
   const fetchData = async () => {
     try {
