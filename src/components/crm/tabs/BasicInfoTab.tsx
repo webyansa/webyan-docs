@@ -290,13 +290,23 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>رقم السجل</Label>
-                  <Input
-                    value={form.registration_number}
-                    onChange={(e) => setForm({ ...form, registration_number: e.target.value })}
-                    placeholder="اختياري"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>رقم الترخيص</Label>
+                    <Input
+                      value={form.registration_number}
+                      onChange={(e) => setForm({ ...form, registration_number: e.target.value })}
+                      placeholder="اختياري"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>الرقم الضريبي</Label>
+                    <Input
+                      value={form.tax_number}
+                      onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+                      placeholder="اختياري"
+                    />
+                  </div>
                 </div>
               </>
             ) : (
@@ -315,8 +325,14 @@ export function BasicInfoTab({ organization, contacts, onUpdate }: BasicInfoTabP
                 </div>
                 {organization.registration_number && (
                   <div className="flex justify-between items-start">
-                    <span className="text-muted-foreground">رقم السجل</span>
+                    <span className="text-muted-foreground">رقم الترخيص</span>
                     <span>{organization.registration_number}</span>
+                  </div>
+                )}
+                {organization.tax_number && (
+                  <div className="flex justify-between items-start">
+                    <span className="text-muted-foreground">الرقم الضريبي</span>
+                    <span>{organization.tax_number}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-start">
