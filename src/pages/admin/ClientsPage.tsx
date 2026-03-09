@@ -1146,7 +1146,7 @@ const ClientsPage = () => {
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">الباقة</Label>
                   <div className="flex flex-wrap gap-2">
-                    {subscriptionPlans.map(plan => (
+                    {pricingPlans.map(plan => (
                       <button
                         key={plan.value}
                         onClick={() => {
