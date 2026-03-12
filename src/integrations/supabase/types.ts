@@ -3078,6 +3078,8 @@ export type Database = {
           content: string
           created_at: string
           document_id: string
+          embedded_at: string | null
+          embedding: string | null
           embedding_model: string | null
           embedding_status: string
           id: string
@@ -3097,6 +3099,8 @@ export type Database = {
           content?: string
           created_at?: string
           document_id: string
+          embedded_at?: string | null
+          embedding?: string | null
           embedding_model?: string | null
           embedding_status?: string
           id?: string
@@ -3116,6 +3120,8 @@ export type Database = {
           content?: string
           created_at?: string
           document_id?: string
+          embedded_at?: string | null
+          embedding?: string | null
           embedding_model?: string | null
           embedding_status?: string
           id?: string
@@ -5358,6 +5364,27 @@ export type Database = {
           p_user_name: string
         }
         Returns: string
+      }
+      match_knowledge_chunks: {
+        Args: {
+          filter_category?: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          category: string
+          chunk_index: number
+          content: string
+          document_id: string
+          id: string
+          metadata_json: Json
+          priority: string
+          section_path: string
+          similarity: number
+          title: string
+          token_estimate: number
+        }[]
       }
     }
     Enums: {
