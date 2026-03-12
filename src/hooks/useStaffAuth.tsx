@@ -178,7 +178,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     // Safety timeout to prevent infinite loading
     timeoutId = setTimeout(() => {
