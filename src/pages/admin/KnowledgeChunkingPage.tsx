@@ -438,6 +438,7 @@ function ChunksExplorerTab() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-right">#</TableHead>
+                <TableHead className="text-right">المستند</TableHead>
                 <TableHead className="text-right">العنوان</TableHead>
                 <TableHead className="text-right">المسار</TableHead>
                 <TableHead className="text-right">المعاينة</TableHead>
