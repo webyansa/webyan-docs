@@ -9,6 +9,7 @@ import {
   FolderKanban, Rocket, Layers, CalendarDays, Mail, Ticket, AlertTriangle, Code2,
   MessageSquare, Archive, Zap, Settings, Calendar, Image, FolderTree, Tags, History,
   UserCog, Users, Shield, Search, Sparkles, ThumbsUp, ChevronDown, PanelRightClose, PanelRightOpen,
+  Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { type RolePermissions } from '@/lib/permissions';
