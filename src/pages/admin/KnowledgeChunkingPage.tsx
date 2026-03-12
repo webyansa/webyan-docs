@@ -751,6 +751,279 @@ function ProcessingLogsTab() {
   );
 }
 
+// ===== Embeddings Tab =====
+function EmbeddingsTab() {
+  const queryClient = useQueryClient();
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const { data: embStats, isLoading } = useQuery({
+    queryKey: ['embedding-stats'],
+    queryFn: () => invokeKnowledge('embedding-stats'),
+    refetchInterval: isGenerating ? 3000 : false,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () => {
+      setIsGenerating(true);
+      return invokeKnowledge('generate-embeddings');
+    },
+    onSuccess: (data) => {
+      setIsGenerating(false);
+      toast.success(`تم التضمين: ${data.embedded_count} ناجح، ${data.failed_count} فاشل`);
+      queryClient.invalidateQueries({ queryKey: ['embedding-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-chunks'] });
+    },
+    onError: (e: Error) => { setIsGenerating(false); toast.error(e.message); },
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: () => {
+      setIsGenerating(true);
+      return invokeKnowledge('retry-failed-embeddings');
+    },
+    onSuccess: (data) => {
+      setIsGenerating(false);
+      toast.success(`إعادة المحاولة: ${data.embedded_count} ناجح، ${data.failed_count} فاشل`);
+      queryClient.invalidateQueries({ queryKey: ['embedding-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-chunks'] });
+    },
+    onError: (e: Error) => { setIsGenerating(false); toast.error(e.message); },
+  });
+
+  const pending = embStats?.pending || 0;
+  const embedded = embStats?.embedded || 0;
+  const failed = embStats?.failed || 0;
+  const total = embStats?.total || 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">التضمين / Vector Sync</h3>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => generateMutation.mutate()}
+            disabled={generateMutation.isPending || pending === 0}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            {generateMutation.isPending ? 'جاري التضمين...' : 'Generate Embeddings'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => retryMutation.mutate()}
+            disabled={retryMutation.isPending || failed === 0}
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry Failed
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground">جاري التحميل...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">الإجمالي</CardTitle>
+              <Database className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{total}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">قيد الانتظار</CardTitle>
+              <Clock className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{pending}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">مُضمّنة</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{embedded}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">فاشلة</CardTitle>
+              <XCircle className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">{failed}</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {total > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">تقدم التضمين</span>
+              <span className="text-sm font-medium text-foreground">{total > 0 ? Math.round((embedded / total) * 100) : 0}%</span>
+            </div>
+            <div className="w-full bg-secondary rounded-full h-3">
+              <div
+                className="bg-primary h-3 rounded-full transition-all duration-500"
+                style={{ width: `${total > 0 ? (embedded / total) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+              <span>{embedded} مُضمّنة</span>
+              <span>{pending} قيد الانتظار</span>
+              {failed > 0 && <span className="text-destructive">{failed} فاشلة</span>}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ===== Retrieval Test Tab =====
+function RetrievalTestTab() {
+  const [question, setQuestion] = useState('');
+  const [category, setCategory] = useState('all');
+  const [topK, setTopK] = useState('5');
+  const [results, setResults] = useState<any[]>([]);
+  const [viewResult, setViewResult] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const searchMutation = useMutation({
+    mutationFn: async () => {
+      setIsSearching(true);
+      return invokeKnowledge('retrieval-test', {
+        question,
+        category: category !== 'all' ? category : undefined,
+        top_k: parseInt(topK),
+      });
+    },
+    onSuccess: (data) => {
+      setIsSearching(false);
+      setResults(data.results || []);
+      if (data.results?.length === 0) {
+        toast.info('لم يتم العثور على نتائج مطابقة');
+      }
+    },
+    onError: (e: Error) => { setIsSearching(false); toast.error(e.message); },
+  });
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-lg font-semibold text-foreground">اختبار الاسترجاع</h3>
+      <p className="text-sm text-muted-foreground">اختبر جودة البحث الدلالي عبر الـ chunks المُضمّنة</p>
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium text-foreground">السؤال</label>
+            <Textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="اكتب سؤالاً لاختبار البحث..."
+              className="mt-1"
+              rows={3}
+              dir="auto"
+            />
+          </div>
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-[160px]">
+              <label className="text-sm font-medium text-foreground">التصنيف (اختياري)</label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">جميع التصنيفات</SelectItem>
+                  {CATEGORIES.map(c => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-[120px]">
+              <label className="text-sm font-medium text-foreground">عدد النتائج</label>
+              <Select value={topK} onValueChange={setTopK}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button
+            onClick={() => searchMutation.mutate()}
+            disabled={!question.trim() || isSearching}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            {isSearching ? 'جاري البحث...' : 'بحث'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {results.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="font-semibold text-foreground">النتائج ({results.length})</h4>
+          {results.map((r: any, idx: number) => (
+            <Card key={r.id || idx}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-foreground">{r.title}</span>
+                      <Badge variant="outline" className="text-xs">{Math.round(r.similarity * 100)}% تشابه</Badge>
+                      <Badge variant="secondary" className="text-xs">{CATEGORIES.find(c => c.value === r.category)?.label || r.category}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>📄 {r.source_file}</span>
+                      <span>• {r.section_path}</span>
+                      <span>• {r.token_estimate} token</span>
+                    </div>
+                    <p className="text-sm text-foreground/80 line-clamp-3" dir="auto">{r.content.substring(0, 300)}...</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setViewResult(r)} className="shrink-0">
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Full chunk view */}
+      <Dialog open={!!viewResult} onOpenChange={() => setViewResult(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>{viewResult?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2 flex-wrap">
+              <Badge variant="outline">{Math.round((viewResult?.similarity || 0) * 100)}% تشابه</Badge>
+              <Badge variant="secondary">{viewResult?.category}</Badge>
+              <Badge variant="outline">المسار: {viewResult?.section_path}</Badge>
+              <Badge variant="outline">{viewResult?.token_estimate} token</Badge>
+              <Badge variant="outline">📄 {viewResult?.source_file}</Badge>
+            </div>
+            <pre className="bg-muted p-4 rounded-md overflow-auto max-h-[50vh] text-sm whitespace-pre-wrap font-mono text-foreground" dir="auto">
+              {viewResult?.content}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ===== Main Page =====
 export default function KnowledgeChunkingPage() {
   const { data: stats } = useQuery({
@@ -809,7 +1082,7 @@ export default function KnowledgeChunkingPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="documents" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" /> المستندات
           </TabsTrigger>
@@ -822,11 +1095,19 @@ export default function KnowledgeChunkingPage() {
           <TabsTrigger value="logs" className="gap-2">
             <Sparkles className="h-4 w-4" /> السجلات
           </TabsTrigger>
+          <TabsTrigger value="embeddings" className="gap-2">
+            <Database className="h-4 w-4" /> التضمين
+          </TabsTrigger>
+          <TabsTrigger value="retrieval" className="gap-2">
+            <Sparkles className="h-4 w-4" /> اختبار الاسترجاع
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="documents"><DocumentsTab /></TabsContent>
         <TabsContent value="chunks"><ChunksExplorerTab /></TabsContent>
         <TabsContent value="jobs"><ChunkingJobsTab /></TabsContent>
         <TabsContent value="logs"><ProcessingLogsTab /></TabsContent>
+        <TabsContent value="embeddings"><EmbeddingsTab /></TabsContent>
+        <TabsContent value="retrieval"><RetrievalTestTab /></TabsContent>
       </Tabs>
     </div>
   );

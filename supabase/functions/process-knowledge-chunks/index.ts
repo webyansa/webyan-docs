@@ -586,6 +586,277 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ===== EMBEDDING STATS =====
+    if (action === "embedding-stats") {
+      const { count: total } = await supabase.from("knowledge_chunks").select("id", { count: "exact", head: true });
+      const { count: embedded } = await supabase.from("knowledge_chunks").select("id", { count: "exact", head: true }).eq("embedding_status", "embedded");
+      const { count: failed } = await supabase.from("knowledge_chunks").select("id", { count: "exact", head: true }).eq("embedding_status", "failed");
+      const { count: pending } = await supabase.from("knowledge_chunks").select("id", { count: "exact", head: true }).eq("embedding_status", "pending");
+
+      return new Response(JSON.stringify({
+        total: total || 0,
+        embedded: embedded || 0,
+        failed: failed || 0,
+        pending: pending || 0,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ===== GENERATE EMBEDDINGS =====
+    if (action === "generate-embeddings" || action === "retry-failed-embeddings") {
+      // Get OpenAI API key from system_settings
+      const { data: settingData } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "ai_openai_api_key")
+        .single();
+
+      const apiKey = settingData?.value;
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: "مفتاح OpenAI API غير مُعد في إعدادات النظام" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Fetch chunks to embed
+      let query = supabase.from("knowledge_chunks").select("id, content, title, section_path, category, priority, chunk_index, document_id, metadata_json");
+      if (action === "retry-failed-embeddings") {
+        query = query.eq("embedding_status", "failed");
+      } else {
+        query = query.in("embedding_status", ["pending", "failed"]);
+      }
+      const { data: chunksToEmbed, error: fetchErr } = await query.limit(50);
+      if (fetchErr) throw fetchErr;
+
+      if (!chunksToEmbed || chunksToEmbed.length === 0) {
+        return new Response(JSON.stringify({ success: true, embedded_count: 0, failed_count: 0, message: "لا توجد chunks تحتاج تضمين" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get document file names for metadata
+      const docIds = [...new Set(chunksToEmbed.map(c => c.document_id))];
+      const { data: docs } = await supabase.from("knowledge_documents").select("id, original_file_name").in("id", docIds);
+      const docMap = new Map((docs || []).map(d => [d.id, d.original_file_name]));
+
+      let embeddedCount = 0;
+      let failedCount = 0;
+      const BATCH_SIZE = 20;
+
+      for (let i = 0; i < chunksToEmbed.length; i += BATCH_SIZE) {
+        const batch = chunksToEmbed.slice(i, i + BATCH_SIZE);
+
+        // Mark as processing
+        await supabase.from("knowledge_chunks")
+          .update({ embedding_status: "processing" })
+          .in("id", batch.map(c => c.id));
+
+        try {
+          const embResponse = await fetch("https://api.openai.com/v1/embeddings", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "text-embedding-3-small",
+              input: batch.map(c => c.content),
+            }),
+          });
+
+          if (!embResponse.ok) {
+            const errText = await embResponse.text();
+            console.error("OpenAI embeddings error:", embResponse.status, errText);
+            // Mark batch as failed
+            await supabase.from("knowledge_chunks")
+              .update({ embedding_status: "failed" })
+              .in("id", batch.map(c => c.id));
+            failedCount += batch.length;
+            continue;
+          }
+
+          const embData = await embResponse.json();
+          const embeddings = embData.data;
+
+          // Update each chunk with its embedding
+          for (let j = 0; j < batch.length; j++) {
+            const chunk = batch[j];
+            const embVector = embeddings[j]?.embedding;
+
+            if (!embVector) {
+              await supabase.from("knowledge_chunks")
+                .update({ embedding_status: "failed" })
+                .eq("id", chunk.id);
+              failedCount++;
+              continue;
+            }
+
+            // Build metadata_json for vector
+            const metadataJson = {
+              ...(chunk.metadata_json as Record<string, unknown> || {}),
+              chunk_id: chunk.id,
+              document_id: chunk.document_id,
+              source_file: docMap.get(chunk.document_id) || "",
+              title: chunk.title,
+              category: chunk.category,
+              section_path: chunk.section_path,
+              priority: chunk.priority,
+              chunk_index: chunk.chunk_index,
+            };
+
+            const vectorStr = `[${embVector.join(",")}]`;
+
+            const { error: updateErr } = await supabase.from("knowledge_chunks")
+              .update({
+                embedding: vectorStr,
+                is_embedded: true,
+                embedding_status: "embedded",
+                embedding_model: "text-embedding-3-small",
+                embedded_at: new Date().toISOString(),
+                metadata_json: metadataJson,
+              })
+              .eq("id", chunk.id);
+
+            if (updateErr) {
+              console.error("Error updating chunk embedding:", updateErr);
+              await supabase.from("knowledge_chunks")
+                .update({ embedding_status: "failed" })
+                .eq("id", chunk.id);
+              failedCount++;
+            } else {
+              embeddedCount++;
+            }
+          }
+        } catch (batchErr) {
+          console.error("Batch embedding error:", batchErr);
+          await supabase.from("knowledge_chunks")
+            .update({ embedding_status: "failed" })
+            .in("id", batch.map(c => c.id));
+          failedCount += batch.length;
+        }
+      }
+
+      // Log the job
+      await supabase.from("knowledge_chunk_jobs").insert({
+        document_id: chunksToEmbed[0].document_id,
+        job_type: "embedding",
+        status: failedCount === chunksToEmbed.length ? "failed" : "completed",
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        chunks_created: embeddedCount,
+        logs: `تضمين: ${embeddedCount} ناجح، ${failedCount} فاشل من ${chunksToEmbed.length} chunk`,
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        embedded_count: embeddedCount,
+        failed_count: failedCount,
+        total_processed: chunksToEmbed.length,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ===== RETRIEVAL TEST =====
+    if (action === "retrieval-test") {
+      const { question, category: filterCategory, top_k = 5 } = body;
+
+      if (!question) {
+        return new Response(JSON.stringify({ error: "السؤال مطلوب" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get OpenAI API key
+      const { data: settingData } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "ai_openai_api_key")
+        .single();
+
+      const apiKey = settingData?.value;
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: "مفتاح OpenAI API غير مُعد في إعدادات النظام" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Generate embedding for the question
+      const embResponse = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "text-embedding-3-small",
+          input: [question],
+        }),
+      });
+
+      if (!embResponse.ok) {
+        const errText = await embResponse.text();
+        console.error("OpenAI embeddings error:", embResponse.status, errText);
+        return new Response(JSON.stringify({ error: "فشل في توليد embedding للسؤال" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const embData = await embResponse.json();
+      const queryEmbedding = embData.data[0]?.embedding;
+
+      if (!queryEmbedding) {
+        return new Response(JSON.stringify({ error: "فشل في الحصول على vector" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Call the match function
+      const vectorStr = `[${queryEmbedding.join(",")}]`;
+      const { data: matches, error: matchErr } = await supabase.rpc("match_knowledge_chunks", {
+        query_embedding: vectorStr,
+        match_threshold: 0.3,
+        match_count: top_k,
+        filter_category: filterCategory || null,
+      });
+
+      if (matchErr) {
+        console.error("Match error:", matchErr);
+        throw matchErr;
+      }
+
+      // Get document names for results
+      const matchDocIds = [...new Set((matches || []).map((m: any) => m.document_id))];
+      let docNames: Record<string, string> = {};
+      if (matchDocIds.length > 0) {
+        const { data: matchDocs } = await supabase.from("knowledge_documents").select("id, title, original_file_name").in("id", matchDocIds);
+        docNames = Object.fromEntries((matchDocs || []).map(d => [d.id, d.original_file_name || d.title]));
+      }
+
+      const results = (matches || []).map((m: any) => ({
+        id: m.id,
+        title: m.title,
+        section_path: m.section_path,
+        category: m.category,
+        content: m.content,
+        token_estimate: m.token_estimate,
+        priority: m.priority,
+        similarity: Math.round(m.similarity * 100) / 100,
+        source_file: docNames[m.document_id] || "",
+        metadata_json: m.metadata_json,
+      }));
+
+      return new Response(JSON.stringify({ success: true, results, question }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action: " + action }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
