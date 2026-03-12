@@ -77,6 +77,7 @@ import SubscriptionRequestDetailsPage from "./pages/admin/SubscriptionRequestDet
 import DiscountsPage from "./pages/admin/DiscountsPage";
 import ModelChatTesterPage from "./pages/admin/ModelChatTesterPage";
 import AIGenerationLogsPage from "./pages/admin/AIGenerationLogsPage";
+import KnowledgeChunkingPage from "./pages/admin/KnowledgeChunkingPage";
 
 // Operations pages
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
