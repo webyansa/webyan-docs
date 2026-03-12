@@ -164,6 +164,7 @@ const SIDEBAR_MODULES: NavModule[] = [
       { title: 'إعدادات SMTP', href: '/admin/smtp-settings', icon: Mail, permission: 'canManageSystemSettings' },
       { title: 'الإعدادات العامة', href: '/admin/settings', icon: Settings, permission: 'canManageSystemSettings' },
       { title: 'اختبار نماذج AI', href: '/admin/ai-chat-tester', icon: Sparkles, permission: 'canManageSystemSettings' },
+      { title: 'تقسيم المعرفة', href: '/admin/knowledge-chunking', icon: Database, permission: 'canManageSystemSettings' },
     ],
   },
 ];

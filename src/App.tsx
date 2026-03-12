@@ -267,6 +267,7 @@ const App = () => (
                 <Route path="discounts" element={<DiscountsPage />} />
                 <Route path="ai-chat-tester" element={<ModelChatTesterPage />} />
                 <Route path="ai-logs" element={<AIGenerationLogsPage />} />
+                <Route path="knowledge-chunking" element={<KnowledgeChunkingPage />} />
               </Route>
               
               {/* Unauthorized Page */}
