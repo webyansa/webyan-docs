@@ -1,47 +1,108 @@
 
-# خطة تحسين نظام التسويق في بوابة الموظف
 
-## المشكلة الحالية
-1. **المهام لا تظهر للموظف**: المنشور مُسند لـ `علي الشيخ` كمصمم لكن صلاحية `can_manage_marketing` مُعطلة عنده — فلا يرى رابط "إدارة التسويق" في القائمة الجانبية أصلاً.
-2. **تصميم الصفحة بسيط**: تحتاج تحسين لتكون أكثر احترافية وعملية.
+# Knowledge Chunking Manager - Implementation Plan
 
-## المهام
+## Overview
+Add a full-featured Knowledge Chunking Manager under AI Settings in the admin panel. This includes 3 database tables, 1 storage bucket, 1 edge function for chunking logic, and 1 new admin page with 4 tabbed sections.
 
-### 1. إصلاح منطق الرؤية
-- تغيير شرط ظهور رابط "إدارة التسويق" ليشمل أيضاً الموظف المُسند إليه مهام (designer_id أو publisher_id) حتى لو لم يكن لديه صلاحية `canManageMarketing`.
-- **الأفضل**: جعل صفحة StaffMarketing تعمل لأي موظف مُسند إليه مهام تسويق، مع إبقاء `canManageMarketing` كصلاحية إضافية للوصول الكامل.
-- في `StaffLayout.tsx`: إزالة شرط `permission` من رابط التسويق واستبداله بفحص ديناميكي (هل الموظف لديه مهام مُسندة أو صلاحية تسويق).
+## 1. Database Migration
 
-### 2. إعادة بناء صفحة StaffMarketing بتصميم احترافي
-**ملف: `src/pages/staff/StaffMarketing.tsx`**
+Create 3 tables with RLS policies (admin-only access):
 
-التصميم الجديد:
-- **رأس الصفحة**: عنوان "مهام التسويق" مع وصف مختصر
-- **بطاقات KPI** (3 بطاقات): قيد التنفيذ، بانتظار النشر، تم الإنجاز هذا الأسبوع
-- **قسم "مهامي"** بدلاً من tabs — عرض موحد:
-  - بطاقة لكل مهمة بتصميم واضح يشمل:
-    - شارة الدور (مصمم / ناشر) بلون مميز
-    - عنوان المنشور + الحالة
-    - القنوات + تاريخ النشر
-    - نص التصميم / نص المنشور
-    - حقل رابط التصميم (للمصمم)
-    - أزرار الإجراء حسب الدور والحالة
-  - فصل بصري بين "مهام التصميم" و"مهام النشر" بعناوين واضحة
-  - عرض المهام المكتملة مؤخراً (آخر 7 أيام) في قسم منفصل بشكل مطوي
-- **حالة فارغة** محسّنة بأيقونة ورسالة واضحة
+**`knowledge_documents`** - stores uploaded knowledge files with raw content, category, processing status.
 
-### 3. تحديث StaffLayout
-- إضافة فحص ديناميكي لوجود مهام تسويق مُسندة للموظف
-- إظهار رابط التسويق إذا كان `canManageMarketing = true` أو لديه مهام مُسندة
+**`knowledge_chunks`** - stores individual chunks with document FK, content, token estimates, priority, embedding-ready fields (`is_embedded`, `embedding_status`, `embedding_model`, `vector_id`), and `metadata_json`.
 
-## الملفات المتأثرة
+**`knowledge_chunk_jobs`** - tracks chunking/rechunking jobs with status, logs, timing.
 
-| الملف | الإجراء |
-|---|---|
-| `src/pages/staff/StaffMarketing.tsx` | إعادة بناء كاملة بتصميم احترافي |
-| `src/pages/staff/StaffLayout.tsx` | تحديث منطق ظهور رابط التسويق |
+All tables get `updated_at` triggers and RLS policies restricted to admin/editor roles via `is_admin_or_editor()`.
 
-## ملاحظات تقنية
-- RLS policies الحالية صحيحة — تسمح بالوصول بناءً على `designer_id`/`publisher_id`
-- لن يتم تعديل قاعدة البيانات
-- الاستعلامات تبقى كما هي (تستخدم `staffId` من permissions)
+Storage bucket: `knowledge-files` (public: false) for uploaded files.
+
+## 2. Edge Function: `process-knowledge-chunks`
+
+Single edge function handling all API operations via action-based routing:
+
+- **`upload`** - receives file content (read client-side for .md/.txt), stores raw content in `knowledge_documents`
+- **`generate-chunks`** - the core chunking engine:
+  - **Markdown**: splits by heading hierarchy (# ## ###), each section becomes a chunk. Long sections (>800 tokens) get sub-divided by paragraphs
+  - **Text**: splits by double-newline paragraphs, groups into 300-800 token chunks
+  - Token estimation: `Math.ceil(text.length / 4)` (rough approximation)
+  - Priority auto-assignment: `high` for categories like facts/faq/policies/support, `medium` for general, `low` for marketing
+  - Generates `metadata_json` per chunk with source_file, category, section_path, title, priority, chunk_index, file_type
+  - Creates a job record in `knowledge_chunk_jobs` with timing and logs
+- **`reprocess`** - deletes existing chunks for a document, re-runs generate-chunks
+- **`update-chunk`** - update a single chunk's content/title/priority
+- **`delete-chunk`** - delete a single chunk
+- **`list-documents`**, **`list-chunks`**, **`list-jobs`** - query endpoints with filtering
+
+Uses `SUPABASE_SERVICE_ROLE_KEY` for DB access. JWT validation via `getClaims()`.
+
+## 3. Admin Page: `KnowledgeChunkingPage.tsx`
+
+Route: `/admin/knowledge-chunking`
+
+**4 tabs using existing Tabs component:**
+
+### Tab 1: Documents
+- Table listing all documents with title, file_type, category, status, chunk count, actions
+- Upload dialog: file picker (.md, .txt) + title + category selector (12 predefined categories)
+- File content read client-side, sent to edge function
+- Actions per document: View Raw Content (dialog), Generate Chunks, Reprocess, Delete
+- Category shown as editable select
+
+### Tab 2: Chunks Explorer  
+- Filterable table: document, category, priority, embedding_status
+- Columns: title, section_path, content preview (truncated), token_estimate, char_count, priority badge, embedding_status badge
+- Actions: View Full (dialog), Edit (inline dialog), Delete
+
+### Tab 3: Chunking Jobs
+- Table: document name, job_type, status, chunks_created, started_at, finished_at, duration
+- Expandable logs view
+- Re-run button
+
+### Tab 4: Processing Logs
+- Aggregated view from jobs table, filtered/sorted by time
+- Shows errors and warnings prominently
+
+## 4. Sidebar & Routing Integration
+
+**AdminSidebar.tsx**: Add to the `system` module:
+```
+{ title: 'تقسيم المعرفة', href: '/admin/knowledge-chunking', icon: Sparkles, permission: 'canManageSystemSettings' }
+```
+
+**App.tsx**: Add route:
+```
+<Route path="knowledge-chunking" element={<KnowledgeChunkingPage />} />
+```
+
+## 5. Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| `supabase/migrations/xxx.sql` | Create 3 tables + RLS + storage bucket |
+| `supabase/functions/process-knowledge-chunks/index.ts` | Edge function with chunking engine |
+| `supabase/config.toml` | Add `verify_jwt = false` for new function |
+| `src/pages/admin/KnowledgeChunkingPage.tsx` | Main page with 4 tabs |
+| `src/components/admin/AdminSidebar.tsx` | Add nav item |
+| `src/App.tsx` | Add route + import |
+
+## 6. Chunking Algorithm Detail
+
+```text
+Input: Markdown document
+  │
+  ├─ Split by heading regex /^(#{1,3})\s+(.+)$/m
+  │
+  ├─ For each section:
+  │   ├─ Estimate tokens (chars / 4)
+  │   ├─ If tokens <= 800 → single chunk
+  │   ├─ If tokens > 800 → split by paragraphs, group into ~500 token chunks
+  │   ├─ Assign section_path from heading hierarchy
+  │   ├─ Auto-assign priority based on category
+  │   └─ Build metadata_json
+  │
+  └─ Insert all chunks + create job record
+```
+
