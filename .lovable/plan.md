@@ -1,41 +1,47 @@
 
+# خطة تحسين نظام التسويق في بوابة الموظف
 
-# Fix Knowledge Chunking Engine
+## المشكلة الحالية
+1. **المهام لا تظهر للموظف**: المنشور مُسند لـ `علي الشيخ` كمصمم لكن صلاحية `can_manage_marketing` مُعطلة عنده — فلا يرى رابط "إدارة التسويق" في القائمة الجانبية أصلاً.
+2. **تصميم الصفحة بسيط**: تحتاج تحسين لتكون أكثر احترافية وعملية.
 
-## Problem
-The `parseMarkdownSections` function in the edge function has a logic bug: content before the first heading creates a "مقدمة" section, but more critically, the function likely fails to split properly when files use Windows line endings (`\r\n`) or when headings have specific formatting. Additionally, the engine doesn't return chunking statistics to the UI.
+## المهام
 
-## Changes
+### 1. إصلاح منطق الرؤية
+- تغيير شرط ظهور رابط "إدارة التسويق" ليشمل أيضاً الموظف المُسند إليه مهام (designer_id أو publisher_id) حتى لو لم يكن لديه صلاحية `canManageMarketing`.
+- **الأفضل**: جعل صفحة StaffMarketing تعمل لأي موظف مُسند إليه مهام تسويق، مع إبقاء `canManageMarketing` كصلاحية إضافية للوصول الكامل.
+- في `StaffLayout.tsx`: إزالة شرط `permission` من رابط التسويق واستبداله بفحص ديناميكي (هل الموظف لديه مهام مُسندة أو صلاحية تسويق).
 
-### 1. Edge Function (`supabase/functions/process-knowledge-chunks/index.ts`)
+### 2. إعادة بناء صفحة StaffMarketing بتصميم احترافي
+**ملف: `src/pages/staff/StaffMarketing.tsx`**
 
-**Fix `parseMarkdownSections`:**
-- Normalize line endings (`\r\n` → `\n`) before processing
-- Make the heading regex more robust to handle edge cases (trailing spaces, etc.)
-- Ensure content before first heading goes into an intro section properly
+التصميم الجديد:
+- **رأس الصفحة**: عنوان "مهام التسويق" مع وصف مختصر
+- **بطاقات KPI** (3 بطاقات): قيد التنفيذ، بانتظار النشر، تم الإنجاز هذا الأسبوع
+- **قسم "مهامي"** بدلاً من tabs — عرض موحد:
+  - بطاقة لكل مهمة بتصميم واضح يشمل:
+    - شارة الدور (مصمم / ناشر) بلون مميز
+    - عنوان المنشور + الحالة
+    - القنوات + تاريخ النشر
+    - نص التصميم / نص المنشور
+    - حقل رابط التصميم (للمصمم)
+    - أزرار الإجراء حسب الدور والحالة
+  - فصل بصري بين "مهام التصميم" و"مهام النشر" بعناوين واضحة
+  - عرض المهام المكتملة مؤخراً (آخر 7 أيام) في قسم منفصل بشكل مطوي
+- **حالة فارغة** محسّنة بأيقونة ورسالة واضحة
 
-**Improve `splitLongSection`:**
-- When a section has no double-newline paragraph breaks, fall back to splitting by single newlines or by sentence boundaries
-- Add minimum chunk size check — don't create chunks under ~100 tokens unless it's the only content
+### 3. تحديث StaffLayout
+- إضافة فحص ديناميكي لوجود مهام تسويق مُسندة للموظف
+- إظهار رابط التسويق إذا كان `canManageMarketing = true` أو لديه مهام مُسندة
 
-**Improve `generateChunks`:**
-- If the entire file produces 0 sections from headings, fall back to text-based splitting (paragraph-based)
-- Return detailed stats: `sections_found`, `chunks_created`, `splitting_method` ("markdown_headers" or "text_fallback")
+## الملفات المتأثرة
 
-**Update response format for `generate-chunks` and `reprocess`:**
-- Include `sections_found`, `splitting_method` in the response JSON and in job logs
+| الملف | الإجراء |
+|---|---|
+| `src/pages/staff/StaffMarketing.tsx` | إعادة بناء كاملة بتصميم احترافي |
+| `src/pages/staff/StaffLayout.tsx` | تحديث منطق ظهور رابط التسويق |
 
-### 2. Frontend (`src/pages/admin/KnowledgeChunkingPage.tsx`)
-
-**Documents Tab enhancements:**
-- Show chunking stats after generate/reprocess (sections discovered, chunks created, splitting method) via toast
-- Add a dedicated "Re-chunk" button (same as reprocess but more prominent/labeled differently)
-
-**Chunks Explorer enhancements:**
-- Add document name column to chunks table (already has `knowledge_documents.title` in the query)
-- Ensure chunk rows show: document name, section title, chunk index, content preview, token estimate
-
-### Files to modify:
-1. `supabase/functions/process-knowledge-chunks/index.ts` — fix chunking logic
-2. `src/pages/admin/KnowledgeChunkingPage.tsx` — UI stats display
-
+## ملاحظات تقنية
+- RLS policies الحالية صحيحة — تسمح بالوصول بناءً على `designer_id`/`publisher_id`
+- لن يتم تعديل قاعدة البيانات
+- الاستعلامات تبقى كما هي (تستخدم `staffId` من permissions)

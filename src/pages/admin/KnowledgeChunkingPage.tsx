@@ -112,10 +112,15 @@ function DocumentsTab() {
   const generateMutation = useMutation({
     mutationFn: (docId: string) => invokeKnowledge('generate-chunks', { document_id: docId }),
     onSuccess: (data) => {
-      toast.success(`تم إنشاء ${data.chunks_created} chunk`);
+      const method = data.splitting_method === 'markdown_headers' ? 'عناوين Markdown' : data.splitting_method === 'text_fallback' ? 'تقسيم نصي (بدون عناوين)' : 'فقرات نصية';
+      toast.success(`تم إنشاء ${data.chunks_created} chunk من ${data.sections_found} قسم`, {
+        description: `طريقة التقسيم: ${method}`,
+        duration: 6000,
+      });
       queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] });
       queryClient.invalidateQueries({ queryKey: ['knowledge-chunks'] });
       queryClient.invalidateQueries({ queryKey: ['knowledge-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-stats'] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -123,10 +128,15 @@ function DocumentsTab() {
   const reprocessMutation = useMutation({
     mutationFn: (docId: string) => invokeKnowledge('reprocess', { document_id: docId }),
     onSuccess: (data) => {
-      toast.success(`إعادة المعالجة: ${data.chunks_created} chunk`);
+      const method = data.splitting_method === 'markdown_headers' ? 'عناوين Markdown' : data.splitting_method === 'text_fallback' ? 'تقسيم نصي (بدون عناوين)' : 'فقرات نصية';
+      toast.success(`إعادة التقسيم: ${data.chunks_created} chunk من ${data.sections_found} قسم`, {
+        description: `طريقة التقسيم: ${method}`,
+        duration: 6000,
+      });
       queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] });
       queryClient.invalidateQueries({ queryKey: ['knowledge-chunks'] });
       queryClient.invalidateQueries({ queryKey: ['knowledge-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-stats'] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -428,6 +438,7 @@ function ChunksExplorerTab() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-right">#</TableHead>
+                <TableHead className="text-right">المستند</TableHead>
                 <TableHead className="text-right">العنوان</TableHead>
                 <TableHead className="text-right">المسار</TableHead>
                 <TableHead className="text-right">المعاينة</TableHead>
@@ -443,6 +454,7 @@ function ChunksExplorerTab() {
                 return (
                   <TableRow key={chunk.id}>
                     <TableCell>{chunk.chunk_index}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate">{(chunk.knowledge_documents as any)?.title || '-'}</TableCell>
                     <TableCell className="font-medium max-w-[200px] truncate">{chunk.title}</TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{chunk.section_path}</TableCell>
                     <TableCell className="text-xs max-w-[250px] truncate">{chunk.content.substring(0, 100)}...</TableCell>

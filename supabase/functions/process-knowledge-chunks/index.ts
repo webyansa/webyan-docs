@@ -6,11 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const CATEGORIES = [
-  "product", "architecture", "modules", "ai_guidelines", "writing_style",
-  "pricing", "faq", "policies", "support", "marketing", "nonprofit_sector", "facts", "general",
-];
-
 const HIGH_PRIORITY_CATEGORIES = ["facts", "faq", "policies", "support", "ai_guidelines"];
 const LOW_PRIORITY_CATEGORIES = ["marketing", "nonprofit_sector"];
 
@@ -34,40 +29,70 @@ interface Section {
 }
 
 function parseMarkdownSections(content: string): Section[] {
-  const lines = content.split("\n");
+  // Normalize line endings
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
   const sections: Section[] = [];
   let currentSection: Section | null = null;
-  const pathStack: string[] = [];
+  const pathStack: { level: number; title: string }[] = [];
+  let introLines: string[] = [];
 
   for (const line of lines) {
-    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    // Robust heading regex: handles trailing spaces, tabs, etc.
+    const headingMatch = line.match(/^(#{1,3})\s+(.+?)\s*$/);
     if (headingMatch) {
+      // Push any intro content collected before first heading
+      if (!currentSection && introLines.length > 0) {
+        const introContent = introLines.join("\n").trim();
+        if (introContent) {
+          sections.push({
+            title: "مقدمة",
+            level: 0,
+            content: introContent,
+            path: "مقدمة",
+          });
+        }
+        introLines = [];
+      }
+
+      // Save previous section
       if (currentSection && currentSection.content.trim()) {
         sections.push(currentSection);
       }
+
       const level = headingMatch[1].length;
       const title = headingMatch[2].trim();
 
-      // Update path stack
-      while (pathStack.length >= level) pathStack.pop();
-      pathStack.push(title);
+      // Update path stack — remove entries at same or deeper level
+      while (pathStack.length > 0 && pathStack[pathStack.length - 1].level >= level) {
+        pathStack.pop();
+      }
+      pathStack.push({ level, title });
 
       currentSection = {
         title,
         level,
         content: "",
-        path: pathStack.join(" > "),
+        path: pathStack.map(p => p.title).join(" > "),
       };
     } else if (currentSection) {
       currentSection.content += line + "\n";
     } else {
-      // Content before first heading
-      if (line.trim()) {
-        if (!currentSection) {
-          currentSection = { title: "مقدمة", level: 0, content: "", path: "مقدمة" };
-        }
-        currentSection.content += line + "\n";
-      }
+      // Content before any heading
+      introLines.push(line);
+    }
+  }
+
+  // Push remaining intro if no headings were found at all
+  if (!currentSection && introLines.length > 0) {
+    const introContent = introLines.join("\n").trim();
+    if (introContent) {
+      sections.push({
+        title: "مقدمة",
+        level: 0,
+        content: introContent,
+        path: "مقدمة",
+      });
     }
   }
 
@@ -78,16 +103,51 @@ function parseMarkdownSections(content: string): Section[] {
   return sections;
 }
 
-function splitLongSection(section: Section, maxTokens: number = 800): string[] {
-  const paragraphs = section.content.split(/\n\n+/).filter(p => p.trim());
+function splitLongSection(content: string, maxTokens: number = 800, minTokens: number = 100): string[] {
+  const trimmed = content.trim();
+  if (!trimmed) return [];
+  if (estimateTokens(trimmed) <= maxTokens) return [trimmed];
+
+  // Try splitting by double newlines first (paragraphs)
+  let parts = trimmed.split(/\n\n+/).filter(p => p.trim());
+
+  // If only 1 part, try single newlines
+  if (parts.length <= 1) {
+    parts = trimmed.split(/\n/).filter(p => p.trim());
+  }
+
+  // If still 1 part, split by sentences (Arabic period، English period, question/exclamation)
+  if (parts.length <= 1) {
+    parts = trimmed.split(/(?<=[.،؟!?\n])\s+/).filter(p => p.trim());
+  }
+
+  // If still 1 part (no natural breaks), force split by character count
+  if (parts.length <= 1) {
+    const targetLen = maxTokens * 4; // rough chars per maxTokens
+    const forcedParts: string[] = [];
+    let remaining = trimmed;
+    while (remaining.length > targetLen) {
+      // Try to find a space near the target length
+      let splitIdx = remaining.lastIndexOf(" ", targetLen);
+      if (splitIdx < targetLen * 0.5) splitIdx = targetLen;
+      forcedParts.push(remaining.substring(0, splitIdx).trim());
+      remaining = remaining.substring(splitIdx).trim();
+    }
+    if (remaining.trim()) forcedParts.push(remaining.trim());
+    return forcedParts.length > 0 ? forcedParts : [trimmed];
+  }
+
+  // Group parts into chunks of ~300-800 tokens
   const chunks: string[] = [];
   let currentChunk = "";
 
-  for (const para of paragraphs) {
-    const combined = currentChunk ? currentChunk + "\n\n" + para : para;
-    if (estimateTokens(combined) > maxTokens && currentChunk) {
+  for (const part of parts) {
+    const combined = currentChunk ? currentChunk + "\n\n" + part : part;
+    const combinedTokens = estimateTokens(combined);
+
+    if (combinedTokens > maxTokens && currentChunk) {
       chunks.push(currentChunk.trim());
-      currentChunk = para;
+      currentChunk = part;
     } else {
       currentChunk = combined;
     }
@@ -97,11 +157,20 @@ function splitLongSection(section: Section, maxTokens: number = 800): string[] {
     chunks.push(currentChunk.trim());
   }
 
-  return chunks.length > 0 ? chunks : [section.content.trim()];
+  // Merge tiny trailing chunks (< minTokens) with previous chunk
+  if (chunks.length > 1) {
+    const lastChunk = chunks[chunks.length - 1];
+    if (estimateTokens(lastChunk) < minTokens) {
+      chunks[chunks.length - 2] += "\n\n" + chunks.pop()!;
+    }
+  }
+
+  return chunks.length > 0 ? chunks : [trimmed];
 }
 
 function parseTextSections(content: string): Section[] {
-  const paragraphs = content.split(/\n\n+/).filter(p => p.trim());
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const paragraphs = normalized.split(/\n\n+/).filter(p => p.trim());
   const sections: Section[] = [];
   let currentGroup: string[] = [];
   let groupIndex = 0;
@@ -145,13 +214,38 @@ interface ChunkData {
   chunk_index: number;
 }
 
+interface ChunkResult {
+  chunks: ChunkData[];
+  sections_found: number;
+  splitting_method: string;
+}
+
 function generateChunks(
   content: string,
   fileType: string,
   category: string,
   fileName: string,
-): ChunkData[] {
-  const sections = fileType === "md" ? parseMarkdownSections(content) : parseTextSections(content);
+): ChunkResult {
+  let sections: Section[];
+  let splittingMethod: string;
+
+  if (fileType === "md") {
+    sections = parseMarkdownSections(content);
+    // Check if we actually found real headings or just an intro
+    const hasRealHeadings = sections.some(s => s.level > 0);
+    if (!hasRealHeadings && sections.length <= 1) {
+      // No markdown headers found — fall back to text splitting
+      sections = parseTextSections(content);
+      splittingMethod = "text_fallback";
+    } else {
+      splittingMethod = "markdown_headers";
+    }
+  } else {
+    sections = parseTextSections(content);
+    splittingMethod = "text_paragraphs";
+  }
+
+  const sectionsFound = sections.length;
   const chunks: ChunkData[] = [];
   let chunkIndex = 0;
 
@@ -160,12 +254,14 @@ function generateChunks(
     const priority = determinePriority(category, section.title);
 
     if (tokens <= 800) {
+      const trimmedContent = section.content.trim();
+      if (!trimmedContent) continue;
       chunks.push({
         title: section.title,
         section_path: section.path,
-        content: section.content.trim(),
-        token_estimate: tokens,
-        char_count: section.content.trim().length,
+        content: trimmedContent,
+        token_estimate: estimateTokens(trimmedContent),
+        char_count: trimmedContent.length,
         priority,
         chunk_index: chunkIndex++,
         metadata_json: {
@@ -176,10 +272,11 @@ function generateChunks(
           priority,
           chunk_index: chunkIndex - 1,
           file_type: fileType,
+          splitting_method: splittingMethod,
         },
       });
     } else {
-      const subChunks = splitLongSection(section, 800);
+      const subChunks = splitLongSection(section.content, 800, 100);
       for (let i = 0; i < subChunks.length; i++) {
         const subTitle = subChunks.length > 1
           ? `${section.title} (${i + 1}/${subChunks.length})`
@@ -201,13 +298,14 @@ function generateChunks(
             priority,
             chunk_index: chunkIndex - 1,
             file_type: fileType,
+            splitting_method: splittingMethod,
           },
         });
       }
     }
   }
 
-  return chunks;
+  return { chunks, sections_found: sectionsFound, splitting_method: splittingMethod };
 }
 
 Deno.serve(async (req) => {
@@ -239,7 +337,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use service role for DB operations
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -277,7 +374,6 @@ Deno.serve(async (req) => {
         .single();
       if (docErr || !doc) throw docErr || new Error("Document not found");
 
-      // Create job
       const { data: job } = await supabase.from("knowledge_chunk_jobs").insert({
         document_id,
         job_type: "chunking",
@@ -285,21 +381,19 @@ Deno.serve(async (req) => {
         started_at: new Date().toISOString(),
       }).select().single();
 
-      // Update doc status
       await supabase.from("knowledge_documents")
         .update({ processing_status: "processing" })
         .eq("id", document_id);
 
       try {
-        const chunks = generateChunks(
+        const result = generateChunks(
           doc.content_raw,
           doc.file_type,
           doc.category,
           doc.original_file_name,
         );
 
-        // Insert chunks
-        const chunkRows = chunks.map(c => ({
+        const chunkRows = result.chunks.map(c => ({
           document_id,
           chunk_index: c.chunk_index,
           title: c.title,
@@ -319,15 +413,15 @@ Deno.serve(async (req) => {
           if (insertErr) throw insertErr;
         }
 
-        // Update job
+        const logMsg = `تم إنشاء ${chunkRows.length} chunk من ${result.sections_found} قسم | طريقة: ${result.splitting_method} | ملف: ${doc.original_file_name}`;
+
         await supabase.from("knowledge_chunk_jobs").update({
           status: "completed",
           chunks_created: chunkRows.length,
           finished_at: new Date().toISOString(),
-          logs: `تم إنشاء ${chunkRows.length} chunk بنجاح من الملف ${doc.original_file_name}`,
+          logs: logMsg,
         }).eq("id", job!.id);
 
-        // Update doc
         await supabase.from("knowledge_documents")
           .update({ processing_status: "completed" })
           .eq("id", document_id);
@@ -335,6 +429,8 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({
           success: true,
           chunks_created: chunkRows.length,
+          sections_found: result.sections_found,
+          splitting_method: result.splitting_method,
           job_id: job!.id,
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -358,10 +454,8 @@ Deno.serve(async (req) => {
     if (action === "reprocess") {
       const { document_id } = body;
 
-      // Delete existing chunks
       await supabase.from("knowledge_chunks").delete().eq("document_id", document_id);
 
-      // Create rechunking job
       const { data: job } = await supabase.from("knowledge_chunk_jobs").insert({
         document_id,
         job_type: "rechunking",
@@ -378,8 +472,8 @@ Deno.serve(async (req) => {
         .eq("id", document_id);
 
       try {
-        const chunks = generateChunks(doc.content_raw, doc.file_type, doc.category, doc.original_file_name);
-        const chunkRows = chunks.map(c => ({
+        const result = generateChunks(doc.content_raw, doc.file_type, doc.category, doc.original_file_name);
+        const chunkRows = result.chunks.map(c => ({
           document_id,
           chunk_index: c.chunk_index,
           title: c.title,
@@ -398,18 +492,25 @@ Deno.serve(async (req) => {
           await supabase.from("knowledge_chunks").insert(chunkRows);
         }
 
+        const logMsg = `إعادة معالجة: ${chunkRows.length} chunk من ${result.sections_found} قسم | طريقة: ${result.splitting_method}`;
+
         await supabase.from("knowledge_chunk_jobs").update({
           status: "completed",
           chunks_created: chunkRows.length,
           finished_at: new Date().toISOString(),
-          logs: `إعادة معالجة: تم إنشاء ${chunkRows.length} chunk`,
+          logs: logMsg,
         }).eq("id", job!.id);
 
         await supabase.from("knowledge_documents")
           .update({ processing_status: "completed" })
           .eq("id", document_id);
 
-        return new Response(JSON.stringify({ success: true, chunks_created: chunkRows.length }), {
+        return new Response(JSON.stringify({
+          success: true,
+          chunks_created: chunkRows.length,
+          sections_found: result.sections_found,
+          splitting_method: result.splitting_method,
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } catch (err) {
@@ -469,7 +570,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ===== UPDATE DOCUMENT CATEGORY =====
+    // ===== UPDATE DOCUMENT =====
     if (action === "update-document") {
       const { document_id, updates } = body;
       const allowed = ["category", "title"];
