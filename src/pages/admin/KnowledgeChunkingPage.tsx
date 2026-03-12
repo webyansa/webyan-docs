@@ -454,6 +454,7 @@ function ChunksExplorerTab() {
                 return (
                   <TableRow key={chunk.id}>
                     <TableCell>{chunk.chunk_index}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate">{(chunk.knowledge_documents as any)?.title || '-'}</TableCell>
                     <TableCell className="font-medium max-w-[200px] truncate">{chunk.title}</TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{chunk.section_path}</TableCell>
                     <TableCell className="text-xs max-w-[250px] truncate">{chunk.content.substring(0, 100)}...</TableCell>
