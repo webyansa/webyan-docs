@@ -3026,6 +3026,160 @@ export type Database = {
           },
         ]
       }
+      knowledge_chunk_jobs: {
+        Row: {
+          chunks_created: number
+          created_at: string
+          document_id: string
+          finished_at: string | null
+          id: string
+          job_type: string
+          logs: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          chunks_created?: number
+          created_at?: string
+          document_id: string
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          logs?: string | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          chunks_created?: number
+          created_at?: string
+          document_id?: string
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          logs?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_chunk_jobs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_chunks: {
+        Row: {
+          category: string
+          char_count: number
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          embedding_model: string | null
+          embedding_status: string
+          id: string
+          is_embedded: boolean
+          metadata_json: Json
+          priority: string
+          section_path: string
+          title: string
+          token_estimate: number
+          updated_at: string
+          vector_id: string | null
+        }
+        Insert: {
+          category?: string
+          char_count?: number
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id: string
+          embedding_model?: string | null
+          embedding_status?: string
+          id?: string
+          is_embedded?: boolean
+          metadata_json?: Json
+          priority?: string
+          section_path?: string
+          title?: string
+          token_estimate?: number
+          updated_at?: string
+          vector_id?: string | null
+        }
+        Update: {
+          category?: string
+          char_count?: number
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding_model?: string | null
+          embedding_status?: string
+          id?: string
+          is_embedded?: boolean
+          metadata_json?: Json
+          priority?: string
+          section_path?: string
+          title?: string
+          token_estimate?: number
+          updated_at?: string
+          vector_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_documents: {
+        Row: {
+          category: string
+          content_raw: string
+          created_at: string
+          file_type: string
+          id: string
+          original_file_name: string
+          processing_notes: string | null
+          processing_status: string
+          source: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          content_raw?: string
+          created_at?: string
+          file_type?: string
+          id?: string
+          original_file_name: string
+          processing_notes?: string | null
+          processing_status?: string
+          source?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content_raw?: string
+          created_at?: string
+          file_type?: string
+          id?: string
+          original_file_name?: string
+          processing_notes?: string | null
+          processing_status?: string
+          source?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       marketing_campaigns: {
         Row: {
           audience_filters: Json | null
