@@ -1,77 +1,47 @@
 
+# خطة تحسين نظام التسويق في بوابة الموظف
 
-# Embeddings Pipeline + Vector DB Sync + Retrieval Test
+## المشكلة الحالية
+1. **المهام لا تظهر للموظف**: المنشور مُسند لـ `علي الشيخ` كمصمم لكن صلاحية `can_manage_marketing` مُعطلة عنده — فلا يرى رابط "إدارة التسويق" في القائمة الجانبية أصلاً.
+2. **تصميم الصفحة بسيط**: تحتاج تحسين لتكون أكثر احترافية وعملية.
 
-## Approach
+## المهام
 
-Use **pgvector** (Supabase's built-in vector extension) to store embeddings directly in the `knowledge_chunks` table, and **OpenAI's `text-embedding-3-small`** model (using the existing `ai_openai_api_key` from `system_settings`) to generate embeddings. No external Vector DB needed.
+### 1. إصلاح منطق الرؤية
+- تغيير شرط ظهور رابط "إدارة التسويق" ليشمل أيضاً الموظف المُسند إليه مهام (designer_id أو publisher_id) حتى لو لم يكن لديه صلاحية `canManageMarketing`.
+- **الأفضل**: جعل صفحة StaffMarketing تعمل لأي موظف مُسند إليه مهام تسويق، مع إبقاء `canManageMarketing` كصلاحية إضافية للوصول الكامل.
+- في `StaffLayout.tsx`: إزالة شرط `permission` من رابط التسويق واستبداله بفحص ديناميكي (هل الموظف لديه مهام مُسندة أو صلاحية تسويق).
 
-## 1. Database Migration
+### 2. إعادة بناء صفحة StaffMarketing بتصميم احترافي
+**ملف: `src/pages/staff/StaffMarketing.tsx`**
 
-- Enable `vector` extension (pgvector)
-- Add `embedded_at timestamptz` column to `knowledge_chunks`
-- Add `embedding vector(1536)` column to `knowledge_chunks` (1536 = text-embedding-3-small dimension)
-- Create a `match_knowledge_chunks` database function for similarity search:
-  - Takes query embedding vector, match threshold, match count, optional category filter
-  - Returns chunks ordered by cosine similarity
-- Create an index on the embedding column for fast search (ivfflat or hnsw)
+التصميم الجديد:
+- **رأس الصفحة**: عنوان "مهام التسويق" مع وصف مختصر
+- **بطاقات KPI** (3 بطاقات): قيد التنفيذ، بانتظار النشر، تم الإنجاز هذا الأسبوع
+- **قسم "مهامي"** بدلاً من tabs — عرض موحد:
+  - بطاقة لكل مهمة بتصميم واضح يشمل:
+    - شارة الدور (مصمم / ناشر) بلون مميز
+    - عنوان المنشور + الحالة
+    - القنوات + تاريخ النشر
+    - نص التصميم / نص المنشور
+    - حقل رابط التصميم (للمصمم)
+    - أزرار الإجراء حسب الدور والحالة
+  - فصل بصري بين "مهام التصميم" و"مهام النشر" بعناوين واضحة
+  - عرض المهام المكتملة مؤخراً (آخر 7 أيام) في قسم منفصل بشكل مطوي
+- **حالة فارغة** محسّنة بأيقونة ورسالة واضحة
 
-## 2. Edge Function Updates (`process-knowledge-chunks`)
+### 3. تحديث StaffLayout
+- إضافة فحص ديناميكي لوجود مهام تسويق مُسندة للموظف
+- إظهار رابط التسويق إذا كان `canManageMarketing = true` أو لديه مهام مُسندة
 
-Add 4 new actions:
+## الملفات المتأثرة
 
-**`generate-embeddings`**:
-- Fetch chunks where `is_embedded = false` or `embedding_status IN ('pending', 'failed')`
-- Batch them (up to 20 at a time to respect API limits)
-- Call OpenAI embeddings API with `text-embedding-3-small`
-- For each chunk: store the vector in the `embedding` column, set `is_embedded = true`, `embedding_status = 'embedded'`, `embedding_model = 'text-embedding-3-small'`, `embedded_at = now()`
-- On failure per chunk: set `embedding_status = 'failed'`
-- Return stats: `embedded_count`, `failed_count`
+| الملف | الإجراء |
+|---|---|
+| `src/pages/staff/StaffMarketing.tsx` | إعادة بناء كاملة بتصميم احترافي |
+| `src/pages/staff/StaffLayout.tsx` | تحديث منطق ظهور رابط التسويق |
 
-**`retry-failed-embeddings`**:
-- Same as above but only targets `embedding_status = 'failed'`
-
-**`embedding-stats`**:
-- Return counts: pending, embedded, failed, total
-
-**`retrieval-test`**:
-- Take user question text, optional category filter, top_k (3/5/10)
-- Generate embedding for the question via OpenAI
-- Call `match_knowledge_chunks` RPC
-- Return matched chunks with similarity scores
-
-Uses OpenAI API key from `system_settings.ai_openai_api_key` (same pattern as `assistant-chat` function).
-
-## 3. Frontend: Two New Tabs
-
-### Tab: "التضمين / Vector Sync"
-- Stats cards: pending count, embedded count, failed count
-- Buttons: "Generate Embeddings", "Retry Failed", "Sync All"
-- Progress indicator during processing
-- Status badges: pending (outline), processing (secondary), embedded (green default), failed (destructive)
-
-### Tab: "اختبار الاسترجاع" (Retrieval Test)
-- Question input field
-- Category filter (optional, from CATEGORIES list)
-- top_k selector (3 / 5 / 10)
-- Search button
-- Results list showing: title, source_file, category, section_path, similarity score (percentage), content preview, "View Full" button
-
-## 4. Tab Layout Change
-
-Update TabsList from `grid-cols-4` to `grid-cols-6` to accommodate 2 new tabs:
-- المستندات | استعراض Chunks | العمليات | السجلات | **التضمين** | **اختبار الاسترجاع**
-
-## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| New migration SQL | Add pgvector extension, `embedding` + `embedded_at` columns, `match_knowledge_chunks` function |
-| `supabase/functions/process-knowledge-chunks/index.ts` | Add 4 new actions |
-| `src/pages/admin/KnowledgeChunkingPage.tsx` | Add 2 new tab components + update tab layout |
-
-## Dependencies
-
-- OpenAI API key must be configured in `system_settings` (key: `ai_openai_api_key`) — same key already used by `assistant-chat` function
-- No new npm packages or external services needed
-
+## ملاحظات تقنية
+- RLS policies الحالية صحيحة — تسمح بالوصول بناءً على `designer_id`/`publisher_id`
+- لن يتم تعديل قاعدة البيانات
+- الاستعلامات تبقى كما هي (تستخدم `staffId` من permissions)
