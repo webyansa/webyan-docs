@@ -166,6 +166,7 @@ const SIDEBAR_MODULES: NavModule[] = [
       { title: 'الإعدادات العامة', href: '/admin/settings', icon: Settings, permission: 'canManageSystemSettings' },
       { title: 'اختبار نماذج AI', href: '/admin/ai-chat-tester', icon: Sparkles, permission: 'canManageSystemSettings' },
       { title: 'تقسيم المعرفة', href: '/admin/knowledge-chunking', icon: Database, permission: 'canManageSystemSettings' },
+      { title: 'مزودي AI', href: '/admin/ai-providers', icon: Plug, permission: 'canManageSystemSettings' },
     ],
   },
 ];
