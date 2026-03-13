@@ -1,47 +1,59 @@
 
-# خطة تحسين نظام التسويق في بوابة الموظف
 
-## المشكلة الحالية
-1. **المهام لا تظهر للموظف**: المنشور مُسند لـ `علي الشيخ` كمصمم لكن صلاحية `can_manage_marketing` مُعطلة عنده — فلا يرى رابط "إدارة التسويق" في القائمة الجانبية أصلاً.
-2. **تصميم الصفحة بسيط**: تحتاج تحسين لتكون أكثر احترافية وعملية.
+# OpenRouter Provider Integration
 
-## المهام
+## Overview
+Add a dedicated OpenRouter AI provider management page with full backend integration: save settings, test connection, fetch models, and test generation — all through a secure edge function.
 
-### 1. إصلاح منطق الرؤية
-- تغيير شرط ظهور رابط "إدارة التسويق" ليشمل أيضاً الموظف المُسند إليه مهام (designer_id أو publisher_id) حتى لو لم يكن لديه صلاحية `canManageMarketing`.
-- **الأفضل**: جعل صفحة StaffMarketing تعمل لأي موظف مُسند إليه مهام تسويق، مع إبقاء `canManageMarketing` كصلاحية إضافية للوصول الكامل.
-- في `StaffLayout.tsx`: إزالة شرط `permission` من رابط التسويق واستبداله بفحص ديناميكي (هل الموظف لديه مهام مُسندة أو صلاحية تسويق).
+## 1. Database Migration
 
-### 2. إعادة بناء صفحة StaffMarketing بتصميم احترافي
-**ملف: `src/pages/staff/StaffMarketing.tsx`**
+**New table: `ai_providers`**
+- `id uuid PK`, `provider_name text`, `api_key_encrypted text`, `base_url text`, `default_model text`, `enabled boolean default false`, `status text default 'inactive'`, `last_tested_at timestamptz`, `last_test_result text`, `last_test_latency_ms int`, `models_cache jsonb`, `created_at timestamptz default now()`, `updated_at timestamptz default now()`
+- RLS: admin only (using `is_admin(auth.uid())`)
+- `api_key_encrypted` stored as-is in DB but **never returned to frontend in full** — the edge function masks it
 
-التصميم الجديد:
-- **رأس الصفحة**: عنوان "مهام التسويق" مع وصف مختصر
-- **بطاقات KPI** (3 بطاقات): قيد التنفيذ، بانتظار النشر، تم الإنجاز هذا الأسبوع
-- **قسم "مهامي"** بدلاً من tabs — عرض موحد:
-  - بطاقة لكل مهمة بتصميم واضح يشمل:
-    - شارة الدور (مصمم / ناشر) بلون مميز
-    - عنوان المنشور + الحالة
-    - القنوات + تاريخ النشر
-    - نص التصميم / نص المنشور
-    - حقل رابط التصميم (للمصمم)
-    - أزرار الإجراء حسب الدور والحالة
-  - فصل بصري بين "مهام التصميم" و"مهام النشر" بعناوين واضحة
-  - عرض المهام المكتملة مؤخراً (آخر 7 أيام) في قسم منفصل بشكل مطوي
-- **حالة فارغة** محسّنة بأيقونة ورسالة واضحة
+## 2. Edge Function: `manage-ai-providers/index.ts`
 
-### 3. تحديث StaffLayout
-- إضافة فحص ديناميكي لوجود مهام تسويق مُسندة للموظف
-- إظهار رابط التسويق إذا كان `canManageMarketing = true` أو لديه مهام مُسندة
+Single edge function with actions:
 
-## الملفات المتأثرة
+| Action | Description |
+|--------|------------|
+| `save` | Upsert provider row (api_key, base_url, default_model, enabled) |
+| `get-status` | Return provider info with masked API key (`sk-or-...****xxxx`) |
+| `test-connection` | `GET https://openrouter.ai/api/v1/models` with auth header → update status |
+| `fetch-models` | Same endpoint, parse & cache model list in `models_cache` jsonb |
+| `test-generation` | `POST /chat/completions` with simple prompt, measure latency, update status |
 
-| الملف | الإجراء |
-|---|---|
-| `src/pages/staff/StaffMarketing.tsx` | إعادة بناء كاملة بتصميم احترافي |
-| `src/pages/staff/StaffLayout.tsx` | تحديث منطق ظهور رابط التسويق |
+All OpenRouter calls happen server-side only. API key read from `ai_providers` table using service role.
 
-## ملاحظات تقنية
-- RLS policies الحالية صحيحة — تسمح بالوصول بناءً على `designer_id`/`publisher_id`
-- لن يتم تعديل قاعدة البيانات
-- الاستعلامات تبقى كما هي (تستخدم `staffId` من permissions)
+## 3. Frontend: New Page `AIProvidersPage.tsx`
+
+Route: `/admin/ai-providers`
+
+**Layout:**
+- Provider card for OpenRouter with:
+  - API Key input (masked after save)
+  - Base URL input (default: `https://openrouter.ai/api/v1`)
+  - Model dropdown (populated from fetch-models)
+  - Enable/disable switch
+  - Status badge (inactive / active / error)
+  - Last tested time + latency
+  - 4 action buttons: Save, Test Connection, Fetch Models, Test Generation
+- Debug panel (collapsible): shows last endpoint called, status code, response snippet, error
+
+## 4. Routing & Navigation
+
+- Add route `/admin/ai-providers` → `AIProvidersPage` in `App.tsx`
+- Add sidebar item "مزودي AI" in the "النظام" module in `AdminSidebar.tsx`
+
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| Migration SQL | Create `ai_providers` table + RLS |
+| `supabase/functions/manage-ai-providers/index.ts` | New edge function |
+| `src/pages/admin/AIProvidersPage.tsx` | New page |
+| `src/App.tsx` | Add route |
+| `src/components/admin/AdminSidebar.tsx` | Add nav item |
+| `supabase/config.toml` | Add function config |
+
