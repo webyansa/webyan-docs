@@ -139,6 +139,54 @@ export type Database = {
           },
         ]
       }
+      ai_providers: {
+        Row: {
+          api_key_encrypted: string | null
+          base_url: string | null
+          created_at: string
+          default_model: string | null
+          enabled: boolean
+          id: string
+          last_test_latency_ms: number | null
+          last_test_result: string | null
+          last_tested_at: string | null
+          models_cache: Json | null
+          provider_name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          base_url?: string | null
+          created_at?: string
+          default_model?: string | null
+          enabled?: boolean
+          id?: string
+          last_test_latency_ms?: number | null
+          last_test_result?: string | null
+          last_tested_at?: string | null
+          models_cache?: Json | null
+          provider_name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          base_url?: string | null
+          created_at?: string
+          default_model?: string | null
+          enabled?: boolean
+          id?: string
+          last_test_latency_ms?: number | null
+          last_test_result?: string | null
+          last_tested_at?: string | null
+          models_cache?: Json | null
+          provider_name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaign_audit_log: {
         Row: {
           action: string
