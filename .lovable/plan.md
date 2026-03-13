@@ -1,74 +1,47 @@
 
+# خطة تحسين نظام التسويق في بوابة الموظف
 
-# Grounded Chat Test — Implementation Plan
+## المشكلة الحالية
+1. **المهام لا تظهر للموظف**: المنشور مُسند لـ `علي الشيخ` كمصمم لكن صلاحية `can_manage_marketing` مُعطلة عنده — فلا يرى رابط "إدارة التسويق" في القائمة الجانبية أصلاً.
+2. **تصميم الصفحة بسيط**: تحتاج تحسين لتكون أكثر احترافية وعملية.
 
-## Overview
-A new admin page and backend action that chains: **Retrieval → Prompt Builder → OpenRouter → Answer + Sources + Debug**. This validates the full RAG pipeline end-to-end before production use.
+## المهام
 
-## 1. Database Migration
+### 1. إصلاح منطق الرؤية
+- تغيير شرط ظهور رابط "إدارة التسويق" ليشمل أيضاً الموظف المُسند إليه مهام (designer_id أو publisher_id) حتى لو لم يكن لديه صلاحية `canManageMarketing`.
+- **الأفضل**: جعل صفحة StaffMarketing تعمل لأي موظف مُسند إليه مهام تسويق، مع إبقاء `canManageMarketing` كصلاحية إضافية للوصول الكامل.
+- في `StaffLayout.tsx`: إزالة شرط `permission` من رابط التسويق واستبداله بفحص ديناميكي (هل الموظف لديه مهام مُسندة أو صلاحية تسويق).
 
-**New table: `grounded_chat_tests`**
-- `id uuid PK`, `question text`, `rewritten_query text`, `model text`, `top_k int`, `category_filter text`, `search_mode text`, `final_answer text`, `sources_json jsonb`, `prompt_sent text`, `response_status text`, `latency_ms int`, `token_usage jsonb`, `confidence_score float`, `is_grounded boolean`, `debug_info jsonb`, `created_at timestamptz default now()`
-- RLS: admin only via `is_admin(auth.uid())`
+### 2. إعادة بناء صفحة StaffMarketing بتصميم احترافي
+**ملف: `src/pages/staff/StaffMarketing.tsx`**
 
-## 2. Edge Function: New `grounded-chat-test` Action
+التصميم الجديد:
+- **رأس الصفحة**: عنوان "مهام التسويق" مع وصف مختصر
+- **بطاقات KPI** (3 بطاقات): قيد التنفيذ، بانتظار النشر، تم الإنجاز هذا الأسبوع
+- **قسم "مهامي"** بدلاً من tabs — عرض موحد:
+  - بطاقة لكل مهمة بتصميم واضح يشمل:
+    - شارة الدور (مصمم / ناشر) بلون مميز
+    - عنوان المنشور + الحالة
+    - القنوات + تاريخ النشر
+    - نص التصميم / نص المنشور
+    - حقل رابط التصميم (للمصمم)
+    - أزرار الإجراء حسب الدور والحالة
+  - فصل بصري بين "مهام التصميم" و"مهام النشر" بعناوين واضحة
+  - عرض المهام المكتملة مؤخراً (آخر 7 أيام) في قسم منفصل بشكل مطوي
+- **حالة فارغة** محسّنة بأيقونة ورسالة واضحة
 
-Add a new action inside `manage-ai-providers/index.ts` (since it already has OpenRouter credentials access) or create a small new edge function. Given the complexity, **add to `manage-ai-providers`** with action `grounded-chat`.
+### 3. تحديث StaffLayout
+- إضافة فحص ديناميكي لوجود مهام تسويق مُسندة للموظف
+- إظهار رابط التسويق إذا كان `canManageMarketing = true` أو لديه مهام مُسندة
 
-### Pipeline (all server-side):
+## الملفات المتأثرة
 
-1. **Retrieval**: Call `process-knowledge-chunks` internally (or replicate the retrieval-test-v2 logic directly) using the existing hybrid pipeline — embed the question via OpenAI, run `match_knowledge_chunks` RPC, apply keyword search + reranking
-2. **Grounding Check**: If top chunks have confidence < threshold or zero results → return "insufficient knowledge" without calling OpenRouter
-3. **Prompt Builder** (backend only):
-   - System: strict grounding instruction (Arabic)
-   - Retrieved chunks formatted with titles, categories, content
-   - User question appended
-4. **OpenRouter Call**: Read `api_key_encrypted` + `base_url` from `ai_providers` table, send `POST /chat/completions` with chosen model
-5. **Save to `grounded_chat_tests`** table
-6. **Return**: answer, sources, debug info, latency, token usage
+| الملف | الإجراء |
+|---|---|
+| `src/pages/staff/StaffMarketing.tsx` | إعادة بناء كاملة بتصميم احترافي |
+| `src/pages/staff/StaffLayout.tsx` | تحديث منطق ظهور رابط التسويق |
 
-## 3. Frontend: New Page `GroundedChatTestPage.tsx`
-
-Route: `/admin/grounded-chat-test`
-
-**Controls:**
-- Question textarea
-- Model dropdown (from OpenRouter cached models)
-- top_k selector (3/5/10)
-- Category filter (optional)
-- Debug Mode toggle
-- "اسأل المساعد" button
-
-**Results display (3 sections):**
-
-**A) Final Answer** — formatted response card
-
-**B) Sources Used** — list of chunks with title, source_file, category, similarity, section_path, content preview, View Full button
-
-**C) Retrieval Summary** — chunks count, model, latency, grounded status
-
-**Debug Panel** (when toggle on): original question, rewritten query, full prompt sent, model, status code, raw response, token usage, latency breakdown
-
-**History Tab:** table of past tests with question, model, time, status, sources count, View Details button
-
-## 4. Routing & Navigation
-
-- Add route `/admin/grounded-chat-test` in `App.tsx`
-- Add sidebar item "اختبار المحادثة" in AdminSidebar under the AI/System module
-
-## 5. Anti-Hallucination Rules
-
-- If no chunks retrieved or all similarity scores < 0.3: return fixed message "لم يتم العثور على معلومات كافية" without calling OpenRouter
-- System prompt strictly instructs: answer only from provided references, state clearly when info is insufficient
-- `is_grounded` flag stored in DB based on whether chunks were found
-
-## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| Migration SQL | `grounded_chat_tests` table + RLS |
-| `supabase/functions/manage-ai-providers/index.ts` | Add `grounded-chat` action with retrieval + prompt builder + OpenRouter call |
-| `src/pages/admin/GroundedChatTestPage.tsx` | New page with chat test UI, results, debug, history |
-| `src/App.tsx` | Add route + import |
-| `src/components/admin/AdminSidebar.tsx` | Add nav item |
-
+## ملاحظات تقنية
+- RLS policies الحالية صحيحة — تسمح بالوصول بناءً على `designer_id`/`publisher_id`
+- لن يتم تعديل قاعدة البيانات
+- الاستعلامات تبقى كما هي (تستخدم `staffId` من permissions)
