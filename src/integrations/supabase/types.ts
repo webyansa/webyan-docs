@@ -3186,6 +3186,48 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_retrieval_logs: {
+        Row: {
+          candidates_count: number | null
+          confidence_score: number | null
+          created_at: string
+          detected_intent: string | null
+          final_results_count: number | null
+          id: string
+          original_query: string
+          results_summary: Json | null
+          rewritten_queries: Json | null
+          search_mode: string
+          timing_ms: Json | null
+        }
+        Insert: {
+          candidates_count?: number | null
+          confidence_score?: number | null
+          created_at?: string
+          detected_intent?: string | null
+          final_results_count?: number | null
+          id?: string
+          original_query: string
+          results_summary?: Json | null
+          rewritten_queries?: Json | null
+          search_mode?: string
+          timing_ms?: Json | null
+        }
+        Update: {
+          candidates_count?: number | null
+          confidence_score?: number | null
+          created_at?: string
+          detected_intent?: string | null
+          final_results_count?: number | null
+          id?: string
+          original_query?: string
+          results_summary?: Json | null
+          rewritten_queries?: Json | null
+          search_mode?: string
+          timing_ms?: Json | null
+        }
+        Relationships: []
+      }
       marketing_campaigns: {
         Row: {
           audience_filters: Json | null
@@ -5340,6 +5382,18 @@ export type Database = {
       is_client: { Args: { _user_id: string }; Returns: boolean }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       is_support_agent: { Args: { _user_id: string }; Returns: boolean }
+      keyword_search_knowledge_chunks: {
+        Args: {
+          filter_category?: string
+          max_results?: number
+          search_keywords: string[]
+        }
+        Returns: {
+          id: string
+          keyword_matches: number
+          matched_keywords: string[]
+        }[]
+      }
       log_client_timeline_event: {
         Args: {
           p_description?: string

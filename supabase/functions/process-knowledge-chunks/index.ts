@@ -759,9 +759,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ===== RETRIEVAL TEST =====
+    // ===== RETRIEVAL TEST (v2 with hybrid + reranking) =====
     if (action === "retrieval-test") {
-      const { question, category: filterCategory, top_k = 5 } = body;
+      const { question, category: filterCategory, top_k = 5, search_mode = "hybrid_rerank" } = body;
 
       if (!question) {
         return new Response(JSON.stringify({ error: "السؤال مطلوب" }), {
@@ -770,76 +770,318 @@ Deno.serve(async (req) => {
         });
       }
 
+      const timings: Record<string, number> = {};
+      const totalStart = Date.now();
+
       // Get OpenAI API key
       const { data: settingData } = await supabase
         .from("system_settings")
         .select("value")
         .eq("key", "ai_openai_api_key")
         .single();
-
       const apiKey = settingData?.value;
       if (!apiKey) {
         return new Response(JSON.stringify({ error: "مفتاح OpenAI API غير مُعد في إعدادات النظام" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Generate embedding for the question
+      // ===== STAGE 1: Query Understanding & Rewriting =====
+      const stage1Start = Date.now();
+      
+      // Heuristic rules for category boosting
+      const CATEGORY_BOOST_RULES = [
+        { keywords: ['سعر','أسعار','اشتراك','خطة','خطط','باقة','باقات','pricing','price','plan','subscription','تكلفة','رسوم'], boost_categories: ['pricing','plans','faq','facts'] },
+        { keywords: ['دعم','مشكلة','مساعدة','تذكرة','help','support','issue','تواصل'], boost_categories: ['support','faq'] },
+        { keywords: ['سياسة','شروط','أحكام','policy','terms','استرجاع','إلغاء'], boost_categories: ['policies'] },
+        { keywords: ['ممنوع','صياغة','لا تقل','أسلوب','كتابة','style','tone','نبرة'], boost_categories: ['do_not_say','writing_style','ai_guidelines'] },
+        { keywords: ['موقع','تصميم','قالب','تطوير','برمجة','website','design'], boost_categories: ['product','modules','architecture'] },
+      ];
+
+      // Detect intent from heuristics
+      function detectIntentHeuristic(q: string): string {
+        const lower = q.toLowerCase();
+        for (const rule of CATEGORY_BOOST_RULES) {
+          if (rule.keywords.some(k => lower.includes(k))) {
+            if (rule.boost_categories.includes('pricing')) return 'pricing';
+            if (rule.boost_categories.includes('support')) return 'support';
+            if (rule.boost_categories.includes('policies')) return 'policies';
+            if (rule.boost_categories.includes('do_not_say')) return 'style';
+          }
+        }
+        return 'general';
+      }
+
+      // Extract keywords heuristically (Arabic + English)
+      function extractKeywordsHeuristic(q: string): { ar: string[]; en: string[] } {
+        const stopWords = ['ماهي','ما','هي','هو','هل','كيف','لماذا','أين','متى','في','من','إلى','على','عن','مع','هذا','هذه','تلك','ذلك','التي','الذي','كل','أي','أو','و','ان','لا','لم','لن','قد','بأن','وهل','كم','منصة','لمنصة','ويبيان','webyan'];
+        const words = q.replace(/[؟?!.,،؛:]/g, '').split(/\s+/).filter(w => w.length > 1);
+        const ar: string[] = [];
+        const en: string[] = [];
+        for (const w of words) {
+          const lower = w.toLowerCase();
+          if (stopWords.includes(lower)) continue;
+          if (/^[a-zA-Z]+$/.test(w)) en.push(lower);
+          else ar.push(w);
+        }
+        return { ar, en };
+      }
+
+      let rewrittenQuery = question;
+      let subQueries: string[] = [];
+      let keywordsAr: string[] = [];
+      let keywordsEn: string[] = [];
+      let detectedIntent = detectIntentHeuristic(question);
+      let queryRewriteUsedAI = false;
+
+      // Try AI-based query rewriting for hybrid_rerank mode
+      if (search_mode === "hybrid_rerank") {
+        try {
+          const rewriteResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a search query optimizer for an Arabic knowledge base about "Webyan" (ويبيان) platform.
+Given a user question, return ONLY valid JSON (no markdown):
+{
+  "rewritten_query": "optimized version of the question",
+  "sub_queries": ["sub-query 1", "sub-query 2"],
+  "keywords_ar": ["كلمة1", "كلمة2"],
+  "keywords_en": ["keyword1", "keyword2"],
+  "detected_intent": "pricing|support|policies|style|general"
+}
+Rules:
+- Generate 2-4 sub-queries that cover different aspects of the question
+- Extract important Arabic AND English keywords
+- Detect the primary intent category
+- Always include the platform name variants: ويبيان, Webyan
+- For pricing questions, include: خطة, باقة, سعر, Basic, Plus, Pro`
+                },
+                { role: "user", content: question }
+              ],
+              temperature: 0.3,
+              max_tokens: 500,
+            }),
+          });
+
+          if (rewriteResponse.ok) {
+            const rewriteData = await rewriteResponse.json();
+            const content = rewriteData.choices?.[0]?.message?.content || "";
+            try {
+              const parsed = JSON.parse(content.replace(/```json\n?|\n?```/g, '').trim());
+              rewrittenQuery = parsed.rewritten_query || question;
+              subQueries = parsed.sub_queries || [];
+              keywordsAr = parsed.keywords_ar || [];
+              keywordsEn = parsed.keywords_en || [];
+              detectedIntent = parsed.detected_intent || detectedIntent;
+              queryRewriteUsedAI = true;
+            } catch { /* fallback to heuristic */ }
+          }
+        } catch (e) {
+          console.error("Query rewrite failed, using heuristic:", e);
+        }
+      }
+
+      // Heuristic fallback
+      if (!queryRewriteUsedAI) {
+        const extracted = extractKeywordsHeuristic(question);
+        keywordsAr = extracted.ar;
+        keywordsEn = extracted.en;
+      }
+
+      const allKeywords = [...keywordsAr, ...keywordsEn];
+      timings.query_rewrite = Date.now() - stage1Start;
+
+      // ===== STAGE 2: Multi-Query Vector Search =====
+      const stage2Start = Date.now();
+      const queriesToEmbed = [question];
+      if (search_mode !== "vector_only" && subQueries.length > 0) {
+        queriesToEmbed.push(...subQueries.slice(0, 3));
+      }
+
+      // Generate embeddings for all queries
       const embResponse = await fetch("https://api.openai.com/v1/embeddings", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "text-embedding-3-small",
-          input: [question],
-        }),
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "text-embedding-3-small", input: queriesToEmbed }),
       });
 
       if (!embResponse.ok) {
         const errText = await embResponse.text();
         console.error("OpenAI embeddings error:", embResponse.status, errText);
         return new Response(JSON.stringify({ error: "فشل في توليد embedding للسؤال" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const embData = await embResponse.json();
-      const queryEmbedding = embData.data[0]?.embedding;
+      const embeddings = embData.data;
 
-      if (!queryEmbedding) {
-        return new Response(JSON.stringify({ error: "فشل في الحصول على vector" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // Run vector search for each query embedding
+      const vectorCandidatesMap = new Map<string, any>();
+      const fetchCount = search_mode === "vector_only" ? top_k : 15;
+
+      for (let qi = 0; qi < embeddings.length; qi++) {
+        const queryEmbedding = embeddings[qi]?.embedding;
+        if (!queryEmbedding) continue;
+
+        const vectorStr = `[${queryEmbedding.join(",")}]`;
+        const { data: matches } = await supabase.rpc("match_knowledge_chunks", {
+          query_embedding: vectorStr,
+          match_threshold: 0.2,
+          match_count: fetchCount,
+          filter_category: filterCategory || null,
         });
+
+        for (const m of (matches || [])) {
+          const existing = vectorCandidatesMap.get(m.id);
+          if (!existing || m.similarity > existing.similarity) {
+            vectorCandidatesMap.set(m.id, m);
+          }
+        }
       }
 
-      // Call the match function
-      const vectorStr = `[${queryEmbedding.join(",")}]`;
-      const { data: matches, error: matchErr } = await supabase.rpc("match_knowledge_chunks", {
-        query_embedding: vectorStr,
-        match_threshold: 0.3,
-        match_count: top_k,
-        filter_category: filterCategory || null,
+      let candidates = Array.from(vectorCandidatesMap.values());
+      timings.vector_search = Date.now() - stage2Start;
+
+      // ===== STAGE 3: Keyword/Lexical Search (Hybrid) =====
+      let keywordResultsMap = new Map<string, { keyword_matches: number; matched_keywords: string[] }>();
+
+      if (search_mode !== "vector_only" && allKeywords.length > 0) {
+        const stage3Start = Date.now();
+        const { data: kwResults } = await supabase.rpc("keyword_search_knowledge_chunks", {
+          search_keywords: allKeywords,
+          max_results: 20,
+          filter_category: filterCategory || null,
+        });
+
+        for (const kr of (kwResults || [])) {
+          keywordResultsMap.set(kr.id, { keyword_matches: kr.keyword_matches, matched_keywords: kr.matched_keywords });
+        }
+
+        // Add keyword-only results that weren't in vector results
+        if (kwResults) {
+          for (const kr of kwResults) {
+            if (!vectorCandidatesMap.has(kr.id)) {
+              // Fetch the chunk data
+              const { data: chunkData } = await supabase
+                .from("knowledge_chunks")
+                .select("id, document_id, chunk_index, title, section_path, category, content, token_estimate, priority, metadata_json")
+                .eq("id", kr.id)
+                .single();
+              if (chunkData) {
+                candidates.push({ ...chunkData, similarity: 0.15 }); // low baseline similarity for keyword-only
+              }
+            }
+          }
+        }
+        timings.keyword_search = Date.now() - stage3Start;
+      }
+
+      // ===== STAGE 4: Metadata Boosting =====
+      const stage4Start = Date.now();
+      
+      // Determine which categories to boost
+      const boostedCategories = new Set<string>();
+      const lowerQuestion = question.toLowerCase();
+      for (const rule of CATEGORY_BOOST_RULES) {
+        if (rule.keywords.some(k => lowerQuestion.includes(k))) {
+          rule.boost_categories.forEach(c => boostedCategories.add(c));
+        }
+      }
+
+      // Apply boosting to each candidate
+      const scoredCandidates = candidates.map(c => {
+        let metadataBoost = 1.0;
+        const reasons: string[] = [];
+
+        // Category boost
+        if (boostedCategories.has(c.category)) {
+          metadataBoost *= 1.3;
+          reasons.push(`تطابق تصنيف: ${c.category}`);
+        }
+
+        // Priority boost
+        if (c.priority === 'high') { metadataBoost *= 1.15; reasons.push('أولوية عالية'); }
+        else if (c.priority === 'low') { metadataBoost *= 0.9; }
+
+        // Title keyword match boost
+        const titleLower = (c.title || '').toLowerCase();
+        const titleMatches = allKeywords.filter(k => titleLower.includes(k.toLowerCase()));
+        if (titleMatches.length > 0) {
+          metadataBoost *= 1.1;
+          reasons.push('تطابق في العنوان');
+        }
+
+        // Keyword score (0-1)
+        const kwData = keywordResultsMap.get(c.id);
+        const keywordScore = kwData
+          ? Math.min(kwData.keyword_matches / Math.max(allKeywords.length, 1), 1)
+          : 0;
+        if (kwData && kwData.keyword_matches > 0) {
+          reasons.push(`تطابق ${kwData.keyword_matches} كلمة مفتاحية`);
+        }
+
+        // Similarity reason
+        if (c.similarity >= 0.7) reasons.push('تشابه دلالي عالي جداً');
+        else if (c.similarity >= 0.5) reasons.push('تشابه دلالي عالي');
+        else if (c.similarity >= 0.3) reasons.push('تشابه دلالي متوسط');
+
+        // Final score
+        const normalizedBoost = Math.min(metadataBoost - 1, 0.5); // cap boost contribution
+        let finalScore: number;
+        if (search_mode === "vector_only") {
+          finalScore = c.similarity;
+        } else if (search_mode === "hybrid") {
+          finalScore = (c.similarity * 0.65) + (keywordScore * 0.35);
+        } else {
+          // hybrid_rerank
+          finalScore = (c.similarity * 0.55) + (keywordScore * 0.25) + (normalizedBoost * 0.20);
+        }
+
+        return {
+          ...c,
+          similarity_score: Math.round(c.similarity * 1000) / 1000,
+          keyword_score: Math.round(keywordScore * 1000) / 1000,
+          metadata_boost: Math.round(metadataBoost * 1000) / 1000,
+          final_score: Math.round(finalScore * 1000) / 1000,
+          ranking_reasons: reasons,
+          matched_keywords: kwData?.matched_keywords || [],
+        };
       });
 
-      if (matchErr) {
-        console.error("Match error:", matchErr);
-        throw matchErr;
-      }
+      timings.metadata_boosting = Date.now() - stage4Start;
 
-      // Get document names for results
-      const matchDocIds = [...new Set((matches || []).map((m: any) => m.document_id))];
+      // ===== STAGE 5: Reranking =====
+      const stage5Start = Date.now();
+      const candidatesBeforeRerank = scoredCandidates.length;
+
+      // Sort by final_score
+      scoredCandidates.sort((a, b) => b.final_score - a.final_score);
+
+      // Take top_k
+      const finalResults = scoredCandidates.slice(0, top_k);
+
+      // Compute confidence
+      const topScores = finalResults.slice(0, 3).map(r => r.final_score);
+      const confidence = topScores.length > 0 ? topScores.reduce((a, b) => a + b, 0) / topScores.length : 0;
+
+      timings.reranking = Date.now() - stage5Start;
+      timings.total = Date.now() - totalStart;
+
+      // Get document names
+      const matchDocIds = [...new Set(finalResults.map((m: any) => m.document_id))];
       let docNames: Record<string, string> = {};
       if (matchDocIds.length > 0) {
         const { data: matchDocs } = await supabase.from("knowledge_documents").select("id, title, original_file_name").in("id", matchDocIds);
         docNames = Object.fromEntries((matchDocs || []).map(d => [d.id, d.original_file_name || d.title]));
       }
 
-      const results = (matches || []).map((m: any) => ({
+      const results = finalResults.map((m: any) => ({
         id: m.id,
         title: m.title,
         section_path: m.section_path,
@@ -847,12 +1089,66 @@ Deno.serve(async (req) => {
         content: m.content,
         token_estimate: m.token_estimate,
         priority: m.priority,
-        similarity: Math.round(m.similarity * 100) / 100,
+        similarity_score: m.similarity_score,
+        keyword_score: m.keyword_score,
+        metadata_boost: m.metadata_boost,
+        final_score: m.final_score,
+        ranking_reasons: m.ranking_reasons,
+        matched_keywords: m.matched_keywords,
         source_file: docNames[m.document_id] || "",
         metadata_json: m.metadata_json,
       }));
 
-      return new Response(JSON.stringify({ success: true, results, question }), {
+      // ===== STAGE 6: Logging =====
+      try {
+        await supabase.from("knowledge_retrieval_logs").insert({
+          original_query: question,
+          rewritten_queries: { rewritten: rewrittenQuery, sub_queries: subQueries, keywords_ar: keywordsAr, keywords_en: keywordsEn },
+          detected_intent: detectedIntent,
+          search_mode,
+          candidates_count: candidatesBeforeRerank,
+          final_results_count: finalResults.length,
+          confidence_score: Math.round(confidence * 1000) / 1000,
+          timing_ms: timings,
+          results_summary: results.map(r => ({ id: r.id, title: r.title, final_score: r.final_score, category: r.category })),
+        });
+      } catch (logErr) {
+        console.error("Failed to log retrieval:", logErr);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        results,
+        question,
+        search_mode,
+        debug: {
+          original_query: question,
+          rewritten_query: rewrittenQuery,
+          sub_queries: subQueries,
+          keywords_ar: keywordsAr,
+          keywords_en: keywordsEn,
+          detected_intent: detectedIntent,
+          query_rewrite_used_ai: queryRewriteUsedAI,
+          boosted_categories: Array.from(boostedCategories),
+          candidates_before_rerank: candidatesBeforeRerank,
+          final_results_count: finalResults.length,
+          confidence,
+          timing_ms: timings,
+        },
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ===== RETRIEVAL LOGS =====
+    if (action === "retrieval-logs") {
+      const { data: logs, error: logsErr } = await supabase
+        .from("knowledge_retrieval_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (logsErr) throw logsErr;
+      return new Response(JSON.stringify({ success: true, logs: logs || [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

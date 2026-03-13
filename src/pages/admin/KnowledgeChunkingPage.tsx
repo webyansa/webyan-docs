@@ -893,9 +893,12 @@ function RetrievalTestTab() {
   const [question, setQuestion] = useState('');
   const [category, setCategory] = useState('all');
   const [topK, setTopK] = useState('5');
+  const [searchMode, setSearchMode] = useState('hybrid_rerank');
   const [results, setResults] = useState<any[]>([]);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
   const [viewResult, setViewResult] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   const searchMutation = useMutation({
     mutationFn: async () => {
@@ -904,23 +907,44 @@ function RetrievalTestTab() {
         question,
         category: category !== 'all' ? category : undefined,
         top_k: parseInt(topK),
+        search_mode: searchMode,
       });
     },
     onSuccess: (data) => {
       setIsSearching(false);
       setResults(data.results || []);
-      if (data.results?.length === 0) {
-        toast.info('لم يتم العثور على نتائج مطابقة');
-      }
+      setDebugInfo(data.debug || null);
+      if (data.results?.length === 0) toast.info('لم يتم العثور على نتائج مطابقة');
     },
     onError: (e: Error) => { setIsSearching(false); toast.error(e.message); },
   });
 
+  const { data: recentLogs = [] } = useQuery({
+    queryKey: ['retrieval-logs'],
+    queryFn: () => invokeKnowledge('retrieval-logs').then(d => d.logs || []),
+    enabled: showLogs,
+  });
+
+  const modeLabels: Record<string, string> = {
+    vector_only: 'Vector فقط',
+    hybrid: 'Hybrid',
+    hybrid_rerank: 'Hybrid + Reranking',
+  };
+
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-foreground">اختبار الاسترجاع</h3>
-      <p className="text-sm text-muted-foreground">اختبر جودة البحث الدلالي عبر الـ chunks المُضمّنة</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">اختبار الاسترجاع المتقدم</h3>
+          <p className="text-sm text-muted-foreground">بحث هجين مع إعادة ترتيب ذكية وتحليل الاستعلام</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowLogs(!showLogs)} className="gap-2">
+          <Activity className="h-4 w-4" />
+          {showLogs ? 'إخفاء السجلات' : 'سجلات البحث'}
+        </Button>
+      </div>
 
+      {/* Search Controls */}
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div>
@@ -935,6 +959,17 @@ function RetrievalTestTab() {
             />
           </div>
           <div className="flex gap-3 flex-wrap">
+            <div className="w-[200px]">
+              <label className="text-sm font-medium text-foreground">وضع البحث</label>
+              <Select value={searchMode} onValueChange={setSearchMode}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vector_only">Vector فقط</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                  <SelectItem value="hybrid_rerank">Hybrid + Reranking</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex-1 min-w-[160px]">
               <label className="text-sm font-medium text-foreground">التصنيف (اختياري)</label>
               <Select value={category} onValueChange={setCategory}>
@@ -970,6 +1005,88 @@ function RetrievalTestTab() {
         </CardContent>
       </Card>
 
+      {/* Debug Panel */}
+      {debugInfo && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Activity className="h-4 w-4" /> تحليل الاستعلام
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Query Analysis */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">السؤال الأصلي:</span>
+                <p className="font-medium text-foreground" dir="auto">{debugInfo.original_query}</p>
+              </div>
+              {debugInfo.rewritten_query !== debugInfo.original_query && (
+                <div>
+                  <span className="text-muted-foreground">الاستعلام المُحسّن:</span>
+                  <p className="font-medium text-foreground" dir="auto">{debugInfo.rewritten_query}</p>
+                </div>
+              )}
+              {debugInfo.sub_queries?.length > 0 && (
+                <div>
+                  <span className="text-muted-foreground">استعلامات فرعية:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {debugInfo.sub_queries.map((sq: string, i: number) => (
+                      <Badge key={i} variant="outline" className="text-xs">{sq}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">النية المكتشفة:</span>
+                <Badge variant="secondary" className="mr-2">{debugInfo.detected_intent}</Badge>
+                {debugInfo.query_rewrite_used_ai && <Badge variant="outline" className="text-xs">AI Rewrite</Badge>}
+              </div>
+            </div>
+
+            {/* Keywords & Boosts */}
+            <div className="flex flex-wrap gap-2">
+              {debugInfo.keywords_ar?.map((k: string, i: number) => (
+                <Badge key={`ar-${i}`} variant="secondary" className="text-xs">🔑 {k}</Badge>
+              ))}
+              {debugInfo.keywords_en?.map((k: string, i: number) => (
+                <Badge key={`en-${i}`} variant="outline" className="text-xs">🔑 {k}</Badge>
+              ))}
+              {debugInfo.boosted_categories?.map((c: string, i: number) => (
+                <Badge key={`boost-${i}`} className="text-xs bg-amber-500/20 text-amber-700 border-amber-300">⬆ {c}</Badge>
+              ))}
+            </div>
+
+            {/* Stats Row */}
+            <div className="flex flex-wrap gap-4 text-xs border-t border-border pt-3">
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">المرشحين:</span>
+                <span className="font-bold text-foreground">{debugInfo.candidates_before_rerank}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">النتائج النهائية:</span>
+                <span className="font-bold text-foreground">{debugInfo.final_results_count}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">الثقة:</span>
+                <span className={`font-bold ${debugInfo.confidence >= 0.5 ? 'text-green-600' : debugInfo.confidence >= 0.3 ? 'text-amber-600' : 'text-destructive'}`}>
+                  {Math.round(debugInfo.confidence * 100)}%
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">الوقت:</span>
+                <span className="font-bold text-foreground">{debugInfo.timing_ms?.total || 0}ms</span>
+              </div>
+              {debugInfo.timing_ms && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  (تحليل: {debugInfo.timing_ms.query_rewrite || 0}ms | بحث: {debugInfo.timing_ms.vector_search || 0}ms | كلمات: {debugInfo.timing_ms.keyword_search || 0}ms | ترتيب: {debugInfo.timing_ms.reranking || 0}ms)
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Results */}
       {results.length > 0 && (
         <div className="space-y-3">
           <h4 className="font-semibold text-foreground">النتائج ({results.length})</h4>
@@ -977,16 +1094,65 @@ function RetrievalTestTab() {
             <Card key={r.id || idx}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex-1 min-w-0 space-y-3">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-muted-foreground">#{idx + 1}</span>
                       <span className="font-semibold text-foreground">{r.title}</span>
-                      <Badge variant="outline" className="text-xs">{Math.round(r.similarity * 100)}% تشابه</Badge>
-                      <Badge variant="secondary" className="text-xs">{CATEGORIES.find(c => c.value === r.category)?.label || r.category}</Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {CATEGORIES.find(c => c.value === r.category)?.label || r.category}
+                      </Badge>
+                      <Badge variant={PRIORITY_CONFIG[r.priority]?.variant || 'outline'} className="text-xs">
+                        {PRIORITY_CONFIG[r.priority]?.label || r.priority}
+                      </Badge>
                     </div>
+
+                    {/* Score Bars */}
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-muted-foreground">تشابه دلالي</span>
+                          <span className="font-medium text-foreground">{Math.round(r.similarity_score * 100)}%</span>
+                        </div>
+                        <div className="w-full bg-secondary rounded-full h-1.5">
+                          <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${r.similarity_score * 100}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-muted-foreground">كلمات مفتاحية</span>
+                          <span className="font-medium text-foreground">{Math.round(r.keyword_score * 100)}%</span>
+                        </div>
+                        <div className="w-full bg-secondary rounded-full h-1.5">
+                          <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${r.keyword_score * 100}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-muted-foreground">النتيجة النهائية</span>
+                          <span className="font-bold text-primary">{Math.round(r.final_score * 100)}%</span>
+                        </div>
+                        <div className="w-full bg-secondary rounded-full h-1.5">
+                          <div className="bg-primary h-1.5 rounded-full" style={{ width: `${r.final_score * 100}%` }} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Ranking Reasons */}
+                    {r.ranking_reasons?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {r.ranking_reasons.map((reason: string, ri: number) => (
+                          <Badge key={ri} variant="outline" className="text-[10px] bg-muted/50">
+                            {reason}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>📄 {r.source_file}</span>
                       <span>• {r.section_path}</span>
                       <span>• {r.token_estimate} token</span>
+                      {r.metadata_boost > 1 && <span>• ⬆ boost: {r.metadata_boost}x</span>}
                     </div>
                     <p className="text-sm text-foreground/80 line-clamp-3" dir="auto">{r.content.substring(0, 300)}...</p>
                   </div>
@@ -1000,6 +1166,49 @@ function RetrievalTestTab() {
         </div>
       )}
 
+      {/* Retrieval Logs */}
+      {showLogs && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">سجلات البحث الأخيرة</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">لا توجد سجلات</p>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-right">الاستعلام</TableHead>
+                      <TableHead className="text-right">الوضع</TableHead>
+                      <TableHead className="text-right">النية</TableHead>
+                      <TableHead className="text-right">الثقة</TableHead>
+                      <TableHead className="text-right">النتائج</TableHead>
+                      <TableHead className="text-right">الوقت</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentLogs.map((log: any) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="max-w-[200px] truncate text-sm">{log.original_query}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-xs">{modeLabels[log.search_mode] || log.search_mode}</Badge></TableCell>
+                        <TableCell><Badge variant="secondary" className="text-xs">{log.detected_intent}</Badge></TableCell>
+                        <TableCell className="text-sm font-medium">{Math.round((log.confidence_score || 0) * 100)}%</TableCell>
+                        <TableCell className="text-sm">{log.final_results_count}/{log.candidates_count}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(log.created_at).toLocaleString('ar-SA')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Full chunk view */}
       <Dialog open={!!viewResult} onOpenChange={() => setViewResult(null)}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh]">
@@ -1008,12 +1217,23 @@ function RetrievalTestTab() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex gap-2 flex-wrap">
-              <Badge variant="outline">{Math.round((viewResult?.similarity || 0) * 100)}% تشابه</Badge>
+              <Badge className="bg-primary/20 text-primary border-primary/30">
+                النتيجة: {Math.round((viewResult?.final_score || 0) * 100)}%
+              </Badge>
+              <Badge variant="outline">تشابه: {Math.round((viewResult?.similarity_score || 0) * 100)}%</Badge>
+              <Badge variant="outline">كلمات: {Math.round((viewResult?.keyword_score || 0) * 100)}%</Badge>
               <Badge variant="secondary">{viewResult?.category}</Badge>
               <Badge variant="outline">المسار: {viewResult?.section_path}</Badge>
               <Badge variant="outline">{viewResult?.token_estimate} token</Badge>
               <Badge variant="outline">📄 {viewResult?.source_file}</Badge>
             </div>
+            {viewResult?.ranking_reasons?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {viewResult.ranking_reasons.map((r: string, i: number) => (
+                  <Badge key={i} variant="outline" className="text-xs">{r}</Badge>
+                ))}
+              </div>
+            )}
             <pre className="bg-muted p-4 rounded-md overflow-auto max-h-[50vh] text-sm whitespace-pre-wrap font-mono text-foreground" dir="auto">
               {viewResult?.content}
             </pre>
