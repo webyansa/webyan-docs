@@ -395,7 +395,7 @@ export default function GroundedChatTestPage() {
                               <div className="grid gap-1 sm:grid-cols-3">
                                 {Object.entries(result.debug.timings).map(([k, v]) => (
                                   <div key={k} className="flex justify-between p-1.5 bg-muted/30 rounded">
-                                    <span>{k}:</span><span>{v}ms</span>
+                                    <span>{k}:</span><span>{String(v)}ms</span>
                                   </div>
                                 ))}
                               </div>
