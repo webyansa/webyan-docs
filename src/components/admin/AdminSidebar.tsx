@@ -167,6 +167,7 @@ const SIDEBAR_MODULES: NavModule[] = [
       { title: 'اختبار نماذج AI', href: '/admin/ai-chat-tester', icon: Sparkles, permission: 'canManageSystemSettings' },
       { title: 'تقسيم المعرفة', href: '/admin/knowledge-chunking', icon: Database, permission: 'canManageSystemSettings' },
       { title: 'مزودي AI', href: '/admin/ai-providers', icon: Plug, permission: 'canManageSystemSettings' },
+      { title: 'اختبار المحادثة', href: '/admin/grounded-chat-test', icon: MessageSquare, permission: 'canManageSystemSettings' },
     ],
   },
 ];

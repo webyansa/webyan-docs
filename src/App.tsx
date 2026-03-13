@@ -271,6 +271,7 @@ const App = () => (
                 <Route path="ai-logs" element={<AIGenerationLogsPage />} />
                 <Route path="knowledge-chunking" element={<KnowledgeChunkingPage />} />
                 <Route path="ai-providers" element={<AIProvidersPage />} />
+                <Route path="grounded-chat-test" element={<GroundedChatTestPage />} />
               </Route>
               
               {/* Unauthorized Page */}
