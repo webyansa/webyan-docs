@@ -78,6 +78,7 @@ import DiscountsPage from "./pages/admin/DiscountsPage";
 import ModelChatTesterPage from "./pages/admin/ModelChatTesterPage";
 import AIGenerationLogsPage from "./pages/admin/AIGenerationLogsPage";
 import KnowledgeChunkingPage from "./pages/admin/KnowledgeChunkingPage";
+import AIProvidersPage from "./pages/admin/AIProvidersPage";
 
 // Operations pages
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
@@ -268,6 +269,7 @@ const App = () => (
                 <Route path="ai-chat-tester" element={<ModelChatTesterPage />} />
                 <Route path="ai-logs" element={<AIGenerationLogsPage />} />
                 <Route path="knowledge-chunking" element={<KnowledgeChunkingPage />} />
+                <Route path="ai-providers" element={<AIProvidersPage />} />
               </Route>
               
               {/* Unauthorized Page */}

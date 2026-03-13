@@ -9,7 +9,7 @@ import {
   FolderKanban, Rocket, Layers, CalendarDays, Mail, Ticket, AlertTriangle, Code2,
   MessageSquare, Archive, Zap, Settings, Calendar, Image, FolderTree, Tags, History,
   UserCog, Users, Shield, Search, Sparkles, ThumbsUp, ChevronDown, PanelRightClose, PanelRightOpen,
-  Database,
+  Database, Plug,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { type RolePermissions } from '@/lib/permissions';
@@ -166,6 +166,7 @@ const SIDEBAR_MODULES: NavModule[] = [
       { title: 'الإعدادات العامة', href: '/admin/settings', icon: Settings, permission: 'canManageSystemSettings' },
       { title: 'اختبار نماذج AI', href: '/admin/ai-chat-tester', icon: Sparkles, permission: 'canManageSystemSettings' },
       { title: 'تقسيم المعرفة', href: '/admin/knowledge-chunking', icon: Database, permission: 'canManageSystemSettings' },
+      { title: 'مزودي AI', href: '/admin/ai-providers', icon: Plug, permission: 'canManageSystemSettings' },
     ],
   },
 ];
