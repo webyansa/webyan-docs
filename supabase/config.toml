@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.manage-ai-providers]
 verify_jwt = false
+
+[functions.grounded-chat-test]
+verify_jwt = false
