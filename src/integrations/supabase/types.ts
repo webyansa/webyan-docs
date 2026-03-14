@@ -3052,6 +3052,72 @@ export type Database = {
         }
         Relationships: []
       }
+      grounded_chat_validations: {
+        Row: {
+          category_filter: string | null
+          confidence_score: number | null
+          created_at: string | null
+          debug_info: Json | null
+          final_answer: string | null
+          id: string
+          is_grounded: boolean | null
+          latency_ms: number | null
+          model: string | null
+          prompt_sent: string | null
+          question: string
+          response_status: string | null
+          rewritten_query: string | null
+          search_mode: string | null
+          sources_json: Json | null
+          token_usage: Json | null
+          top_k: number | null
+          validation_notes: Json | null
+          validation_status: string | null
+        }
+        Insert: {
+          category_filter?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          debug_info?: Json | null
+          final_answer?: string | null
+          id?: string
+          is_grounded?: boolean | null
+          latency_ms?: number | null
+          model?: string | null
+          prompt_sent?: string | null
+          question: string
+          response_status?: string | null
+          rewritten_query?: string | null
+          search_mode?: string | null
+          sources_json?: Json | null
+          token_usage?: Json | null
+          top_k?: number | null
+          validation_notes?: Json | null
+          validation_status?: string | null
+        }
+        Update: {
+          category_filter?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          debug_info?: Json | null
+          final_answer?: string | null
+          id?: string
+          is_grounded?: boolean | null
+          latency_ms?: number | null
+          model?: string | null
+          prompt_sent?: string | null
+          question?: string
+          response_status?: string | null
+          rewritten_query?: string | null
+          search_mode?: string | null
+          sources_json?: Json | null
+          token_usage?: Json | null
+          top_k?: number | null
+          validation_notes?: Json | null
+          validation_status?: string | null
+        }
+        Relationships: []
+      }
       invoice_requests: {
         Row: {
           confirmed_at: string | null
