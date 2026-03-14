@@ -73,12 +73,13 @@ const QUICK_TESTS = [
 ];
 
 const CATEGORIES = ['pricing', 'faq', 'facts', 'support', 'policies', 'product', 'modules', 'do_not_say', 'writing_style', 'ai_guidelines'];
+const ALL_CATEGORIES_VALUE = 'all';
 
 export default function GroundedChatValidationPage() {
   const [question, setQuestion] = useState('');
   const [model, setModel] = useState('openai/gpt-4o-mini');
   const [topK, setTopK] = useState('5');
-  const [categoryFilter, setCategoryFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES_VALUE);
   const [debugMode, setDebugMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
