@@ -1,47 +1,84 @@
 
-# خطة تحسين نظام التسويق في بوابة الموظف
 
-## المشكلة الحالية
-1. **المهام لا تظهر للموظف**: المنشور مُسند لـ `علي الشيخ` كمصمم لكن صلاحية `can_manage_marketing` مُعطلة عنده — فلا يرى رابط "إدارة التسويق" في القائمة الجانبية أصلاً.
-2. **تصميم الصفحة بسيط**: تحتاج تحسين لتكون أكثر احترافية وعملية.
+# Grounded Chat Validation & Model Selection
 
-## المهام
+## Overview
+Create a new dedicated validation page that extends the existing grounded chat test with a fixed 6-model selection, a Validation Engine layer, Quick Test Cases, and a separate `grounded_chat_validations` log table.
 
-### 1. إصلاح منطق الرؤية
-- تغيير شرط ظهور رابط "إدارة التسويق" ليشمل أيضاً الموظف المُسند إليه مهام (designer_id أو publisher_id) حتى لو لم يكن لديه صلاحية `canManageMarketing`.
-- **الأفضل**: جعل صفحة StaffMarketing تعمل لأي موظف مُسند إليه مهام تسويق، مع إبقاء `canManageMarketing` كصلاحية إضافية للوصول الكامل.
-- في `StaffLayout.tsx`: إزالة شرط `permission` من رابط التسويق واستبداله بفحص ديناميكي (هل الموظف لديه مهام مُسندة أو صلاحية تسويق).
+## What Already Exists
+- `GroundedChatTestPage.tsx` — full RAG test page with retrieval, prompt builder, OpenRouter integration, debug, history
+- `grounded-chat-test` edge function — complete pipeline (query rewrite → embedding → vector search → keyword search → reranking → grounding check → OpenRouter call → save)
+- `grounded_chat_tests` DB table
 
-### 2. إعادة بناء صفحة StaffMarketing بتصميم احترافي
-**ملف: `src/pages/staff/StaffMarketing.tsx`**
+## What's New
 
-التصميم الجديد:
-- **رأس الصفحة**: عنوان "مهام التسويق" مع وصف مختصر
-- **بطاقات KPI** (3 بطاقات): قيد التنفيذ، بانتظار النشر، تم الإنجاز هذا الأسبوع
-- **قسم "مهامي"** بدلاً من tabs — عرض موحد:
-  - بطاقة لكل مهمة بتصميم واضح يشمل:
-    - شارة الدور (مصمم / ناشر) بلون مميز
-    - عنوان المنشور + الحالة
-    - القنوات + تاريخ النشر
-    - نص التصميم / نص المنشور
-    - حقل رابط التصميم (للمصمم)
-    - أزرار الإجراء حسب الدور والحالة
-  - فصل بصري بين "مهام التصميم" و"مهام النشر" بعناوين واضحة
-  - عرض المهام المكتملة مؤخراً (آخر 7 أيام) في قسم منفصل بشكل مطوي
-- **حالة فارغة** محسّنة بأيقونة ورسالة واضحة
+### 1. Database Migration
+**New table: `grounded_chat_validations`**
+Same structure as `grounded_chat_tests` plus validation-specific fields:
+- `validation_status text` (pass / warning / failed)
+- `validation_notes jsonb` (array of check results)
+- All existing fields: question, model, top_k, category_filter, final_answer, sources_json, prompt_sent, response_status, latency_ms, token_usage, confidence_score, is_grounded, debug_info, created_at
 
-### 3. تحديث StaffLayout
-- إضافة فحص ديناميكي لوجود مهام تسويق مُسندة للموظف
-- إظهار رابط التسويق إذا كان `canManageMarketing = true` أو لديه مهام مُسندة
+RLS: admin only via `is_admin(auth.uid())`
 
-## الملفات المتأثرة
+### 2. Edge Function Update: `grounded-chat-test`
+Add two new actions:
 
-| الملف | الإجراء |
-|---|---|
-| `src/pages/staff/StaffMarketing.tsx` | إعادة بناء كاملة بتصميم احترافي |
-| `src/pages/staff/StaffLayout.tsx` | تحديث منطق ظهور رابط التسويق |
+**`validate`** — Same pipeline as `test` but adds post-generation validation:
+- Check 1: Were chunks retrieved before generation?
+- Check 2: Sufficient chunk count (>= 2)?
+- Check 3: Confidence score above threshold?
+- Check 4: Answer references source content (keyword overlap check)?
+- Check 5: Hallucination indicators (mentions things not in chunks)?
+- Produces `validation_status`: pass (all checks pass), warning (some checks fail), failed (critical checks fail)
+- Saves to `grounded_chat_validations` table
 
-## ملاحظات تقنية
-- RLS policies الحالية صحيحة — تسمح بالوصول بناءً على `designer_id`/`publisher_id`
-- لن يتم تعديل قاعدة البيانات
-- الاستعلامات تبقى كما هي (تستخدم `staffId` من permissions)
+**`validation-history`** — Fetch from `grounded_chat_validations`
+
+**`validation-get`** — Get single validation record
+
+### 3. Frontend: New `GroundedChatValidationPage.tsx`
+Route: `/admin/grounded-chat-validation`
+
+**Fixed Model Dropdown** (no fetch needed):
+```
+Production Models:
+  - openai/gpt-4o-mini [Recommended]
+  - openai/gpt-4o [Premium]
+  - anthropic/claude-sonnet-4.5 [Premium]
+
+Free Test Models:
+  - openai/gpt-oss-20b:free [Free]
+  - google/gemma-3-27b-it:free [Free]
+  - meta-llama/llama-3.3-70b-instruct:free [Free]
+```
+Default: `openai/gpt-4o-mini`
+
+**Controls**: Question textarea, model dropdown, top_k (3/5/10), category filter, Debug Mode toggle, "تشغيل الاختبار" button
+
+**Quick Test Cases** section with 5 preset buttons that auto-fill the question field
+
+**Results (4 sections)**:
+- A) Final Answer
+- B) Sources Used (title, file, category, section_path, similarity, preview, View Full)
+- C) Retrieval Summary (chunks count, category, top_k, retrieval time, total time, model)
+- D) Validation Result — new section showing each validation check with pass/fail icons and overall Pass/Warning/Failed status
+
+**Debug Panel** (when toggled): original question, embedding status, rewritten query, full chunks, full prompt, model, endpoint, status code, raw response, token usage, total latency
+
+**Validation History** tab: table with question, model, status, time, sources count, View Details
+
+### 4. Routing & Navigation
+- Add route `/admin/grounded-chat-validation` → `GroundedChatValidationPage`
+- Add sidebar item "التحقق من المحادثة" in AdminSidebar under AI/System module
+
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| Migration SQL | Create `grounded_chat_validations` table + RLS |
+| `supabase/functions/grounded-chat-test/index.ts` | Add `validate`, `validation-history`, `validation-get` actions with validation engine |
+| `src/pages/admin/GroundedChatValidationPage.tsx` | New page with fixed models, validation UI, quick tests, debug, history |
+| `src/App.tsx` | Add route |
+| `src/components/admin/AdminSidebar.tsx` | Add nav item |
+
