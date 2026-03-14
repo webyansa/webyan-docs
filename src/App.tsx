@@ -80,6 +80,7 @@ import AIGenerationLogsPage from "./pages/admin/AIGenerationLogsPage";
 import KnowledgeChunkingPage from "./pages/admin/KnowledgeChunkingPage";
 import AIProvidersPage from "./pages/admin/AIProvidersPage";
 import GroundedChatTestPage from "./pages/admin/GroundedChatTestPage";
+import GroundedChatValidationPage from "./pages/admin/GroundedChatValidationPage";
 
 // Operations pages
 import OperationsDashboardPage from "./pages/admin/operations/OperationsDashboardPage";
