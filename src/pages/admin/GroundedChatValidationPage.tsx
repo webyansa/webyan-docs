@@ -73,12 +73,13 @@ const QUICK_TESTS = [
 ];
 
 const CATEGORIES = ['pricing', 'faq', 'facts', 'support', 'policies', 'product', 'modules', 'do_not_say', 'writing_style', 'ai_guidelines'];
+const ALL_CATEGORIES_VALUE = 'all';
 
 export default function GroundedChatValidationPage() {
   const [question, setQuestion] = useState('');
   const [model, setModel] = useState('openai/gpt-4o-mini');
   const [topK, setTopK] = useState('5');
-  const [categoryFilter, setCategoryFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES_VALUE);
   const [debugMode, setDebugMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
@@ -113,7 +114,13 @@ export default function GroundedChatValidationPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error('يجب تسجيل الدخول'); return; }
       const resp = await supabase.functions.invoke('grounded-chat-test', {
-        body: { action: 'validate', question, model, top_k: parseInt(topK), category_filter: categoryFilter || undefined },
+        body: {
+          action: 'validate',
+          question,
+          model,
+          top_k: parseInt(topK),
+          category_filter: categoryFilter === ALL_CATEGORIES_VALUE ? undefined : categoryFilter,
+        },
       });
       if (resp.error) throw resp.error;
       if (resp.data?.error) { toast.error(resp.data.error); return; }
@@ -228,7 +235,7 @@ export default function GroundedChatValidationPage() {
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="الكل" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">الكل</SelectItem>
+                      <SelectItem value={ALL_CATEGORIES_VALUE}>الكل</SelectItem>
                       {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -318,7 +325,7 @@ export default function GroundedChatValidationPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     {[
                       { label: 'الأجزاء المسترجعة', value: result.sources.length },
-                      { label: 'التصنيف', value: categoryFilter || 'الكل' },
+                      { label: 'التصنيف', value: categoryFilter === ALL_CATEGORIES_VALUE ? 'الكل' : categoryFilter },
                       { label: 'Top K', value: topK },
                       { label: 'زمن الاسترجاع', value: `${result.debug?.timings?.retrieval_total || 0}ms` },
                       { label: 'الزمن الكلي', value: `${result.latency_ms}ms` },
