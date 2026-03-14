@@ -266,11 +266,9 @@ const App = () => (
                 <Route path="subscription-requests" element={<SubscriptionRequestsPage />} />
                 <Route path="subscription-requests/:id" element={<SubscriptionRequestDetailsPage />} />
                 <Route path="discounts" element={<DiscountsPage />} />
-                <Route path="ai-chat-tester" element={<ModelChatTesterPage />} />
                 <Route path="ai-logs" element={<AIGenerationLogsPage />} />
                 <Route path="knowledge-chunking" element={<KnowledgeChunkingPage />} />
                 <Route path="ai-providers" element={<AIProvidersPage />} />
-                <Route path="grounded-chat-test" element={<GroundedChatTestPage />} />
                 <Route path="grounded-chat-validation" element={<GroundedChatValidationPage />} />
               </Route>
               
