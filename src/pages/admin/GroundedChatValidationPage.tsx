@@ -325,7 +325,7 @@ export default function GroundedChatValidationPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     {[
                       { label: 'الأجزاء المسترجعة', value: result.sources.length },
-                      { label: 'التصنيف', value: categoryFilter || 'الكل' },
+                      { label: 'التصنيف', value: categoryFilter === ALL_CATEGORIES_VALUE ? 'الكل' : categoryFilter },
                       { label: 'Top K', value: topK },
                       { label: 'زمن الاسترجاع', value: `${result.debug?.timings?.retrieval_total || 0}ms` },
                       { label: 'الزمن الكلي', value: `${result.latency_ms}ms` },
