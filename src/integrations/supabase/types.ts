@@ -2992,6 +2992,60 @@ export type Database = {
         }
         Relationships: []
       }
+      grounded_chat_error_logs: {
+        Row: {
+          created_at: string
+          debug_info: Json | null
+          error_message: string | null
+          error_type: string
+          fallback_model: string | null
+          fallback_used: boolean | null
+          id: string
+          latency_ms: number | null
+          model_used: string | null
+          prompt_size: number | null
+          provider: string | null
+          provider_response: string | null
+          question: string | null
+          retrieved_chunks_count: number | null
+          status_code: number | null
+        }
+        Insert: {
+          created_at?: string
+          debug_info?: Json | null
+          error_message?: string | null
+          error_type: string
+          fallback_model?: string | null
+          fallback_used?: boolean | null
+          id?: string
+          latency_ms?: number | null
+          model_used?: string | null
+          prompt_size?: number | null
+          provider?: string | null
+          provider_response?: string | null
+          question?: string | null
+          retrieved_chunks_count?: number | null
+          status_code?: number | null
+        }
+        Update: {
+          created_at?: string
+          debug_info?: Json | null
+          error_message?: string | null
+          error_type?: string
+          fallback_model?: string | null
+          fallback_used?: boolean | null
+          id?: string
+          latency_ms?: number | null
+          model_used?: string | null
+          prompt_size?: number | null
+          provider?: string | null
+          provider_response?: string | null
+          question?: string | null
+          retrieved_chunks_count?: number | null
+          status_code?: number | null
+        }
+        Relationships: []
+      }
       grounded_chat_tests: {
         Row: {
           category_filter: string | null
