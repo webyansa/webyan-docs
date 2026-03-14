@@ -235,7 +235,7 @@ export default function GroundedChatValidationPage() {
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="الكل" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">الكل</SelectItem>
+                      <SelectItem value={ALL_CATEGORIES_VALUE}>الكل</SelectItem>
                       {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
