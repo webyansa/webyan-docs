@@ -75,11 +75,9 @@ import SubscribePage from "./pages/SubscribePage";
 import SubscriptionRequestsPage from "./pages/admin/SubscriptionRequestsPage";
 import SubscriptionRequestDetailsPage from "./pages/admin/SubscriptionRequestDetailsPage";
 import DiscountsPage from "./pages/admin/DiscountsPage";
-import ModelChatTesterPage from "./pages/admin/ModelChatTesterPage";
 import AIGenerationLogsPage from "./pages/admin/AIGenerationLogsPage";
 import KnowledgeChunkingPage from "./pages/admin/KnowledgeChunkingPage";
 import AIProvidersPage from "./pages/admin/AIProvidersPage";
-import GroundedChatTestPage from "./pages/admin/GroundedChatTestPage";
 import GroundedChatValidationPage from "./pages/admin/GroundedChatValidationPage";
 
 // Operations pages
