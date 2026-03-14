@@ -114,7 +114,13 @@ export default function GroundedChatValidationPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error('يجب تسجيل الدخول'); return; }
       const resp = await supabase.functions.invoke('grounded-chat-test', {
-        body: { action: 'validate', question, model, top_k: parseInt(topK), category_filter: categoryFilter || undefined },
+        body: {
+          action: 'validate',
+          question,
+          model,
+          top_k: parseInt(topK),
+          category_filter: categoryFilter === ALL_CATEGORIES_VALUE ? undefined : categoryFilter,
+        },
       });
       if (resp.error) throw resp.error;
       if (resp.data?.error) { toast.error(resp.data.error); return; }
