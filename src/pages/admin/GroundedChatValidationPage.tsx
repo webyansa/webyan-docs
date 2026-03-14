@@ -18,7 +18,8 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Send, Loader2, CheckCircle2, XCircle, AlertTriangle, AlertCircle,
   ChevronDown, Bug, Clock, Zap, FileText, Eye, History, Search,
-  ShieldCheck, FlaskConical, Sparkles, BarChart3,
+  ShieldCheck, FlaskConical, Sparkles, BarChart3, HeartPulse, RefreshCw,
+  Lightbulb, WifiOff, KeyRound, ServerCrash,
 } from 'lucide-react';
 
 // ─── Types ───
@@ -40,6 +41,10 @@ interface ValidationResult {
   latency_ms: number; token_usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   response_status: string; debug?: Record<string, any>;
   validation_status: string; validation_notes: ValidationCheck[];
+  fallback_message?: string;
+  error_type?: string;
+  message?: string;
+  suggestion?: string;
 }
 
 interface HistoryItem {
@@ -50,19 +55,41 @@ interface HistoryItem {
   validation_notes: any; created_at: string;
 }
 
+interface HealthCheckResult {
+  healthy: boolean;
+  checks: {
+    openai_key: boolean;
+    openrouter_provider: boolean;
+    openrouter_reachable: boolean;
+    provider_status?: string;
+    default_model?: string;
+    checked_at: string;
+  };
+}
+
 // ─── Models ───
 const MODELS = [
   { group: 'Production Models', items: [
-    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', badge: 'Recommended', badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o', badge: 'Premium', badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', badge: 'Premium', badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', badge: 'Recommended', badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+    { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'OpenAI', badge: 'Premium', badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', badge: 'Premium', badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', badge: 'Fast', badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' },
+    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', badge: 'Premium', badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   ]},
   { group: 'Free Test Models', items: [
-    { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B', badge: 'Free', badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B', badge: 'Free', badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', badge: 'Free', badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B', provider: 'OpenAI', badge: 'Free', badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B', provider: 'Google', badge: 'Free', badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', provider: 'Meta', badge: 'Free', badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
   ]},
 ];
+
+const getModelInfo = (modelId: string) => {
+  for (const group of MODELS) {
+    const found = group.items.find(m => m.id === modelId);
+    if (found) return found;
+  }
+  return null;
+};
 
 const QUICK_TESTS = [
   'ما هي خطط الاشتراك في ويبيان؟',
@@ -75,12 +102,24 @@ const QUICK_TESTS = [
 const CATEGORIES = ['pricing', 'faq', 'facts', 'support', 'policies', 'product', 'modules', 'do_not_say', 'writing_style', 'ai_guidelines'];
 const ALL_CATEGORIES_VALUE = 'all';
 
+const ERROR_ICONS: Record<string, React.ReactNode> = {
+  api_key_missing: <KeyRound className="h-5 w-5" />,
+  invalid_api_key: <KeyRound className="h-5 w-5" />,
+  provider_unavailable: <WifiOff className="h-5 w-5" />,
+  model_not_found: <ServerCrash className="h-5 w-5" />,
+  rate_limit: <Clock className="h-5 w-5" />,
+  timeout: <Clock className="h-5 w-5" />,
+  empty_retrieval: <Search className="h-5 w-5" />,
+  prompt_too_large: <FileText className="h-5 w-5" />,
+};
+
 export default function GroundedChatValidationPage() {
   const [question, setQuestion] = useState('');
   const [model, setModel] = useState('openai/gpt-4o-mini');
   const [topK, setTopK] = useState('5');
   const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES_VALUE);
   const [debugMode, setDebugMode] = useState(false);
+  const [enableFallback, setEnableFallback] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -89,15 +128,37 @@ export default function GroundedChatValidationPage() {
   const [viewDetail, setViewDetail] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('test');
 
+  // Health check state
+  const [healthCheck, setHealthCheck] = useState<HealthCheckResult | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+
+  // Last error/success
+  const [lastError, setLastError] = useState<any>(null);
+  const [lastSuccess, setLastSuccess] = useState<any>(null);
+
   useEffect(() => {
     if (activeTab === 'history') loadHistory();
   }, [activeTab]);
 
+  // Load last error + success on mount
+  useEffect(() => {
+    loadLastErrorAndSuccess();
+  }, []);
+
+  const loadLastErrorAndSuccess = async () => {
+    try {
+      const [errResp, succResp] = await Promise.all([
+        supabase.functions.invoke('grounded-chat-test', { body: { action: 'last-error' } }),
+        supabase.functions.invoke('grounded-chat-test', { body: { action: 'last-success' } }),
+      ]);
+      if (errResp.data?.success) setLastError(errResp.data.error_log);
+      if (succResp.data?.success) setLastSuccess(succResp.data.last_success);
+    } catch { /* ignore */ }
+  };
+
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
       const resp = await supabase.functions.invoke('grounded-chat-test', {
         body: { action: 'validation-history' },
       });
@@ -106,13 +167,26 @@ export default function GroundedChatValidationPage() {
     finally { setHistoryLoading(false); }
   };
 
+  const runHealthCheck = async () => {
+    setHealthLoading(true);
+    try {
+      const resp = await supabase.functions.invoke('grounded-chat-test', {
+        body: { action: 'health-check' },
+      });
+      if (resp.data?.success) {
+        setHealthCheck(resp.data);
+        if (resp.data.healthy) toast.success('جميع الأنظمة تعمل بشكل سليم');
+        else toast.warning('توجد مشاكل في بعض الأنظمة');
+      }
+    } catch (e: any) { toast.error('فشل فحص الصحة'); }
+    finally { setHealthLoading(false); }
+  };
+
   const runValidation = async () => {
     if (!question.trim()) { toast.error('أدخل السؤال أولاً'); return; }
     setLoading(true);
     setResult(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { toast.error('يجب تسجيل الدخول'); return; }
       const resp = await supabase.functions.invoke('grounded-chat-test', {
         body: {
           action: 'validate',
@@ -120,14 +194,90 @@ export default function GroundedChatValidationPage() {
           model,
           top_k: parseInt(topK),
           category_filter: categoryFilter === ALL_CATEGORIES_VALUE ? undefined : categoryFilter,
+          enable_fallback: enableFallback,
         },
       });
-      if (resp.error) throw resp.error;
-      if (resp.data?.error) { toast.error(resp.data.error); return; }
-      setResult(resp.data);
-      toast.success('تم التحقق بنجاح');
-    } catch (e: any) { toast.error(e.message || 'خطأ'); }
+
+      // Handle structured error responses
+      if (resp.error) {
+        // Try to parse the error body for structured info
+        try {
+          const errorBody = typeof resp.error === 'string' ? JSON.parse(resp.error) : resp.error;
+          if (errorBody?.error_type) {
+            setResult({
+              success: false,
+              is_grounded: false,
+              final_answer: '',
+              sources: [],
+              confidence: 0,
+              latency_ms: 0,
+              response_status: 'error',
+              validation_status: 'failed',
+              validation_notes: [],
+              error_type: errorBody.error_type,
+              message: errorBody.message,
+              suggestion: errorBody.suggestion,
+            });
+            toast.error(errorBody.message || 'خطأ في التنفيذ');
+            return;
+          }
+        } catch { /* not structured */ }
+        toast.error('خطأ في تنفيذ الاختبار');
+        return;
+      }
+
+      const data = resp.data;
+
+      // Check for inline error from response body
+      if (data && !data.success && data.error_type) {
+        setResult({
+          success: false,
+          is_grounded: false,
+          final_answer: '',
+          sources: [],
+          confidence: 0,
+          latency_ms: 0,
+          response_status: 'error',
+          validation_status: 'failed',
+          validation_notes: [],
+          error_type: data.error_type,
+          message: data.message,
+          suggestion: data.suggestion,
+          debug: data.debug,
+        });
+        toast.error(data.message);
+        return;
+      }
+
+      if (data?.error) { toast.error(data.error); return; }
+
+      setResult(data);
+
+      // Show fallback message if used
+      if (data?.fallback_message) {
+        toast.info(data.fallback_message);
+      } else if (data?.response_status === 'error') {
+        toast.error(data?.message || 'فشل في الحصول على رد من النموذج');
+      } else {
+        toast.success('تم التحقق بنجاح');
+      }
+
+      // Refresh last error/success
+      loadLastErrorAndSuccess();
+    } catch (e: any) {
+      toast.error(e.message || 'خطأ غير متوقع');
+    }
     finally { setLoading(false); }
+  };
+
+  const retryLastFailed = async () => {
+    if (lastError?.question) {
+      setQuestion(lastError.question);
+      if (lastError.model_used) setModel(lastError.model_used);
+      toast.info('تم تحميل آخر سؤال فاشل. اضغط "تشغيل الاختبار" لإعادة المحاولة.');
+    } else {
+      toast.info('لا يوجد اختبار فاشل سابق');
+    }
   };
 
   const loadValidationDetail = async (id: string) => {
@@ -151,9 +301,12 @@ export default function GroundedChatValidationPage() {
     return <Badge variant="destructive">Failed ✗</Badge>;
   };
 
+  const currentModelInfo = getModelInfo(model);
+
   return (
     <div className="space-y-6" dir="rtl">
-      <div className="flex items-center justify-between">
+      {/* Header with status badges */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ShieldCheck className="h-7 w-7 text-primary" />
@@ -161,7 +314,82 @@ export default function GroundedChatValidationPage() {
           </h1>
           <p className="text-muted-foreground mt-1">اختبار وتحقق من أن نظام الذكاء الاصطناعي يجيب من قاعدة المعرفة فقط</p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Model status badge */}
+          {currentModelInfo && (
+            <Badge variant="outline" className="gap-1">
+              {currentModelInfo.provider} • {currentModelInfo.name}
+            </Badge>
+          )}
+          {/* Provider status */}
+          {healthCheck && (
+            <Badge className={healthCheck.healthy ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-destructive/10 text-destructive'}>
+              {healthCheck.healthy ? '✓ المزود متصل' : '✗ مشكلة في المزود'}
+            </Badge>
+          )}
+          <Button variant="outline" size="sm" onClick={runHealthCheck} disabled={healthLoading} className="gap-1">
+            {healthLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HeartPulse className="h-3.5 w-3.5" />}
+            فحص صحة المزود
+          </Button>
+          <Button variant="outline" size="sm" onClick={retryLastFailed} className="gap-1">
+            <RefreshCw className="h-3.5 w-3.5" />
+            إعادة آخر فشل
+          </Button>
+        </div>
       </div>
+
+      {/* Health Check Results */}
+      {healthCheck && (
+        <Card className={healthCheck.healthy ? 'border-emerald-200 dark:border-emerald-800' : 'border-destructive/50'}>
+          <CardContent className="py-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <HealthItem label="مفتاح OpenAI" ok={healthCheck.checks.openai_key} />
+              <HealthItem label="مزود OpenRouter" ok={healthCheck.checks.openrouter_provider} />
+              <HealthItem label="الاتصال بالمزود" ok={healthCheck.checks.openrouter_reachable} />
+              <div className="bg-muted/50 rounded-lg p-3 text-center">
+                <p className="text-[10px] text-muted-foreground">آخر فحص</p>
+                <p className="text-xs font-medium mt-0.5">{new Date(healthCheck.checks.checked_at).toLocaleTimeString('ar-SA')}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Last Error / Last Success */}
+      {(lastError || lastSuccess) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {lastError && (
+            <Card className="border-destructive/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2 text-destructive">
+                  <XCircle className="h-4 w-4" /> آخر خطأ
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-1">
+                <p><span className="text-muted-foreground">النوع:</span> {lastError.error_type}</p>
+                <p><span className="text-muted-foreground">النموذج:</span> {lastError.model_used}</p>
+                <p><span className="text-muted-foreground">الرسالة:</span> {lastError.error_message}</p>
+                <p><span className="text-muted-foreground">الوقت:</span> {new Date(lastError.created_at).toLocaleString('ar-SA')}</p>
+              </CardContent>
+            </Card>
+          )}
+          {lastSuccess && (
+            <Card className="border-emerald-200 dark:border-emerald-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2 text-emerald-600">
+                  <CheckCircle2 className="h-4 w-4" /> آخر نجاح
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-1">
+                <p><span className="text-muted-foreground">السؤال:</span> {lastSuccess.question?.slice(0, 60)}</p>
+                <p><span className="text-muted-foreground">النموذج:</span> {lastSuccess.model}</p>
+                <p><span className="text-muted-foreground">الزمن:</span> {lastSuccess.latency_ms}ms</p>
+                <p><span className="text-muted-foreground">الوقت:</span> {new Date(lastSuccess.created_at).toLocaleString('ar-SA')}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -170,7 +398,7 @@ export default function GroundedChatValidationPage() {
         </TabsList>
 
         <TabsContent value="test" className="space-y-6 mt-4">
-          {/* Quick Test Cases */}
+          {/* Quick Tests */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><Zap className="h-4 w-4 text-amber-500" /> أسئلة اختبار سريعة</CardTitle>
@@ -196,6 +424,7 @@ export default function GroundedChatValidationPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Model Selector */}
                 <div>
                   <Label>النموذج</Label>
                   <Select value={model} onValueChange={setModel}>
@@ -207,7 +436,8 @@ export default function GroundedChatValidationPage() {
                           {group.items.map(m => (
                             <SelectItem key={m.id} value={m.id}>
                               <span className="flex items-center gap-2">
-                                {m.name}
+                                <span>{m.name}</span>
+                                <span className="text-[10px] text-muted-foreground">— {m.provider}</span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${m.badgeClass}`}>{m.badge}</span>
                               </span>
                             </SelectItem>
@@ -241,10 +471,14 @@ export default function GroundedChatValidationPage() {
                   </Select>
                 </div>
 
-                <div className="flex items-end gap-3">
+                <div className="flex flex-col gap-2 justify-end">
                   <div className="flex items-center gap-2">
                     <Switch checked={debugMode} onCheckedChange={setDebugMode} id="debug" />
                     <Label htmlFor="debug" className="flex items-center gap-1"><Bug className="h-3.5 w-3.5" /> Debug</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={enableFallback} onCheckedChange={setEnableFallback} id="fallback" />
+                    <Label htmlFor="fallback" className="flex items-center gap-1"><RefreshCw className="h-3.5 w-3.5" /> Fallback</Label>
                   </div>
                 </div>
               </div>
@@ -256,10 +490,66 @@ export default function GroundedChatValidationPage() {
             </CardContent>
           </Card>
 
-          {/* Results */}
-          {result && (
+          {/* Error Display (structured) */}
+          {result && !result.success && result.error_type && (
+            <Card className="border-destructive/50 bg-destructive/5">
+              <CardContent className="py-6">
+                <div className="flex items-start gap-4">
+                  <div className="text-destructive shrink-0 mt-1">
+                    {ERROR_ICONS[result.error_type] || <AlertCircle className="h-5 w-5" />}
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <p className="font-semibold text-destructive">{result.message}</p>
+                    {result.suggestion && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Lightbulb className="h-4 w-4 text-amber-500 shrink-0" />
+                        <span>{result.suggestion}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <Badge variant="outline" className="text-xs">{result.error_type}</Badge>
+                      {result.debug?.status_code ? <Badge variant="outline" className="text-xs">Status: {result.debug.status_code}</Badge> : null}
+                      {result.debug?.model_used && <Badge variant="outline" className="text-xs">Model: {result.debug.model_used}</Badge>}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Success Results */}
+          {result && result.success && (
             <div className="space-y-4">
-              {/* A) Final Answer */}
+              {/* Fallback notice */}
+              {result.fallback_message && (
+                <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10">
+                  <CardContent className="py-3 flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                    <p className="text-sm text-amber-700 dark:text-amber-400">{result.fallback_message}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Error within successful response (e.g. OpenRouter failed but we still return validation) */}
+              {result.response_status === 'error' && result.error_type && (
+                <Card className="border-destructive/50 bg-destructive/5">
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-destructive">{result.message}</p>
+                        {result.suggestion && (
+                          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                            <Lightbulb className="h-3.5 w-3.5 text-amber-500" /> {result.suggestion}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Final Answer */}
               <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -279,7 +569,7 @@ export default function GroundedChatValidationPage() {
                 </CardContent>
               </Card>
 
-              {/* B) Sources Used */}
+              {/* Sources */}
               {result.sources.length > 0 && (
                 <Card>
                   <CardHeader className="pb-3">
@@ -295,12 +585,8 @@ export default function GroundedChatValidationPage() {
                               <p className="text-xs text-muted-foreground">{s.source_file} • {s.category} • {s.section_path}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[10px]">
-                                Score: {s.final_score}
-                              </Badge>
-                              <Button variant="ghost" size="sm" onClick={() => setViewSource(s)}>
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
+                              <Badge variant="outline" className="text-[10px]">Score: {s.final_score}</Badge>
+                              <Button variant="ghost" size="sm" onClick={() => setViewSource(s)}><Eye className="h-3.5 w-3.5" /></Button>
                             </div>
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-2">{s.content}</p>
@@ -316,7 +602,7 @@ export default function GroundedChatValidationPage() {
                 </Card>
               )}
 
-              {/* C) Retrieval Summary */}
+              {/* Retrieval Summary */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4" /> ملخص الاسترجاع</CardTitle>
@@ -340,8 +626,8 @@ export default function GroundedChatValidationPage() {
                 </CardContent>
               </Card>
 
-              {/* D) Validation Result */}
-              {result.validation_notes && (
+              {/* Validation Checks */}
+              {result.validation_notes && result.validation_notes.length > 0 && (
                 <Card>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
@@ -386,6 +672,12 @@ export default function GroundedChatValidationPage() {
                       <CardContent>
                         <ScrollArea className="h-[400px]">
                           <div className="space-y-3 text-xs font-mono">
+                            <DebugRow label="النموذج المطلوب" value={result.debug.model_requested || model} />
+                            <DebugRow label="النموذج المستخدم" value={result.debug.model_used} />
+                            <DebugRow label="Fallback مستخدم" value={result.debug.fallback_used ? 'نعم ✓' : 'لا'} />
+                            <DebugRow label="المزود" value={result.debug.provider || 'OpenRouter'} />
+                            <DebugRow label="Endpoint" value={result.debug.endpoint || '-'} />
+                            <Separator />
                             <DebugRow label="السؤال الأصلي" value={question} />
                             <DebugRow label="السؤال المعاد صياغته" value={result.debug.rewritten_query} />
                             <DebugRow label="الأسئلة الفرعية" value={JSON.stringify(result.debug.sub_queries, null, 2)} />
@@ -393,16 +685,24 @@ export default function GroundedChatValidationPage() {
                             <DebugRow label="الكلمات المفتاحية (إنجليزي)" value={JSON.stringify(result.debug.keywords_en)} />
                             <DebugRow label="القصد المكتشف" value={result.debug.detected_intent} />
                             <DebugRow label="إعادة كتابة AI" value={result.debug.query_rewrite_used_ai ? 'نعم' : 'لا'} />
+                            <Separator />
                             <DebugRow label="عدد المرشحين" value={result.debug.candidates_count} />
-                            <DebugRow label="النموذج المستخدم" value={result.debug.model_used} />
-                            <DebugRow label="OpenRouter Endpoint" value="api.openrouter.ai/v1/chat/completions" />
+                            <DebugRow label="الأجزاء المسترجعة" value={result.debug.retrieved_chunks_count} />
+                            <DebugRow label="حجم الـ Prompt" value={`~${result.debug.prompt_size_estimate || '-'} tokens`} />
                             <DebugRow label="Response Status Code" value={result.debug.status_code} />
                             <DebugRow label="Token Usage" value={JSON.stringify(result.debug.token_usage, null, 2)} />
+                            {result.debug.error_type && (
+                              <>
+                                <Separator />
+                                <DebugRow label="نوع الخطأ" value={result.debug.error_type} />
+                                <DebugRow label="رسالة المزود" value={result.debug.provider_message} />
+                              </>
+                            )}
                             <Separator />
                             <div>
-                              <p className="text-muted-foreground mb-1">Prompt النهائي:</p>
+                              <p className="text-muted-foreground mb-1">مقتطف رد المزود:</p>
                               <pre className="bg-muted p-2 rounded text-[10px] whitespace-pre-wrap max-h-[200px] overflow-y-auto">
-                                {result.debug.raw_response_snippet}
+                                {result.debug.raw_response_snippet || '-'}
                               </pre>
                             </div>
                             <Separator />
@@ -536,6 +836,17 @@ export default function GroundedChatValidationPage() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function HealthItem({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className={`rounded-lg p-3 text-center border ${ok ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' : 'bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800'}`}>
+      <div className="flex items-center justify-center gap-1.5 mb-1">
+        {ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-destructive" />}
+      </div>
+      <p className="text-xs font-medium">{label}</p>
     </div>
   );
 }
