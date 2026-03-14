@@ -168,6 +168,7 @@ const SIDEBAR_MODULES: NavModule[] = [
       { title: 'تقسيم المعرفة', href: '/admin/knowledge-chunking', icon: Database, permission: 'canManageSystemSettings' },
       { title: 'مزودي AI', href: '/admin/ai-providers', icon: Plug, permission: 'canManageSystemSettings' },
       { title: 'اختبار المحادثة', href: '/admin/grounded-chat-test', icon: MessageSquare, permission: 'canManageSystemSettings' },
+      { title: 'التحقق من المحادثة', href: '/admin/grounded-chat-validation', icon: Shield, permission: 'canManageSystemSettings' },
     ],
   },
 ];
