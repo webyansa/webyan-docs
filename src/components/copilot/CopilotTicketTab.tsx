@@ -17,6 +17,9 @@ export default function CopilotTicketTab({ onSubmit, isLoading }: Props) {
   const handleSubmit = () => {
     if (!title.trim() && !description.trim()) return;
     onSubmit({ ticket_title: title, ticket_description: description, ticket_messages: messages || undefined });
+    setTitle('');
+    setDescription('');
+    setMessages('');
   };
 
   return (

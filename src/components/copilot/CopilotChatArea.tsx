@@ -1,9 +1,10 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, User, ChevronDown, ChevronUp, FileText } from 'lucide-react';
-import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Sparkles, User, ChevronDown, ChevronUp, FileText, Copy, Check, Share2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface CopilotMessage {
   id: string;
@@ -54,6 +55,39 @@ function SourcesAccordion({ sources }: { sources: any[] }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function MessageActions({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    toast.success('تم النسخ');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: content });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(content);
+      toast.success('تم نسخ الرد للمشاركة');
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1 mt-1">
+      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
+        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+      </Button>
+      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleShare}>
+        <Share2 className="h-3 w-3 text-muted-foreground" />
+      </Button>
     </div>
   );
 }
@@ -113,6 +147,9 @@ export default function CopilotChatArea({
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
               </div>
+              {msg.role === 'assistant' && (
+                <MessageActions content={msg.content} />
+              )}
               {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                 <SourcesAccordion sources={msg.sources} />
               )}
