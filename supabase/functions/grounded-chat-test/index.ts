@@ -1922,9 +1922,16 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("Error:", e);
     return new Response(JSON.stringify(buildErrorResponse(
-      "internal_error", 500, (e as Error).message || "Internal error", ""
+      "internal_error",
+      500,
+      (e as Error).message || "Internal error",
+      "",
+      { retrieved_chunks_count: 0, prompt_size_estimate: 0, error_message: (e as Error).message || "Internal error" },
+      "validation",
+      ["حدث خطأ داخلي غير متوقع داخل backend route."],
     )), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
