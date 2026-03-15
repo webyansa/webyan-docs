@@ -613,6 +613,27 @@ export default function GroundedChatValidationPage() {
             </Card>
           )}
 
+          {(technicalDetails || activeDiagnosticReport) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Technical Error Details</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-1">
+                <p><span className="text-muted-foreground">مرحلة الفشل:</span> {technicalDetails?.stage_failed || activeDiagnosticReport?.stage_failed || '-'}</p>
+                <p><span className="text-muted-foreground">الموديل:</span> {technicalDetails?.selected_model || activeDiagnosticReport?.selected_model || '-'}</p>
+                <p><span className="text-muted-foreground">نجاح retrieval:</span> {technicalDetails ? (technicalDetails.retrieval_succeeded ? 'نعم' : 'لا') : '-'}</p>
+                <p><span className="text-muted-foreground">عدد chunks:</span> {technicalDetails?.retrieved_chunks_count ?? activeDiagnosticReport?.retrieved_chunks_count ?? '-'}</p>
+                <p><span className="text-muted-foreground">حجم prompt:</span> {technicalDetails?.prompt_size_estimate ?? activeDiagnosticReport?.prompt_size_estimate ?? '-'}</p>
+                <p><span className="text-muted-foreground">Status code:</span> {technicalDetails?.status_code ?? activeDiagnosticReport?.response_status ?? '-'}</p>
+                <p><span className="text-muted-foreground">Provider error:</span> {technicalDetails?.provider_error ?? activeDiagnosticReport?.provider_error ?? '-'}</p>
+                <p><span className="text-muted-foreground">Raw snippet:</span> {technicalDetails?.raw_error_snippet || '-'}</p>
+                {activeDiagnosticReport?.debug_notes?.length ? (
+                  <p><span className="text-muted-foreground">Debug notes:</span> {activeDiagnosticReport.debug_notes.join(' | ')}</p>
+                ) : null}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Success Results */}
           {result && result.success && (
             <div className="space-y-4">
