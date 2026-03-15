@@ -114,6 +114,9 @@ export default function CopilotChatArea({
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
               </div>
+              {msg.role === 'assistant' && (
+                <MessageActions content={msg.content} />
+              )}
               {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                 <SourcesAccordion sources={msg.sources} />
               )}
