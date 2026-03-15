@@ -59,6 +59,39 @@ function SourcesAccordion({ sources }: { sources: any[] }) {
   );
 }
 
+function MessageActions({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    toast.success('تم النسخ');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: content });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(content);
+      toast.success('تم نسخ الرد للمشاركة');
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1 mt-1">
+      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
+        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+      </Button>
+      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleShare}>
+        <Share2 className="h-3 w-3 text-muted-foreground" />
+      </Button>
+    </div>
+  );
+}
+
 export default function CopilotChatArea({
   messages,
   isLoading,

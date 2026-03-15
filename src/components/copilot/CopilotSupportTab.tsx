@@ -32,6 +32,7 @@ export default function CopilotSupportTab({ onSubmit, isLoading }: Props) {
   const handleSubmit = () => {
     if (!clientMessage.trim()) return;
     onSubmit({ client_message: clientMessage, tone, request_type: requestType });
+    setClientMessage('');
   };
 
   return (

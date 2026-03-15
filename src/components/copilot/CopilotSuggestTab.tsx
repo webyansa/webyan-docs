@@ -15,6 +15,7 @@ export default function CopilotSuggestTab({ onSubmit, isLoading }: Props) {
   const handleSubmit = () => {
     if (!context.trim()) return;
     onSubmit({ context_description: context });
+    setContext('');
   };
 
   return (
