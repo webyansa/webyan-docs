@@ -1,9 +1,10 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, User, ChevronDown, ChevronUp, FileText } from 'lucide-react';
-import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Sparkles, User, ChevronDown, ChevronUp, FileText, Copy, Check, Share2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface CopilotMessage {
   id: string;
