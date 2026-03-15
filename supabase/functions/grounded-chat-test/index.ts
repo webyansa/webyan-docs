@@ -34,6 +34,7 @@ type ErrorType =
   | "invalid_api_key"
   | "model_not_found"
   | "provider_unavailable"
+  | "provider_disabled"
   | "rate_limit"
   | "timeout"
   | "malformed_request"
