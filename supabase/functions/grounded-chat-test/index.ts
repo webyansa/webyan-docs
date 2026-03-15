@@ -75,10 +75,11 @@ function arabicErrorMessage(errorType: ErrorType): string {
 
 function arabicSuggestion(errorType: ErrorType): string {
   const suggestions: Record<ErrorType, string> = {
-    api_key_missing: "تحقق من API key في إعدادات المزودات.",
+    api_key_missing: "أضف API key في إعدادات مزودي الذكاء الاصطناعي.",
     invalid_api_key: "تحقق من صحة API key أو أعد إدخاله.",
     model_not_found: "اختر نموذجًا آخر من القائمة المعتمدة.",
     provider_unavailable: "حاول مرة أخرى بعد قليل أو استخدم نموذج احتياطي.",
+    provider_disabled: "انتقل إلى إعدادات المزودات وفعّل OpenRouter.",
     rate_limit: "انتظر دقيقة ثم حاول مرة أخرى.",
     timeout: "جرّب تقليل top_k أو اختر نموذجًا أسرع.",
     malformed_request: "تحقق من إعدادات الاختبار وأعد المحاولة.",
