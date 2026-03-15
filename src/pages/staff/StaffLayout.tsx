@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffAuth } from '@/hooks/useStaffAuth';
+import { CopilotProvider } from '@/components/copilot/CopilotContext';
+import CopilotLauncher from '@/components/copilot/CopilotLauncher';
+import AICopilotPanel from '@/components/copilot/AICopilotPanel';
 import { useStaffNotifications } from '@/hooks/useStaffNotifications';
 import {
   LayoutDashboard,

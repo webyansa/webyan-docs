@@ -100,6 +100,7 @@ export default function AdminLayout() {
   const sidebarWidth = sidebarCollapsed ? 'lg:pr-16' : 'lg:pr-64';
 
   return (
+    <CopilotProvider>
     <div className="min-h-screen bg-muted/30" dir="rtl">
       <AdminCommandPalette permissions={permissions} />
 
@@ -193,6 +194,11 @@ export default function AdminLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* AI Copilot */}
+      <CopilotLauncher />
+      <AICopilotPanel />
     </div>
+    </CopilotProvider>
   );
 }
