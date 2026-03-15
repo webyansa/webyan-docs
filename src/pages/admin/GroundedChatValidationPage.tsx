@@ -385,6 +385,8 @@ export default function GroundedChatValidationPage() {
   };
 
   const currentModelInfo = getModelInfo(model);
+  const activeDiagnosticReport = debugRunResult || openRouterOnlyResult;
+  const technicalDetails = result?.technical_details || activeDiagnosticReport?.technical_details || null;
 
   return (
     <div className="space-y-6" dir="rtl">
