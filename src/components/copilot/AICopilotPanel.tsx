@@ -306,7 +306,7 @@ export default function AICopilotPanel() {
               <SelectTrigger className="h-7 text-[11px] bg-background/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[200]">
                 {MODELS.map(m => (
                   <SelectItem key={m.value} value={m.value} className="text-xs">
                     <span>{m.label}</span>
