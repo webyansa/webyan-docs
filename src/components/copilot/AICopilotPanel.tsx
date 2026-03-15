@@ -342,7 +342,7 @@ export default function AICopilotPanel() {
               </TabsList>
 
               {/* Ask Tab - Chat */}
-              <TabsContent value="ask" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="ask" className="flex-1 flex flex-col overflow-hidden mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
 
                 {/* Quick actions */}
