@@ -298,6 +298,9 @@ export default function AICopilotPanel() {
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClear}>
                 <Plus className="h-3.5 w-3.5" />
               </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsOpen(false)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
           {/* Model selector */}
