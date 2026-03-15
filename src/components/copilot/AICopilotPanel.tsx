@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -268,11 +268,15 @@ export default function AICopilotPanel() {
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+    <Sheet open={isOpen} onOpenChange={setIsOpen} modal={false}>
       <SheetContent
         side="left"
-        className="w-[440px] sm:max-w-[440px] p-0 flex flex-col [&>button]:hidden"
+        className="w-[440px] sm:max-w-[440px] p-0 flex flex-col [&>button]:hidden z-[70]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
+        <SheetTitle className="sr-only">مساعد ويبيان الذكي</SheetTitle>
+        <SheetDescription className="sr-only">المساعد الذكي الداخلي لفريق ويبيان</SheetDescription>
         {/* Header */}
         <div className="px-4 py-3 border-b border-border bg-gradient-to-l from-primary/5 to-secondary/5">
           <div className="flex items-center gap-2">
@@ -321,7 +325,7 @@ export default function AICopilotPanel() {
         ) : (
           <>
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
               <TabsList className="mx-3 mt-2 grid grid-cols-4 h-8">
                 <TabsTrigger value="ask" className="text-[11px] gap-1 px-1">
                   <MessageSquare className="h-3 w-3" />اسأل
@@ -338,7 +342,7 @@ export default function AICopilotPanel() {
               </TabsList>
 
               {/* Ask Tab - Chat */}
-              <TabsContent value="ask" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="ask" className="flex-1 flex flex-col overflow-hidden mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
 
                 {/* Quick actions */}
@@ -391,19 +395,19 @@ export default function AICopilotPanel() {
               </TabsContent>
 
               {/* Support Tab */}
-              <TabsContent value="support" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="support" className="flex-1 flex flex-col overflow-auto mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
                 <CopilotSupportTab onSubmit={handleSupportSubmit} isLoading={isLoading} />
               </TabsContent>
 
               {/* Analyze Tab */}
-              <TabsContent value="analyze" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="analyze" className="flex-1 flex flex-col overflow-auto mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
                 <CopilotTicketTab onSubmit={handleTicketSubmit} isLoading={isLoading} />
               </TabsContent>
 
               {/* Suggest Tab */}
-              <TabsContent value="suggest" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="suggest" className="flex-1 flex flex-col overflow-auto mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
                 <CopilotSuggestTab onSubmit={handleSuggestSubmit} isLoading={isLoading} />
               </TabsContent>
