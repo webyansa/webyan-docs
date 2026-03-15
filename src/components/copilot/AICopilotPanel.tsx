@@ -407,7 +407,7 @@ export default function AICopilotPanel() {
               </TabsContent>
 
               {/* Suggest Tab */}
-              <TabsContent value="suggest" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="suggest" className="flex-1 flex flex-col overflow-auto mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
                 <CopilotSuggestTab onSubmit={handleSuggestSubmit} isLoading={isLoading} />
               </TabsContent>
