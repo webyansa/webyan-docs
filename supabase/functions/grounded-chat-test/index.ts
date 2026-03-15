@@ -938,6 +938,427 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════
+    // OPENROUTER DEBUG TEST (without retrieval)
+    // ═══════════════════════════════════════
+    if (action === "openrouter-debug-test") {
+      const { data: provider } = await adminClient
+        .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
+
+      if (!provider?.api_key_encrypted || !provider.enabled) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "api_key_missing",
+          400,
+          "OpenRouter provider key is missing or disabled",
+          FALLBACK_MODEL,
+          {
+            provider_name: "OpenRouter",
+            has_api_key: !!provider?.api_key_encrypted,
+            endpoint: `${provider?.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
+          },
+          "validation",
+          ["تعذر تنفيذ اختبار الاتصال المباشر بسبب إعدادات المزود."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const systemPrompt = "You are a helpful assistant.";
+      const userPrompt = "قل كلمة ناجح فقط";
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ];
+
+      const promptSizeEstimate = estimateTokens(`${systemPrompt}\n${userPrompt}`);
+      const diagnostics = {
+        questionLength: userPrompt.length,
+        retrievedChunksCount: 0,
+        totalContextCharacters: systemPrompt.length,
+        promptSizeEstimate,
+        topK: 0,
+        categoryFilter: null,
+      };
+
+      const result = await callOpenRouter(provider, FALLBACK_MODEL, messages, false, diagnostics);
+
+      if (result.responseStatus === "error") {
+        await logError(
+          adminClient,
+          userPrompt,
+          result.modelUsed,
+          result.errorType || "provider_error",
+          arabicErrorMessage(result.errorType || "provider_error"),
+          result.providerMessage || result.rawResponseSnippet,
+          result.statusCode,
+          promptSizeEstimate,
+          0,
+          result.latencyMs,
+          false,
+          null,
+          {
+            stage_failed: "openrouter_request",
+            selected_model: result.modelUsed,
+            provider_name: result.providerName,
+            base_url: result.baseUrl,
+            has_api_key: result.hasApiKey,
+            question_length: userPrompt.length,
+            retrieved_chunks_count: 0,
+            total_context_characters: systemPrompt.length,
+            prompt_size_estimate: promptSizeEstimate,
+            request_payload_summary: result.requestPayloadSummary,
+            response_status: result.statusCode,
+            response_body_snippet: result.rawResponseSnippet,
+            error_message: result.errorMessage || result.providerMessage,
+            latency_ms: result.latencyMs,
+            endpoint: result.endpoint,
+          },
+        );
+
+        return new Response(JSON.stringify(buildErrorResponse(
+          result.errorType || "provider_error",
+          result.statusCode || 500,
+          result.providerMessage || result.rawResponseSnippet,
+          result.modelUsed,
+          {
+            provider_name: result.providerName,
+            endpoint: result.endpoint,
+            response_body_snippet: result.rawResponseSnippet,
+            status_code: result.statusCode,
+            prompt_size_estimate: promptSizeEstimate,
+            retrieved_chunks_count: 0,
+          },
+          "openrouter_request",
+          ["فشل اختبار OpenRouter المباشر بدون retrieval."],
+        )), {
+          status: result.statusCode || 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: "OpenRouter يعمل بشكل سليم في الاختبار المباشر.",
+        stage_failed: null,
+        selected_model: result.modelUsed,
+        retrieved_chunks_count: 0,
+        prompt_size_estimate: promptSizeEstimate,
+        response_status: result.statusCode,
+        provider_error: null,
+        debug_notes: ["تم تنفيذ اختبار اتصال مباشر بدون retrieval بنجاح."],
+        technical_details: {
+          stage_failed: null,
+          selected_model: result.modelUsed,
+          retrieval_succeeded: true,
+          retrieved_chunks_count: 0,
+          prompt_size_estimate: promptSizeEstimate,
+          status_code: result.statusCode,
+          provider_error: null,
+          raw_error_snippet: null,
+          provider_used: result.providerName,
+          endpoint: result.endpoint,
+        },
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ═══════════════════════════════════════
+    // DEBUG RUN (full diagnostic)
+    // ═══════════════════════════════════════
+    if (action === "debug-run") {
+      const { question, model, top_k = 5, category_filter, search_mode = "hybrid_rerank" } = body;
+      const debugNotes: string[] = [];
+
+      if (!question || typeof question !== "string" || !question.trim()) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "malformed_request",
+          400,
+          "question is required",
+          model || "",
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["فشل التحقق المسبق: السؤال مطلوب."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!model || typeof model !== "string" || !model.trim()) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "malformed_request",
+          400,
+          "model is required",
+          "",
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["فشل التحقق المسبق: model فارغ."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!APPROVED_MODELS.includes(model)) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "model_not_approved",
+          400,
+          `model '${model}' is not approved`,
+          model,
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["النموذج خارج القائمة المعتمدة."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: openAISetting } = await adminClient
+        .from("system_settings").select("value").eq("key", "ai_openai_api_key").single();
+      const openaiKey = openAISetting?.value;
+      if (!openaiKey) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "api_key_missing",
+          400,
+          "OpenAI key missing for retrieval embeddings",
+          model,
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["لا يمكن اختبار retrieval بدون مفتاح embeddings."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: provider } = await adminClient
+        .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
+      if (!provider?.api_key_encrypted || !provider.enabled) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "api_key_missing",
+          400,
+          "OpenRouter key missing or provider disabled",
+          model,
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0, provider_name: "OpenRouter" },
+          "validation",
+          ["فشل التحقق المسبق: OpenRouter غير جاهز."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let pipeline: any;
+      try {
+        pipeline = await runRAGPipeline(adminClient, openaiKey, question, model, top_k, category_filter, search_mode);
+      } catch (e) {
+        const errorText = (e as Error).message || "Retrieval pipeline failed";
+        return new Response(JSON.stringify({
+          success: false,
+          stage_failed: "retrieval",
+          selected_model: model,
+          retrieved_chunks_count: 0,
+          prompt_size_estimate: 0,
+          response_status: 500,
+          provider_error: errorText,
+          debug_notes: ["فشل تنفيذ retrieval pipeline."],
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const retrievedChunksCount = pipeline.sources.length;
+      const totalContextCharacters = pipeline.sources.reduce((sum: number, s: any) => sum + ((s?.content || "").length), 0);
+
+      if (retrievedChunksCount === 0) {
+        return new Response(JSON.stringify({
+          success: false,
+          stage_failed: "retrieval",
+          selected_model: model,
+          retrieved_chunks_count: 0,
+          prompt_size_estimate: 0,
+          response_status: 422,
+          provider_error: "retrieval returned empty chunks",
+          debug_notes: ["تم تنفيذ retrieval لكن لم يتم العثور على أي chunks."],
+        }), {
+          status: 422,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const promptSizeEstimate = estimateTokens(pipeline.fullPrompt || "");
+      if (promptSizeEstimate > MAX_PROMPT_TOKENS_ESTIMATE) {
+        return new Response(JSON.stringify({
+          success: false,
+          stage_failed: "prompt_builder",
+          selected_model: model,
+          retrieved_chunks_count: retrievedChunksCount,
+          prompt_size_estimate: promptSizeEstimate,
+          response_status: 400,
+          provider_error: `prompt too large (${promptSizeEstimate})`,
+          debug_notes: ["تم إيقاف التنفيذ قبل OpenRouter بسبب حجم prompt كبير."],
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const messages = [
+        { role: "system", content: pipeline.systemPrompt },
+        { role: "user", content: question },
+      ];
+      const messagesValidation = validateMessages(messages);
+      if (!messagesValidation.valid) {
+        return new Response(JSON.stringify({
+          success: false,
+          stage_failed: "prompt_builder",
+          selected_model: model,
+          retrieved_chunks_count: retrievedChunksCount,
+          prompt_size_estimate: promptSizeEstimate,
+          response_status: 400,
+          provider_error: messagesValidation.reason,
+          debug_notes: ["فشل بناء messages قبل OpenRouter."],
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let modelForDiagnostics = model;
+      if (modelForDiagnostics.includes(":free")) {
+        modelForDiagnostics = FALLBACK_MODEL;
+        debugNotes.push("تم استخدام نموذج بديل لأغراض التشخيص.");
+      }
+
+      const callResult = await callOpenRouter(
+        provider,
+        modelForDiagnostics,
+        messages,
+        true,
+        {
+          questionLength: question.length,
+          retrievedChunksCount,
+          totalContextCharacters,
+          promptSizeEstimate,
+          topK: top_k,
+          categoryFilter: category_filter || null,
+        },
+      );
+
+      if (callResult.responseStatus === "error") {
+        await logError(
+          adminClient,
+          question,
+          callResult.modelUsed,
+          callResult.errorType || "provider_error",
+          arabicErrorMessage(callResult.errorType || "provider_error"),
+          callResult.providerMessage || callResult.rawResponseSnippet,
+          callResult.statusCode,
+          promptSizeEstimate,
+          retrievedChunksCount,
+          callResult.latencyMs,
+          callResult.fallbackUsed,
+          callResult.fallbackUsed ? FALLBACK_MODEL : null,
+          {
+            stage_failed: "openrouter_request",
+            selected_model: callResult.modelUsed,
+            provider_name: callResult.providerName,
+            base_url: callResult.baseUrl,
+            has_api_key: callResult.hasApiKey,
+            question_length: question.length,
+            retrieved_chunks_count: retrievedChunksCount,
+            total_context_characters: totalContextCharacters,
+            prompt_size_estimate: promptSizeEstimate,
+            request_payload_summary: callResult.requestPayloadSummary,
+            response_status: callResult.statusCode,
+            response_body_snippet: callResult.rawResponseSnippet,
+            error_message: callResult.errorMessage || callResult.providerMessage,
+            latency_ms: callResult.latencyMs,
+            endpoint: callResult.endpoint,
+          },
+        );
+
+        return new Response(JSON.stringify({
+          success: false,
+          stage_failed: "openrouter_request",
+          selected_model: callResult.modelUsed,
+          retrieved_chunks_count: retrievedChunksCount,
+          prompt_size_estimate: promptSizeEstimate,
+          response_status: callResult.statusCode,
+          provider_error: callResult.providerMessage || callResult.rawResponseSnippet,
+          debug_notes: [
+            ...debugNotes,
+            callResult.fallbackUsed ? "تم استخدام نموذج بديل لأغراض التشخيص." : "",
+            `OpenRouter failed with ${callResult.errorType || "provider_error"}`,
+          ].filter(Boolean),
+          technical_details: {
+            stage_failed: "openrouter_request",
+            selected_model: callResult.modelUsed,
+            retrieval_succeeded: true,
+            retrieved_chunks_count: retrievedChunksCount,
+            prompt_size_estimate: promptSizeEstimate,
+            status_code: callResult.statusCode,
+            provider_error: callResult.providerMessage || null,
+            raw_error_snippet: callResult.rawResponseSnippet,
+            provider_used: callResult.providerName,
+            endpoint: callResult.endpoint,
+          },
+        }), {
+          status: callResult.statusCode || 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        stage_failed: null,
+        selected_model: callResult.modelUsed,
+        retrieved_chunks_count: retrievedChunksCount,
+        prompt_size_estimate: promptSizeEstimate,
+        response_status: callResult.statusCode,
+        provider_error: null,
+        debug_notes: [
+          ...debugNotes,
+          callResult.fallbackUsed ? "تم استخدام نموذج بديل لأغراض التشخيص." : "",
+          "تم تنفيذ المراحل retrieval + prompt builder + OpenRouter بنجاح.",
+        ].filter(Boolean),
+        technical_details: {
+          stage_failed: null,
+          selected_model: callResult.modelUsed,
+          retrieval_succeeded: true,
+          retrieved_chunks_count: retrievedChunksCount,
+          prompt_size_estimate: promptSizeEstimate,
+          status_code: callResult.statusCode,
+          provider_error: null,
+          raw_error_snippet: null,
+          provider_used: callResult.providerName,
+          endpoint: callResult.endpoint,
+        },
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ═══════════════════════════════════════
+    // RETRY LAST FAILED DEBUG
+    // ═══════════════════════════════════════
+    if (action === "retry-last") {
+      const { data } = await adminClient
+        .from("grounded_chat_error_logs")
+        .select("question, model_used")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      return new Response(JSON.stringify({ success: true, retry_payload: data || null }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ═══════════════════════════════════════
     // LAST ERROR
     // ═══════════════════════════════════════
     if (action === "last-error") {
