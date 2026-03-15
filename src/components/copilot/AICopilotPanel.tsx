@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Sparkles, Send, Square, Trash2, Plus, History,
   MessageSquare, Headphones, Search, Lightbulb,
-  Wifi, WifiOff
+  Wifi, WifiOff, X
 } from 'lucide-react';
 import { useCopilot } from './CopilotContext';
 import CopilotChatArea, { type CopilotMessage } from './CopilotChatArea';
