@@ -474,166 +474,318 @@ async function fetchWithRetry(
   url: string,
   options: RequestInit,
   retries: number = MAX_RETRIES,
-): Promise<Response> {
-  let lastError: Error | null = null;
+): Promise<{ response: Response; retriesUsed: number }> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
-      const resp = await fetch(url, { ...options, signal: controller.signal });
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
 
-      // If response is ok or error is not retryable, return immediately
-      if (resp.ok || !RETRYABLE_STATUS_CODES.includes(resp.status)) {
-        return resp;
+      if (response.ok || !RETRYABLE_STATUS_CODES.includes(response.status)) {
+        return { response, retriesUsed: attempt };
       }
 
-      // Retryable error - wait before retry
       if (attempt < retries) {
-        console.log(`Retry ${attempt + 1}/${retries} for status ${resp.status}`);
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        console.log(`[grounded-chat-test] retry ${attempt + 1}/${retries} بسبب status ${response.status}`);
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
         continue;
       }
-      return resp; // Last attempt, return whatever we got
+
+      return { response, retriesUsed: attempt };
     } catch (e) {
-      lastError = e as Error;
-      if (attempt < retries && (e as Error).name === 'AbortError') {
-        console.log(`Timeout retry ${attempt + 1}/${retries}`);
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      const isTimeout = (e as Error).name === "AbortError";
+      if (isTimeout && attempt < retries) {
+        console.log(`[grounded-chat-test] timeout retry ${attempt + 1}/${retries}`);
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
         continue;
       }
-      if (attempt >= retries) throw e;
+
+      if (isTimeout) {
+        throw new Error("OpenRouter request timeout");
+      }
+
+      throw e;
     }
   }
-  throw lastError || new Error("Unknown fetch error");
+
+  throw new Error("OpenRouter request failed after retries");
 }
 
-// ─── Call OpenRouter with fallback ───
-async function callOpenRouter(
-  provider: any,
-  selectedModel: string,
-  systemPrompt: string,
-  question: string,
-  enableFallback: boolean,
-): Promise<{
+function validateMessages(messages: Array<{ role: string; content: string }>): { valid: boolean; reason?: string } {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return { valid: false, reason: "messages array is empty" };
+  }
+
+  for (const msg of messages) {
+    if (!msg || typeof msg.role !== "string" || typeof msg.content !== "string") {
+      return { valid: false, reason: "message item is malformed" };
+    }
+    if (!msg.content.trim()) {
+      return { valid: false, reason: "message content is empty" };
+    }
+  }
+
+  return { valid: true };
+}
+
+function extractProviderMessage(rawText: string): string {
+  if (!rawText) return "";
+  try {
+    const parsed = JSON.parse(rawText);
+    return (
+      parsed?.error?.message ||
+      parsed?.message ||
+      parsed?.detail ||
+      rawText.slice(0, 500)
+    );
+  } catch {
+    return rawText.slice(0, 500);
+  }
+}
+
+function shouldUseFallback(errorType?: ErrorType): boolean {
+  if (!errorType) return false;
+  return ["model_not_found", "provider_unavailable", "timeout", "provider_error"].includes(errorType);
+}
+
+type OpenRouterCallResult = {
   finalAnswer: string;
-  responseStatus: string;
+  responseStatus: "success" | "error";
   statusCode: number;
   rawResponseSnippet: string;
   tokenUsage: any;
   modelUsed: string;
   fallbackUsed: boolean;
+  fallbackReason: string | null;
   errorType?: ErrorType;
   providerMessage?: string;
   retryCount: number;
-}> {
-  let modelUsed = selectedModel;
-  let fallbackUsed = false;
-  let retryCount = 0;
+  latencyMs: number;
+  requestPayloadSummary: Record<string, any>;
+  providerName: string;
+  baseUrl: string;
+  hasApiKey: boolean;
+  endpoint: string;
+  errorMessage?: string;
+};
 
-  const makeRequest = async (model: string) => {
-    const startTime = Date.now();
+async function callOpenRouter(
+  provider: any,
+  selectedModel: string,
+  messages: Array<{ role: string; content: string }>,
+  enableFallback: boolean,
+  diagnostics: {
+    questionLength: number;
+    retrievedChunksCount: number;
+    totalContextCharacters: number;
+    promptSizeEstimate: number;
+    topK: number;
+    categoryFilter: string | null;
+  },
+): Promise<OpenRouterCallResult> {
+  const providerName = "OpenRouter";
+  const baseUrl = (provider?.base_url || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
+  const endpoint = `${baseUrl}/chat/completions`;
+  const hasApiKey = !!provider?.api_key_encrypted;
+
+  const messageValidation = validateMessages(messages);
+  if (!messageValidation.valid) {
+    return {
+      finalAnswer: "",
+      responseStatus: "error",
+      statusCode: 400,
+      rawResponseSnippet: messageValidation.reason || "Invalid messages",
+      tokenUsage: null,
+      modelUsed: selectedModel,
+      fallbackUsed: false,
+      fallbackReason: null,
+      errorType: "malformed_request",
+      providerMessage: messageValidation.reason || "messages malformed",
+      retryCount: 0,
+      latencyMs: 0,
+      requestPayloadSummary: {},
+      providerName,
+      baseUrl,
+      hasApiKey,
+      endpoint,
+      errorMessage: "messages malformed",
+    };
+  }
+
+  const executeRequest = async (modelToUse: string): Promise<OpenRouterCallResult> => {
+    const requestBody = {
+      model: modelToUse,
+      messages,
+      max_tokens: 1500,
+      temperature: 0.3,
+    };
+
+    const promptPreview = `${messages.map((m) => m.content).join("\n\n")}`.slice(0, 500);
+
+    const requestPayloadSummary = {
+      model: modelToUse,
+      number_of_messages: messages.length,
+      prompt_preview: promptPreview,
+      chunk_count: diagnostics.retrievedChunksCount,
+      top_k: diagnostics.topK,
+      category_filter: diagnostics.categoryFilter,
+      temperature: 0.3,
+      max_tokens: 1500,
+    };
+
+    console.log("[grounded-chat-test][openrouter:pre-request]", JSON.stringify({
+      selected_model: modelToUse,
+      provider_name: providerName,
+      base_url: baseUrl,
+      has_api_key: hasApiKey,
+      question_length: diagnostics.questionLength,
+      retrieved_chunks_count: diagnostics.retrievedChunksCount,
+      total_context_characters: diagnostics.totalContextCharacters,
+      prompt_size_estimate: diagnostics.promptSizeEstimate,
+      request_payload_summary: requestPayloadSummary,
+    }));
+
+    if (!hasApiKey) {
+      return {
+        finalAnswer: "",
+        responseStatus: "error",
+        statusCode: 400,
+        rawResponseSnippet: "OpenRouter API key missing",
+        tokenUsage: null,
+        modelUsed: modelToUse,
+        fallbackUsed: false,
+        fallbackReason: null,
+        errorType: "api_key_missing",
+        providerMessage: "OpenRouter API key missing",
+        retryCount: 0,
+        latencyMs: 0,
+        requestPayloadSummary,
+        providerName,
+        baseUrl,
+        hasApiKey,
+        endpoint,
+        errorMessage: "OpenRouter API key missing",
+      };
+    }
+
+    const startedAt = Date.now();
+
     try {
-      const resp = await fetchWithRetry(`${provider.base_url}/chat/completions`, {
+      const { response, retriesUsed } = await fetchWithRetry(endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${provider.api_key_encrypted}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: question },
-          ],
-          max_tokens: 1500,
-          temperature: 0.3,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      const statusCode = resp.status;
-      const text = await resp.text();
-      const rawResponseSnippet = text.slice(0, 500);
+      const rawText = await response.text();
+      const latencyMs = Date.now() - startedAt;
+      const responseBodySnippet = rawText.slice(0, 500);
 
-      if (resp.ok) {
-        const parsed = JSON.parse(text);
+      console.log("[grounded-chat-test][openrouter:post-response]", JSON.stringify({
+        selected_model: modelToUse,
+        response_status: response.status,
+        response_body_snippet: responseBodySnippet,
+        latency_ms: latencyMs,
+        retries_used: retriesUsed,
+      }));
+
+      if (response.ok) {
+        const parsed = JSON.parse(rawText);
         return {
-          finalAnswer: parsed.choices?.[0]?.message?.content || "",
+          finalAnswer: parsed?.choices?.[0]?.message?.content || "",
           responseStatus: "success",
-          statusCode,
-          rawResponseSnippet,
-          tokenUsage: parsed.usage || null,
-          modelUsed: model,
-          fallbackUsed,
-          retryCount,
+          statusCode: response.status,
+          rawResponseSnippet: responseBodySnippet,
+          tokenUsage: parsed?.usage || null,
+          modelUsed: modelToUse,
+          fallbackUsed: false,
+          fallbackReason: null,
+          retryCount: retriesUsed,
+          latencyMs,
+          requestPayloadSummary,
+          providerName,
+          baseUrl,
+          hasApiKey,
+          endpoint,
         };
       }
 
-      const errorType = classifyError(statusCode, text);
-      // Non-retryable errors that should NOT trigger fallback
-      if (["invalid_api_key", "malformed_request"].includes(errorType)) {
-        return {
-          finalAnswer: "",
-          responseStatus: "error",
-          statusCode,
-          rawResponseSnippet,
-          tokenUsage: null,
-          modelUsed: model,
-          fallbackUsed,
-          errorType,
-          providerMessage: text.slice(0, 300),
-          retryCount,
-        };
-      }
+      const errorType = classifyError(response.status);
+      const providerMessage = extractProviderMessage(rawText);
 
-      // Retryable/fallbackable error
       return {
         finalAnswer: "",
         responseStatus: "error",
-        statusCode,
-        rawResponseSnippet,
+        statusCode: response.status,
+        rawResponseSnippet: responseBodySnippet,
         tokenUsage: null,
-        modelUsed: model,
-        fallbackUsed,
+        modelUsed: modelToUse,
+        fallbackUsed: false,
+        fallbackReason: null,
         errorType,
-        providerMessage: text.slice(0, 300),
-        retryCount,
+        providerMessage,
+        retryCount: retriesUsed,
+        latencyMs,
+        requestPayloadSummary,
+        providerName,
+        baseUrl,
+        hasApiKey,
+        endpoint,
+        errorMessage: providerMessage,
       };
     } catch (e) {
+      const latencyMs = Date.now() - startedAt;
+      const providerMessage = (e as Error)?.message || "OpenRouter request failed";
+      const timeoutError = providerMessage.toLowerCase().includes("timeout");
       return {
         finalAnswer: "",
         responseStatus: "error",
-        statusCode: 0,
-        rawResponseSnippet: (e as Error).message,
+        statusCode: timeoutError ? 408 : 500,
+        rawResponseSnippet: providerMessage.slice(0, 500),
         tokenUsage: null,
-        modelUsed: model,
-        fallbackUsed,
-        errorType: "timeout" as ErrorType,
-        providerMessage: (e as Error).message,
-        retryCount,
+        modelUsed: modelToUse,
+        fallbackUsed: false,
+        fallbackReason: null,
+        errorType: timeoutError ? "timeout" : "provider_unavailable",
+        providerMessage,
+        retryCount: MAX_RETRIES,
+        latencyMs,
+        requestPayloadSummary,
+        providerName,
+        baseUrl,
+        hasApiKey,
+        endpoint,
+        errorMessage: providerMessage,
       };
     }
   };
 
-  // Try primary model
-  let result = await makeRequest(selectedModel);
-
-  // If failed and fallback is enabled and model is not already the fallback
-  if (
-    result.responseStatus === "error" &&
-    enableFallback &&
-    selectedModel !== FALLBACK_MODEL &&
-    result.errorType &&
-    !["invalid_api_key", "malformed_request"].includes(result.errorType)
-  ) {
-    console.log(`Primary model ${selectedModel} failed, trying fallback ${FALLBACK_MODEL}`);
-    fallbackUsed = true;
-    result = await makeRequest(FALLBACK_MODEL);
-    result.fallbackUsed = true;
-    result.modelUsed = FALLBACK_MODEL;
+  let primaryResult = await executeRequest(selectedModel);
+  if (primaryResult.responseStatus === "success") {
+    return primaryResult;
   }
 
-  return result;
+  if (
+    enableFallback &&
+    selectedModel !== FALLBACK_MODEL &&
+    shouldUseFallback(primaryResult.errorType)
+  ) {
+    const fallbackResult = await executeRequest(FALLBACK_MODEL);
+    return {
+      ...fallbackResult,
+      modelUsed: fallbackResult.modelUsed,
+      fallbackUsed: true,
+      fallbackReason: `primary_failed:${primaryResult.errorType || "provider_error"}`,
+      providerMessage: fallbackResult.providerMessage || primaryResult.providerMessage,
+      errorMessage: fallbackResult.errorMessage || primaryResult.errorMessage,
+    };
+  }
+
+  return primaryResult;
 }
 
 // ─── Log error ───
@@ -670,6 +822,25 @@ async function logError(
     });
   } catch (e) {
     console.error("Failed to log error:", e);
+  }
+}
+
+function routeActionFromPath(pathname: string, method: string): string | null {
+  const normalized = pathname.split("/grounded-chat-test")[1] || "/";
+  if (method === "GET" && normalized === "/api/ai/providers/openrouter/health-check") return "health-check";
+  if (method === "POST" && normalized === "/api/knowledge/grounded-chat/test") return "validate";
+  if (method === "POST" && normalized === "/api/ai/providers/openrouter/debug-test") return "openrouter-debug-test";
+  if (method === "POST" && normalized === "/api/knowledge/grounded-chat/debug-run") return "debug-run";
+  if (method === "POST" && normalized === "/api/knowledge/grounded-chat/retry-last") return "retry-last";
+  return null;
+}
+
+async function readJsonBody(req: Request): Promise<Record<string, any>> {
+  if (req.method === "GET") return {};
+  try {
+    return await req.json();
+  } catch {
+    return {};
   }
 }
 
