@@ -268,11 +268,15 @@ export default function AICopilotPanel() {
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+    <Sheet open={isOpen} onOpenChange={setIsOpen} modal={false}>
       <SheetContent
         side="left"
-        className="w-[440px] sm:max-w-[440px] p-0 flex flex-col [&>button]:hidden"
+        className="w-[440px] sm:max-w-[440px] p-0 flex flex-col [&>button]:hidden z-[70]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
+        <SheetTitle className="sr-only">مساعد ويبيان الذكي</SheetTitle>
+        <SheetDescription className="sr-only">المساعد الذكي الداخلي لفريق ويبيان</SheetDescription>
         {/* Header */}
         <div className="px-4 py-3 border-b border-border bg-gradient-to-l from-primary/5 to-secondary/5">
           <div className="flex items-center gap-2">
