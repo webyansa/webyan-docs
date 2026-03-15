@@ -34,6 +34,7 @@ type ErrorType =
   | "invalid_api_key"
   | "model_not_found"
   | "provider_unavailable"
+  | "provider_disabled"
   | "rate_limit"
   | "timeout"
   | "malformed_request"
@@ -55,10 +56,11 @@ function classifyError(statusCode: number): ErrorType {
 
 function arabicErrorMessage(errorType: ErrorType): string {
   const messages: Record<ErrorType, string> = {
-    api_key_missing: "المفتاح غير صالح أو غير موجود.",
-    invalid_api_key: "المفتاح غير صالح أو غير موجود.",
+    api_key_missing: "مفتاح API غير موجود. يرجى إضافة المفتاح في إعدادات المزودات.",
+    invalid_api_key: "مفتاح API غير صالح. تحقق من صحة المفتاح.",
     model_not_found: "النموذج المحدد غير متاح حاليًا.",
     provider_unavailable: "تعذر الاتصال بمزود OpenRouter.",
+    provider_disabled: "مزود OpenRouter معطّل. يرجى تفعيله من إعدادات المزودات.",
     rate_limit: "تم تجاوز الحد المسموح من الطلبات. حاول لاحقاً.",
     timeout: "المزود استغرق وقتًا أطول من المتوقع.",
     malformed_request: "حدث خطأ أثناء بناء الطلب.",
@@ -73,10 +75,11 @@ function arabicErrorMessage(errorType: ErrorType): string {
 
 function arabicSuggestion(errorType: ErrorType): string {
   const suggestions: Record<ErrorType, string> = {
-    api_key_missing: "تحقق من API key في إعدادات المزودات.",
+    api_key_missing: "أضف API key في إعدادات مزودي الذكاء الاصطناعي.",
     invalid_api_key: "تحقق من صحة API key أو أعد إدخاله.",
     model_not_found: "اختر نموذجًا آخر من القائمة المعتمدة.",
     provider_unavailable: "حاول مرة أخرى بعد قليل أو استخدم نموذج احتياطي.",
+    provider_disabled: "انتقل إلى إعدادات المزودات وفعّل OpenRouter.",
     rate_limit: "انتظر دقيقة ثم حاول مرة أخرى.",
     timeout: "جرّب تقليل top_k أو اختر نموذجًا أسرع.",
     malformed_request: "تحقق من إعدادات الاختبار وأعد المحاولة.",
@@ -944,19 +947,37 @@ Deno.serve(async (req) => {
       const { data: provider } = await adminClient
         .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
 
-      if (!provider?.api_key_encrypted || !provider.enabled) {
+      if (!provider?.api_key_encrypted) {
         return new Response(JSON.stringify(buildErrorResponse(
           "api_key_missing",
           400,
-          "OpenRouter provider key is missing or disabled",
+          "OpenRouter API key is not configured",
           FALLBACK_MODEL,
           {
             provider_name: "OpenRouter",
-            has_api_key: !!provider?.api_key_encrypted,
+            has_api_key: false,
             endpoint: `${provider?.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
           },
           "validation",
-          ["تعذر تنفيذ اختبار الاتصال المباشر بسبب إعدادات المزود."],
+          ["مفتاح API غير مضاف في إعدادات المزود."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!provider.enabled) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "provider_disabled",
+          400,
+          "OpenRouter provider is disabled",
+          FALLBACK_MODEL,
+          {
+            provider_name: "OpenRouter",
+            has_api_key: true,
+            endpoint: `${provider.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
+          },
+          "validation",
+          ["المزود معطّل. يرجى تفعيله من صفحة مزودي الذكاء الاصطناعي."],
         )), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1135,15 +1156,29 @@ Deno.serve(async (req) => {
 
       const { data: provider } = await adminClient
         .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
-      if (!provider?.api_key_encrypted || !provider.enabled) {
+      if (!provider?.api_key_encrypted) {
         return new Response(JSON.stringify(buildErrorResponse(
           "api_key_missing",
           400,
-          "OpenRouter key missing or provider disabled",
+          "OpenRouter API key is not configured",
           model,
-          { retrieved_chunks_count: 0, prompt_size_estimate: 0, provider_name: "OpenRouter" },
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0, provider_name: "OpenRouter", has_api_key: false },
           "validation",
-          ["فشل التحقق المسبق: OpenRouter غير جاهز."],
+          ["مفتاح API غير مضاف في إعدادات المزود."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!provider.enabled) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "provider_disabled",
+          400,
+          "OpenRouter provider is disabled",
+          model,
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0, provider_name: "OpenRouter", has_api_key: true },
+          "validation",
+          ["المزود معطّل. يرجى تفعيله من صفحة مزودي الذكاء الاصطناعي."],
         )), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1462,21 +1497,41 @@ Deno.serve(async (req) => {
 
       const { data: provider } = await adminClient
         .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
-      if (!provider?.api_key_encrypted || !provider.enabled) {
+      if (!provider?.api_key_encrypted) {
         return new Response(JSON.stringify(buildErrorResponse(
           "api_key_missing",
           400,
-          "OpenRouter key missing or provider disabled",
+          "OpenRouter API key is not configured",
           selectedModel,
           {
             provider_name: "OpenRouter",
-            has_api_key: !!provider?.api_key_encrypted,
+            has_api_key: false,
             endpoint: `${provider?.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
             retrieved_chunks_count: 0,
             prompt_size_estimate: 0,
           },
           "validation",
-          ["فشل التحقق المسبق: OpenRouter غير جاهز."],
+          ["مفتاح API غير مضاف في إعدادات المزود."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!provider.enabled) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "provider_disabled",
+          400,
+          "OpenRouter provider is disabled",
+          selectedModel,
+          {
+            provider_name: "OpenRouter",
+            has_api_key: true,
+            endpoint: `${provider.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
+            retrieved_chunks_count: 0,
+            prompt_size_estimate: 0,
+          },
+          "validation",
+          ["المزود معطّل. يرجى تفعيله من صفحة مزودي الذكاء الاصطناعي."],
         )), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
