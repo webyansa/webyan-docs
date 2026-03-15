@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.grounded-chat-test]
 verify_jwt = false
+
+[functions.ai-copilot]
+verify_jwt = false
