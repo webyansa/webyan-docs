@@ -1794,9 +1794,24 @@ Deno.serve(async (req) => {
         });
       }
 
-      const selectedModel = model || provider.default_model || "openai/gpt-4o";
+      const selectedModel = model || provider.default_model || FALLBACK_MODEL;
+      const promptSize = estimateTokens(pipeline.fullPrompt || "");
+      const retrievedChunksCount = pipeline.sources.length;
+      const totalContextCharacters = pipeline.sources.reduce((sum: number, s: any) => sum + ((s?.content || "").length), 0);
+      const messages = [
+        { role: "system", content: pipeline.systemPrompt },
+        { role: "user", content: question },
+      ];
+
       const genStart = Date.now();
-      const result = await callOpenRouter(provider, selectedModel, pipeline.systemPrompt, question, true);
+      const result = await callOpenRouter(provider, selectedModel, messages, true, {
+        questionLength: question.length,
+        retrievedChunksCount,
+        totalContextCharacters,
+        promptSizeEstimate: promptSize,
+        topK: top_k,
+        categoryFilter: category_filter || null,
+      });
 
       pipeline.timings.generation = Date.now() - genStart;
       pipeline.timings.total = Date.now() - pipeline.totalStart;
@@ -1809,6 +1824,7 @@ Deno.serve(async (req) => {
         status_code: result.statusCode, raw_response_snippet: result.rawResponseSnippet,
         token_usage: result.tokenUsage, boosted_categories: pipeline.boostedCategories,
         fallback_used: result.fallbackUsed,
+        request_payload_summary: result.requestPayloadSummary,
       };
 
       const testRecord = {
