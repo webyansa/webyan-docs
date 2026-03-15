@@ -879,8 +879,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const { action } = body;
+    const url = new URL(req.url);
+    const body = await readJsonBody(req);
+    const action = body.action || routeActionFromPath(url.pathname, req.method);
 
     // ═══════════════════════════════════════
     // HEALTH CHECK
