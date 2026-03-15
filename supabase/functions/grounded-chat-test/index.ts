@@ -1497,21 +1497,41 @@ Deno.serve(async (req) => {
 
       const { data: provider } = await adminClient
         .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
-      if (!provider?.api_key_encrypted || !provider.enabled) {
+      if (!provider?.api_key_encrypted) {
         return new Response(JSON.stringify(buildErrorResponse(
           "api_key_missing",
           400,
-          "OpenRouter key missing or provider disabled",
+          "OpenRouter API key is not configured",
           selectedModel,
           {
             provider_name: "OpenRouter",
-            has_api_key: !!provider?.api_key_encrypted,
+            has_api_key: false,
             endpoint: `${provider?.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
             retrieved_chunks_count: 0,
             prompt_size_estimate: 0,
           },
           "validation",
-          ["فشل التحقق المسبق: OpenRouter غير جاهز."],
+          ["مفتاح API غير مضاف في إعدادات المزود."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!provider.enabled) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "provider_disabled",
+          400,
+          "OpenRouter provider is disabled",
+          selectedModel,
+          {
+            provider_name: "OpenRouter",
+            has_api_key: true,
+            endpoint: `${provider.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
+            retrieved_chunks_count: 0,
+            prompt_size_estimate: 0,
+          },
+          "validation",
+          ["المزود معطّل. يرجى تفعيله من صفحة مزودي الذكاء الاصطناعي."],
         )), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
