@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Sparkles, Send, Square, Trash2, Plus, History,
   MessageSquare, Headphones, Search, Lightbulb,
-  Wifi, WifiOff
+  Wifi, WifiOff, X
 } from 'lucide-react';
 import { useCopilot } from './CopilotContext';
 import CopilotChatArea, { type CopilotMessage } from './CopilotChatArea';
@@ -297,6 +297,9 @@ export default function AICopilotPanel() {
               </Button>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClear}>
                 <Plus className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsOpen(false)}>
+                <X className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
