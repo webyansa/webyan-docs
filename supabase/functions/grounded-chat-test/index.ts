@@ -1394,195 +1394,350 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════
     if (action === "validate") {
       const { question, model, top_k = 5, category_filter, search_mode = "hybrid_rerank", enable_fallback = true } = body;
+      const debugNotes: string[] = [];
 
-      // Pre-call validations
       if (!question || typeof question !== "string" || question.trim().length === 0) {
-        return new Response(JSON.stringify(buildErrorResponse("malformed_request", 400, "السؤال مطلوب", "")), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify(buildErrorResponse(
+          "malformed_request",
+          400,
+          "question is required",
+          model || "",
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["فشل التحقق المسبق: السؤال مطلوب."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Check model is approved
-      const selectedModel = model || FALLBACK_MODEL;
+      if (!model || typeof model !== "string" || !model.trim()) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "malformed_request",
+          400,
+          "model is required",
+          "",
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["فشل التحقق المسبق: model فارغ."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const selectedModel = model.trim();
       if (!APPROVED_MODELS.includes(selectedModel)) {
-        return new Response(JSON.stringify(buildErrorResponse("model_not_approved", 400, `النموذج ${selectedModel} غير معتمد`, selectedModel)), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify(buildErrorResponse(
+          "model_not_approved",
+          400,
+          `model '${selectedModel}' is not approved`,
+          selectedModel,
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["النموذج خارج القائمة المعتمدة."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Check OpenAI key (needed for embeddings)
       const { data: settingData } = await adminClient
         .from("system_settings").select("value").eq("key", "ai_openai_api_key").single();
       const openaiKey = settingData?.value;
       if (!openaiKey) {
-        return new Response(JSON.stringify(buildErrorResponse("api_key_missing", 400, "مفتاح OpenAI مطلوب للـ embeddings", selectedModel)), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify(buildErrorResponse(
+          "api_key_missing",
+          400,
+          "OpenAI key missing for retrieval embeddings",
+          selectedModel,
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+          "validation",
+          ["لا يمكن تنفيذ retrieval بدون مفتاح embeddings."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Check OpenRouter provider
       const { data: provider } = await adminClient
         .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
-      if (!provider?.api_key_encrypted) {
-        return new Response(JSON.stringify(buildErrorResponse("api_key_missing", 400, "مفتاح OpenRouter غير موجود", selectedModel)), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!provider.enabled) {
-        return new Response(JSON.stringify(buildErrorResponse("provider_unavailable", 400, "مزود OpenRouter معطل", selectedModel)), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (!provider?.api_key_encrypted || !provider.enabled) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "api_key_missing",
+          400,
+          "OpenRouter key missing or provider disabled",
+          selectedModel,
+          {
+            provider_name: "OpenRouter",
+            has_api_key: !!provider?.api_key_encrypted,
+            endpoint: `${provider?.base_url || "https://openrouter.ai/api/v1"}/chat/completions`,
+            retrieved_chunks_count: 0,
+            prompt_size_estimate: 0,
+          },
+          "validation",
+          ["فشل التحقق المسبق: OpenRouter غير جاهز."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Run RAG pipeline
-      let pipeline;
+      let pipeline: any;
       try {
         pipeline = await runRAGPipeline(adminClient, openaiKey, question, selectedModel, top_k, category_filter, search_mode);
       } catch (e) {
-        const errMsg = (e as Error).message;
-        await logError(adminClient, question, selectedModel, "internal_error", errMsg, "", 0, 0, 0, 0, false, null, {});
-        return new Response(JSON.stringify(buildErrorResponse("internal_error", 500, errMsg, selectedModel)), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        const errMsg = (e as Error).message || "Retrieval pipeline failed";
+        await logError(adminClient, question, selectedModel, "internal_error", errMsg, errMsg, 500, 0, 0, 0, false, null, {
+          stage_failed: "retrieval",
+          selected_model: selectedModel,
+          question_length: question.length,
+          error_message: errMsg,
+        });
+        return new Response(JSON.stringify(buildErrorResponse(
+          "internal_error",
+          500,
+          errMsg,
+          selectedModel,
+          { retrieved_chunks_count: 0, prompt_size_estimate: 0, error_message: errMsg },
+          "retrieval",
+          ["فشل تنفيذ retrieval pipeline."],
+        )), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Check retrieval result
-      if (pipeline.sources.length === 0) {
-        const latency = Date.now() - pipeline.totalStart;
-        await logError(adminClient, question, selectedModel, "empty_retrieval", "لا توجد أجزاء مسترجعة", "", 0, 0, 0, latency, false, null, { timings: pipeline.timings });
+      const retrievedChunksCount = pipeline.sources.length;
+      const totalContextCharacters = pipeline.sources.reduce((sum: number, s: any) => sum + ((s?.content || "").length), 0);
 
-        // Still save validation record
-        const { validation_status, validation_notes } = runValidationChecks(
-          pipeline.sources, pipeline.confidence, false,
-          "لم يتم العثور على معلومات كافية في قاعدة المعرفة.", "no_grounding"
+      if (retrievedChunksCount === 0) {
+        const errorPayload = buildErrorResponse(
+          "empty_retrieval",
+          422,
+          "retrieval returned empty chunks",
+          selectedModel,
+          {
+            retrieved_chunks_count: 0,
+            prompt_size_estimate: 0,
+            question_length: question.length,
+            total_context_characters: 0,
+          },
+          "retrieval",
+          ["لم يتم العثور على chunks كافية من قاعدة المعرفة."],
         );
 
-        const validationRecord = {
-          question, rewritten_query: pipeline.rewrittenQuery, model: selectedModel,
-          top_k, category_filter: category_filter || null, search_mode,
-          final_answer: "لم يتم العثور على معلومات كافية في قاعدة المعرفة.",
-          sources_json: [], prompt_sent: null, response_status: "no_grounding",
-          latency_ms: latency, confidence_score: pipeline.confidence,
-          is_grounded: false, debug_info: { timings: pipeline.timings },
-          validation_status, validation_notes,
-        };
-        await adminClient.from("grounded_chat_validations").insert(validationRecord);
+        await logError(
+          adminClient,
+          question,
+          selectedModel,
+          "empty_retrieval",
+          errorPayload.message,
+          "retrieval returned empty chunks",
+          422,
+          0,
+          0,
+          Date.now() - pipeline.totalStart,
+          false,
+          null,
+          errorPayload.debug,
+        );
 
-        return new Response(JSON.stringify({
-          success: true, is_grounded: false,
-          final_answer: validationRecord.final_answer,
-          sources: [], confidence: pipeline.confidence, model: selectedModel,
-          latency_ms: latency, response_status: "no_grounding",
-          debug: validationRecord.debug_info,
-          validation_status, validation_notes,
-          error_type: "empty_retrieval",
-          message: arabicErrorMessage("empty_retrieval"),
-          suggestion: arabicSuggestion("empty_retrieval"),
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-
-      // Check prompt size
-      const promptSize = estimateTokens(pipeline.fullPrompt);
-      if (promptSize > MAX_PROMPT_TOKENS_ESTIMATE) {
-        return new Response(JSON.stringify(buildErrorResponse("prompt_too_large", 400, `حجم الـ prompt: ~${promptSize} tokens`, selectedModel, {
-          prompt_size: promptSize, max_allowed: MAX_PROMPT_TOKENS_ESTIMATE,
-        })), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify(errorPayload), {
+          status: 422,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      let finalAnswer = "";
-      let responseStatus = "no_grounding";
-      let statusCode = 0;
-      let rawResponseSnippet = "";
-      let tokenUsage: any = null;
-      let modelUsed = selectedModel;
-      let fallbackUsed = false;
-      let errorType: ErrorType | undefined;
-      let providerMessage = "";
-
-      if (!pipeline.isGrounded) {
-        finalAnswer = "لم يتم العثور على معلومات كافية داخل قاعدة المعرفة الحالية.";
-      } else {
-        // Call OpenRouter with retry + fallback
-        const genStart = Date.now();
-        const result = await callOpenRouter(provider, selectedModel, pipeline.systemPrompt, question, enable_fallback);
-
-        finalAnswer = result.finalAnswer;
-        responseStatus = result.responseStatus;
-        statusCode = result.statusCode;
-        rawResponseSnippet = result.rawResponseSnippet;
-        tokenUsage = result.tokenUsage;
-        modelUsed = result.modelUsed;
-        fallbackUsed = result.fallbackUsed;
-        errorType = result.errorType;
-        providerMessage = result.providerMessage || "";
-
-        pipeline.timings.generation = Date.now() - genStart;
-
-        // Log error if failed
-        if (responseStatus === "error" && errorType) {
-          await logError(
-            adminClient, question, modelUsed, errorType,
-            arabicErrorMessage(errorType), providerMessage, statusCode,
-            promptSize, pipeline.sources.length,
-            Date.now() - pipeline.totalStart, fallbackUsed,
-            fallbackUsed ? FALLBACK_MODEL : null,
-            { timings: pipeline.timings, model_requested: selectedModel },
-          );
-        }
+      const promptSize = estimateTokens(pipeline.fullPrompt || "");
+      if (promptSize > MAX_PROMPT_TOKENS_ESTIMATE) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "prompt_too_large",
+          400,
+          `prompt too large (${promptSize})`,
+          selectedModel,
+          {
+            retrieved_chunks_count: retrievedChunksCount,
+            prompt_size_estimate: promptSize,
+            max_allowed: MAX_PROMPT_TOKENS_ESTIMATE,
+            total_context_characters: totalContextCharacters,
+          },
+          "prompt_builder",
+          ["تم إيقاف التنفيذ لأن حجم prompt كبير جدًا."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
+      const messages = [
+        { role: "system", content: pipeline.systemPrompt },
+        { role: "user", content: question },
+      ];
+      const messagesValidation = validateMessages(messages);
+      if (!messagesValidation.valid) {
+        return new Response(JSON.stringify(buildErrorResponse(
+          "malformed_request",
+          400,
+          messagesValidation.reason || "messages malformed",
+          selectedModel,
+          {
+            retrieved_chunks_count: retrievedChunksCount,
+            prompt_size_estimate: promptSize,
+            total_context_characters: totalContextCharacters,
+          },
+          "prompt_builder",
+          ["فشل بناء messages قبل الاستدعاء."],
+        )), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let modelForRequest = selectedModel;
+      if (modelForRequest.includes(":free")) {
+        modelForRequest = FALLBACK_MODEL;
+        debugNotes.push("تم استخدام نموذج بديل لأغراض التشخيص.");
+      }
+
+      const genStart = Date.now();
+      const openRouterResult = await callOpenRouter(
+        provider,
+        modelForRequest,
+        messages,
+        enable_fallback,
+        {
+          questionLength: question.length,
+          retrievedChunksCount,
+          totalContextCharacters,
+          promptSizeEstimate: promptSize,
+          topK: top_k,
+          categoryFilter: category_filter || null,
+        },
+      );
+      pipeline.timings.generation = Date.now() - genStart;
       pipeline.timings.total = Date.now() - pipeline.totalStart;
 
-      // Run validation engine
-      const { validation_status, validation_notes } = runValidationChecks(
-        pipeline.sources, pipeline.confidence, pipeline.isGrounded, finalAnswer, responseStatus
-      );
-
       const debugInfoRecord = {
-        timings: pipeline.timings, rewritten_query: pipeline.rewrittenQuery, sub_queries: pipeline.subQueries,
-        keywords_ar: pipeline.keywordsAr, keywords_en: pipeline.keywordsEn,
-        detected_intent: pipeline.detectedIntent, query_rewrite_used_ai: pipeline.queryRewriteUsedAI,
-        candidates_count: pipeline.candidates.length, model_used: modelUsed,
-        model_requested: selectedModel, fallback_used: fallbackUsed,
-        status_code: statusCode, raw_response_snippet: rawResponseSnippet,
-        token_usage: tokenUsage, boosted_categories: pipeline.boostedCategories,
-        prompt_size_estimate: promptSize, retrieved_chunks_count: pipeline.sources.length,
-        provider: "OpenRouter", endpoint: `${provider.base_url}/chat/completions`,
-        error_type: errorType || null, provider_message: providerMessage || null,
+        timings: pipeline.timings,
+        rewritten_query: pipeline.rewrittenQuery,
+        sub_queries: pipeline.subQueries,
+        keywords_ar: pipeline.keywordsAr,
+        keywords_en: pipeline.keywordsEn,
+        detected_intent: pipeline.detectedIntent,
+        query_rewrite_used_ai: pipeline.queryRewriteUsedAI,
+        candidates_count: pipeline.candidates.length,
+        selected_model: selectedModel,
+        model_used: openRouterResult.modelUsed,
+        fallback_used: openRouterResult.fallbackUsed || modelForRequest !== selectedModel,
+        fallback_reason: openRouterResult.fallbackReason,
+        provider_name: openRouterResult.providerName,
+        base_url: openRouterResult.baseUrl,
+        endpoint: openRouterResult.endpoint,
+        has_api_key: openRouterResult.hasApiKey,
+        question_length: question.length,
+        retrieved_chunks_count: retrievedChunksCount,
+        total_context_characters: totalContextCharacters,
+        prompt_size_estimate: promptSize,
+        request_payload_summary: openRouterResult.requestPayloadSummary,
+        response_status: openRouterResult.statusCode,
+        response_body_snippet: openRouterResult.rawResponseSnippet,
+        error_message: openRouterResult.errorMessage || null,
+        latency_ms: openRouterResult.latencyMs,
+        token_usage: openRouterResult.tokenUsage,
+        error_type: openRouterResult.errorType || null,
+        provider_message: openRouterResult.providerMessage || null,
       };
 
-      // Save to grounded_chat_validations
+      if (openRouterResult.responseStatus === "error") {
+        const detectedErrorType = openRouterResult.errorType || "provider_error";
+
+        await logError(
+          adminClient,
+          question,
+          openRouterResult.modelUsed,
+          detectedErrorType,
+          arabicErrorMessage(detectedErrorType),
+          openRouterResult.providerMessage || openRouterResult.rawResponseSnippet,
+          openRouterResult.statusCode,
+          promptSize,
+          retrievedChunksCount,
+          openRouterResult.latencyMs,
+          openRouterResult.fallbackUsed || modelForRequest !== selectedModel,
+          openRouterResult.fallbackUsed ? FALLBACK_MODEL : null,
+          debugInfoRecord,
+        );
+
+        const errorPayload = buildErrorResponse(
+          detectedErrorType,
+          openRouterResult.statusCode || 500,
+          openRouterResult.providerMessage || openRouterResult.rawResponseSnippet,
+          openRouterResult.modelUsed,
+          debugInfoRecord,
+          "openrouter_request",
+          [
+            ...debugNotes,
+            openRouterResult.fallbackUsed ? "تم استخدام نموذج بديل لأغراض التشخيص." : "",
+          ].filter(Boolean),
+        );
+
+        return new Response(JSON.stringify(errorPayload), {
+          status: openRouterResult.statusCode || 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const finalAnswer = openRouterResult.finalAnswer;
+      const responseStatus = openRouterResult.responseStatus;
+
+      const { validation_status, validation_notes } = runValidationChecks(
+        pipeline.sources,
+        pipeline.confidence,
+        pipeline.isGrounded,
+        finalAnswer,
+        responseStatus,
+      );
+
       const validationRecord = {
-        question, rewritten_query: pipeline.rewrittenQuery, model: modelUsed,
-        top_k, category_filter: category_filter || null, search_mode,
-        final_answer: finalAnswer, sources_json: pipeline.sources, prompt_sent: pipeline.fullPrompt,
-        response_status: responseStatus, latency_ms: pipeline.timings.total,
-        token_usage: tokenUsage, confidence_score: Math.round(pipeline.confidence * 1000) / 1000,
-        is_grounded: pipeline.isGrounded, debug_info: debugInfoRecord,
-        validation_status, validation_notes,
+        question,
+        rewritten_query: pipeline.rewrittenQuery,
+        model: openRouterResult.modelUsed,
+        top_k,
+        category_filter: category_filter || null,
+        search_mode,
+        final_answer: finalAnswer,
+        sources_json: pipeline.sources,
+        prompt_sent: pipeline.fullPrompt,
+        response_status: responseStatus,
+        latency_ms: pipeline.timings.total,
+        token_usage: openRouterResult.tokenUsage,
+        confidence_score: Math.round(pipeline.confidence * 1000) / 1000,
+        is_grounded: pipeline.isGrounded,
+        debug_info: debugInfoRecord,
+        validation_status,
+        validation_notes,
       };
       await adminClient.from("grounded_chat_validations").insert(validationRecord);
 
-      const responseBody: any = {
-        success: true, is_grounded: pipeline.isGrounded,
-        final_answer: finalAnswer, sources: pipeline.sources, confidence: pipeline.confidence,
-        model: modelUsed, latency_ms: pipeline.timings.total, token_usage: tokenUsage,
-        response_status: responseStatus, debug: debugInfoRecord,
-        validation_status, validation_notes,
+      const responseBody: Record<string, any> = {
+        success: true,
+        is_grounded: pipeline.isGrounded,
+        final_answer: finalAnswer,
+        sources: pipeline.sources,
+        confidence: pipeline.confidence,
+        model: openRouterResult.modelUsed,
+        latency_ms: pipeline.timings.total,
+        token_usage: openRouterResult.tokenUsage,
+        response_status: responseStatus,
+        validation_status,
+        validation_notes,
+        debug: debugInfoRecord,
       };
 
-      // Add fallback message
-      if (fallbackUsed && responseStatus === "success") {
-        responseBody.fallback_message = "تم استخدام نموذج احتياطي بسبب تعذر استخدام النموذج المحدد.";
-      }
-
-      // Add error info when failed
-      if (responseStatus === "error" && errorType) {
-        responseBody.error_type = errorType;
-        responseBody.message = arabicErrorMessage(errorType);
-        responseBody.suggestion = arabicSuggestion(errorType);
+      if (openRouterResult.fallbackUsed || modelForRequest !== selectedModel) {
+        responseBody.fallback_message = modelForRequest !== selectedModel
+          ? "تم استخدام نموذج بديل لأغراض التشخيص."
+          : "تم استخدام نموذج احتياطي بسبب تعذر استخدام النموذج المحدد.";
       }
 
       return new Response(JSON.stringify(responseBody), {
