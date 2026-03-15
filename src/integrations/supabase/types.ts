@@ -47,6 +47,115 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_copilot_actions: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          input_json: Json | null
+          output_json: Json | null
+          session_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          input_json?: Json | null
+          output_json?: Json | null
+          session_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          input_json?: Json | null
+          output_json?: Json | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_copilot_actions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_copilot_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_copilot_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          latency_ms: number | null
+          model_used: string | null
+          retrieval_json: Json | null
+          role: string
+          session_id: string
+          sources_json: Json | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          latency_ms?: number | null
+          model_used?: string | null
+          retrieval_json?: Json | null
+          role: string
+          session_id: string
+          sources_json?: Json | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          latency_ms?: number | null
+          model_used?: string | null
+          retrieval_json?: Json | null
+          role?: string
+          session_id?: string
+          sources_json?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_copilot_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_copilot_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_copilot_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          mode: string
+          model_used: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mode?: string
+          model_used?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mode?: string
+          model_used?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_generation_logs: {
         Row: {
           content_type: string | null
