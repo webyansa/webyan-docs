@@ -35,6 +35,19 @@ interface ValidationCheck {
   check: string; label: string; passed: boolean; detail: string; critical: boolean;
 }
 
+interface TechnicalDetails {
+  stage_failed: 'openrouter_request' | 'retrieval' | 'prompt_builder' | 'validation' | null;
+  selected_model: string | null;
+  retrieval_succeeded: boolean;
+  retrieved_chunks_count: number;
+  prompt_size_estimate: number;
+  status_code: number;
+  provider_error: string | null;
+  raw_error_snippet: string | null;
+  provider_used: string;
+  endpoint: string | null;
+}
+
 interface ValidationResult {
   success: boolean; is_grounded: boolean; final_answer: string;
   sources: Source[]; confidence: number; model?: string;
@@ -45,6 +58,9 @@ interface ValidationResult {
   error_type?: string;
   message?: string;
   suggestion?: string;
+  stage_failed?: TechnicalDetails['stage_failed'];
+  technical_details?: TechnicalDetails;
+  debug_notes?: string[];
 }
 
 interface HistoryItem {
@@ -57,6 +73,10 @@ interface HistoryItem {
 
 interface HealthCheckResult {
   healthy: boolean;
+  provider_status?: string;
+  last_checked?: string;
+  suggested_default_model?: string;
+  connection_state?: string;
   checks: {
     openai_key: boolean;
     openrouter_provider: boolean;
@@ -65,6 +85,19 @@ interface HealthCheckResult {
     default_model?: string;
     checked_at: string;
   };
+}
+
+interface DebugRunReport {
+  success: boolean;
+  stage_failed: TechnicalDetails['stage_failed'];
+  selected_model: string;
+  retrieved_chunks_count: number;
+  prompt_size_estimate: number;
+  response_status: number;
+  provider_error: string | null;
+  debug_notes: string[];
+  technical_details?: TechnicalDetails;
+  message?: string;
 }
 
 // ─── Models ───
@@ -135,6 +168,9 @@ export default function GroundedChatValidationPage() {
   // Last error/success
   const [lastError, setLastError] = useState<any>(null);
   const [lastSuccess, setLastSuccess] = useState<any>(null);
+  const [openRouterOnlyResult, setOpenRouterOnlyResult] = useState<DebugRunReport | null>(null);
+  const [debugRunResult, setDebugRunResult] = useState<DebugRunReport | null>(null);
+  const [diagnosticLoading, setDiagnosticLoading] = useState<'openrouter' | 'grounded' | null>(null);
 
   useEffect(() => {
     if (activeTab === 'history') loadHistory();
@@ -175,12 +211,54 @@ export default function GroundedChatValidationPage() {
       });
       if (resp.data?.success) {
         setHealthCheck(resp.data);
-        if (resp.data.healthy) toast.success('جميع الأنظمة تعمل بشكل سليم');
-        else toast.warning('توجد مشاكل في بعض الأنظمة');
+        toast[resp.data.healthy ? 'success' : 'warning'](resp.data.healthy ? 'جميع الأنظمة تعمل بشكل سليم' : 'توجد مشاكل في المزود');
       }
-    } catch (e: any) { toast.error('فشل فحص الصحة'); }
-    finally { setHealthLoading(false); }
+    } catch {
+      toast.error('تعذر تنفيذ فحص صحة المزود.');
+    } finally {
+      setHealthLoading(false);
+    }
   };
+
+  const extractErrorPayload = async (error: any): Promise<any | null> => {
+    if (!error) return null;
+    if (typeof error === 'string') {
+      try { return JSON.parse(error); } catch { return { message: error }; }
+    }
+    if (error.context) {
+      try {
+        const cloned = error.context.clone ? error.context.clone() : error.context;
+        return await cloned.json();
+      } catch {
+        try {
+          const text = await error.context.text();
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return error;
+  };
+
+  const toValidationErrorResult = (payload: any): ValidationResult => ({
+    success: false,
+    is_grounded: false,
+    final_answer: '',
+    sources: [],
+    confidence: 0,
+    latency_ms: 0,
+    response_status: 'error',
+    validation_status: 'failed',
+    validation_notes: [],
+    error_type: payload?.error_type || 'provider_error',
+    message: payload?.message || 'تعذر تحديد سبب الفشل من الخادم.',
+    suggestion: payload?.suggestion,
+    stage_failed: payload?.stage_failed,
+    technical_details: payload?.technical_details,
+    debug_notes: payload?.debug_notes || [],
+    debug: payload?.debug || payload,
+  });
 
   const runValidation = async () => {
     if (!question.trim()) { toast.error('أدخل السؤال أولاً'); return; }
@@ -198,76 +276,81 @@ export default function GroundedChatValidationPage() {
         },
       });
 
-      // Handle structured error responses
       if (resp.error) {
-        // Try to parse the error body for structured info
-        try {
-          const errorBody = typeof resp.error === 'string' ? JSON.parse(resp.error) : resp.error;
-          if (errorBody?.error_type) {
-            setResult({
-              success: false,
-              is_grounded: false,
-              final_answer: '',
-              sources: [],
-              confidence: 0,
-              latency_ms: 0,
-              response_status: 'error',
-              validation_status: 'failed',
-              validation_notes: [],
-              error_type: errorBody.error_type,
-              message: errorBody.message,
-              suggestion: errorBody.suggestion,
-            });
-            toast.error(errorBody.message || 'خطأ في التنفيذ');
-            return;
-          }
-        } catch { /* not structured */ }
-        toast.error('خطأ في تنفيذ الاختبار');
+        const payload = await extractErrorPayload(resp.error);
+        const normalized = toValidationErrorResult(payload);
+        setResult(normalized);
+        toast.error(normalized.message || 'تعذر تنفيذ الاختبار.');
+        loadLastErrorAndSuccess();
         return;
       }
 
       const data = resp.data;
-
-      // Check for inline error from response body
-      if (data && !data.success && data.error_type) {
-        setResult({
-          success: false,
-          is_grounded: false,
-          final_answer: '',
-          sources: [],
-          confidence: 0,
-          latency_ms: 0,
-          response_status: 'error',
-          validation_status: 'failed',
-          validation_notes: [],
-          error_type: data.error_type,
-          message: data.message,
-          suggestion: data.suggestion,
-          debug: data.debug,
-        });
-        toast.error(data.message);
+      if (data && data.success === false) {
+        const normalized = toValidationErrorResult(data);
+        setResult(normalized);
+        toast.error(normalized.message || 'تعذر تنفيذ الاختبار.');
+        loadLastErrorAndSuccess();
         return;
       }
 
-      if (data?.error) { toast.error(data.error); return; }
-
       setResult(data);
-
-      // Show fallback message if used
-      if (data?.fallback_message) {
-        toast.info(data.fallback_message);
-      } else if (data?.response_status === 'error') {
-        toast.error(data?.message || 'فشل في الحصول على رد من النموذج');
-      } else {
-        toast.success('تم التحقق بنجاح');
-      }
-
-      // Refresh last error/success
+      if (data?.fallback_message) toast.info(data.fallback_message);
+      else toast.success('تم تنفيذ الاختبار بنجاح');
       loadLastErrorAndSuccess();
     } catch (e: any) {
-      toast.error(e.message || 'خطأ غير متوقع');
+      const payload = await extractErrorPayload(e);
+      const normalized = toValidationErrorResult(payload || { message: 'لم يصل رد تشخيصي من الخادم.' });
+      setResult(normalized);
+      toast.error(normalized.message);
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
+  };
+
+  const runOpenRouterOnly = async () => {
+    setDiagnosticLoading('openrouter');
+    setOpenRouterOnlyResult(null);
+    try {
+      const resp = await supabase.functions.invoke('grounded-chat-test', { body: { action: 'openrouter-debug-test' } });
+      if (resp.error) {
+        const payload = await extractErrorPayload(resp.error);
+        setOpenRouterOnlyResult(payload as DebugRunReport);
+        toast.error(payload?.message || 'فشل اختبار OpenRouter المباشر.');
+        return;
+      }
+      setOpenRouterOnlyResult(resp.data as DebugRunReport);
+      toast.success('تم تنفيذ Test OpenRouter Only.');
+    } finally {
+      setDiagnosticLoading(null);
+    }
+  };
+
+  const runDebugGroundedRun = async () => {
+    if (!question.trim()) { toast.error('أدخل السؤال أولاً'); return; }
+    setDiagnosticLoading('grounded');
+    setDebugRunResult(null);
+    try {
+      const resp = await supabase.functions.invoke('grounded-chat-test', {
+        body: {
+          action: 'debug-run',
+          question,
+          model,
+          top_k: parseInt(topK),
+          category_filter: categoryFilter === ALL_CATEGORIES_VALUE ? undefined : categoryFilter,
+        },
+      });
+      if (resp.error) {
+        const payload = await extractErrorPayload(resp.error);
+        setDebugRunResult(payload as DebugRunReport);
+        toast.error(payload?.message || 'فشل Debug Grounded Run.');
+        return;
+      }
+      setDebugRunResult(resp.data as DebugRunReport);
+      toast[resp.data?.success ? 'success' : 'error'](resp.data?.success ? 'Debug Grounded Run نجح.' : 'Debug Grounded Run كشف سبب الفشل.');
+    } finally {
+      setDiagnosticLoading(null);
+    }
   };
 
   const retryLastFailed = async () => {
@@ -302,6 +385,8 @@ export default function GroundedChatValidationPage() {
   };
 
   const currentModelInfo = getModelInfo(model);
+  const activeDiagnosticReport = debugRunResult || openRouterOnlyResult;
+  const technicalDetails = result?.technical_details || activeDiagnosticReport?.technical_details || null;
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -487,6 +572,17 @@ export default function GroundedChatValidationPage() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {loading ? 'جارِ التحقق...' : 'تشغيل الاختبار'}
               </Button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <Button variant="outline" onClick={runOpenRouterOnly} disabled={diagnosticLoading !== null} className="gap-2">
+                  {diagnosticLoading === 'openrouter' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Test OpenRouter Only
+                </Button>
+                <Button variant="outline" onClick={runDebugGroundedRun} disabled={diagnosticLoading !== null} className="gap-2">
+                  {diagnosticLoading === 'grounded' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bug className="h-4 w-4" />}
+                  Debug Grounded Run
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -513,6 +609,27 @@ export default function GroundedChatValidationPage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {(technicalDetails || activeDiagnosticReport) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Technical Error Details</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-1">
+                <p><span className="text-muted-foreground">مرحلة الفشل:</span> {technicalDetails?.stage_failed || activeDiagnosticReport?.stage_failed || '-'}</p>
+                <p><span className="text-muted-foreground">الموديل:</span> {technicalDetails?.selected_model || activeDiagnosticReport?.selected_model || '-'}</p>
+                <p><span className="text-muted-foreground">نجاح retrieval:</span> {technicalDetails ? (technicalDetails.retrieval_succeeded ? 'نعم' : 'لا') : '-'}</p>
+                <p><span className="text-muted-foreground">عدد chunks:</span> {technicalDetails?.retrieved_chunks_count ?? activeDiagnosticReport?.retrieved_chunks_count ?? '-'}</p>
+                <p><span className="text-muted-foreground">حجم prompt:</span> {technicalDetails?.prompt_size_estimate ?? activeDiagnosticReport?.prompt_size_estimate ?? '-'}</p>
+                <p><span className="text-muted-foreground">Status code:</span> {technicalDetails?.status_code ?? activeDiagnosticReport?.response_status ?? '-'}</p>
+                <p><span className="text-muted-foreground">Provider error:</span> {technicalDetails?.provider_error ?? activeDiagnosticReport?.provider_error ?? '-'}</p>
+                <p><span className="text-muted-foreground">Raw snippet:</span> {technicalDetails?.raw_error_snippet || '-'}</p>
+                {activeDiagnosticReport?.debug_notes?.length ? (
+                  <p><span className="text-muted-foreground">Debug notes:</span> {activeDiagnosticReport.debug_notes.join(' | ')}</p>
+                ) : null}
               </CardContent>
             </Card>
           )}
