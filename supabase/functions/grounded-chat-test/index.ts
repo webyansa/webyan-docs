@@ -26,6 +26,8 @@ const RETRYABLE_STATUS_CODES = [500, 502, 503, 504, 408];
 const MAX_RETRIES = 2;
 const MAX_PROMPT_TOKENS_ESTIMATE = 15000;
 
+type StageFailed = "openrouter_request" | "retrieval" | "prompt_builder" | "validation";
+
 // ─── Error types ───
 type ErrorType =
   | "api_key_missing"
@@ -41,12 +43,12 @@ type ErrorType =
   | "internal_error"
   | "model_not_approved";
 
-function classifyError(statusCode: number, body: string): ErrorType {
+function classifyError(statusCode: number): ErrorType {
   if (statusCode === 401 || statusCode === 403) return "invalid_api_key";
   if (statusCode === 404) return "model_not_found";
   if (statusCode === 429) return "rate_limit";
   if (statusCode === 408) return "timeout";
-  if (statusCode === 400) return "malformed_request";
+  if (statusCode === 400 || statusCode === 422) return "malformed_request";
   if (statusCode >= 500) return "provider_unavailable";
   return "provider_error";
 }
@@ -62,11 +64,11 @@ function arabicErrorMessage(errorType: ErrorType): string {
     malformed_request: "حدث خطأ أثناء بناء الطلب.",
     empty_retrieval: "لم يتم العثور على معلومات كافية في قاعدة المعرفة.",
     prompt_too_large: "حجم الطلب يتجاوز الحد المسموح.",
-    provider_error: "خطأ غير متوقع من المزود.",
-    internal_error: "خطأ داخلي في النظام.",
+    provider_error: "فشل المزود في معالجة الطلب.",
+    internal_error: "حدث خطأ داخلي أثناء تنفيذ الاختبار.",
     model_not_approved: "النموذج المحدد غير موجود ضمن القائمة المعتمدة.",
   };
-  return messages[errorType] || "خطأ غير معروف.";
+  return messages[errorType] || "فشل تنفيذ الطلب التشخيصي.";
 }
 
 function arabicSuggestion(errorType: ErrorType): string {
@@ -80,8 +82,8 @@ function arabicSuggestion(errorType: ErrorType): string {
     malformed_request: "تحقق من إعدادات الاختبار وأعد المحاولة.",
     empty_retrieval: "تأكد من وجود محتوى في قاعدة المعرفة.",
     prompt_too_large: "قلل top_k لتقليل حجم الـ prompt.",
-    provider_error: "فعّل Debug لمعرفة التفاصيل.",
-    internal_error: "تواصل مع فريق الدعم الفني.",
+    provider_error: "تحقق من تفاصيل المزود في Technical Error Details.",
+    internal_error: "أعد المحاولة ثم راجع Technical Error Details.",
     model_not_approved: "اختر نموذجًا من القائمة المعتمدة.",
   };
   return suggestions[errorType] || "";
@@ -92,17 +94,35 @@ function buildErrorResponse(
   statusCode: number,
   providerMessage: string,
   model: string,
-  debug: Record<string, any> = {}
+  debug: Record<string, any> = {},
+  stageFailed: StageFailed = "validation",
+  debugNotes: string[] = [],
 ) {
+  const technicalDetails = {
+    stage_failed: stageFailed,
+    selected_model: model || null,
+    retrieval_succeeded: (debug.retrieved_chunks_count ?? 0) > 0,
+    retrieved_chunks_count: debug.retrieved_chunks_count ?? 0,
+    prompt_size_estimate: debug.prompt_size_estimate ?? 0,
+    status_code: statusCode,
+    provider_error: providerMessage || null,
+    raw_error_snippet: (debug.response_body_snippet || providerMessage || "").slice(0, 500),
+    provider_used: debug.provider_name || "OpenRouter",
+    endpoint: debug.endpoint || null,
+  };
+
   return {
     success: false,
     error_type: errorType,
     message: arabicErrorMessage(errorType),
     suggestion: arabicSuggestion(errorType),
+    stage_failed: stageFailed,
     status_code: statusCode,
     provider_message: providerMessage,
     model_used: model,
     timestamp: new Date().toISOString(),
+    debug_notes: debugNotes,
+    technical_details: technicalDetails,
     debug,
   };
 }
