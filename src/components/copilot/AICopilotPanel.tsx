@@ -325,7 +325,7 @@ export default function AICopilotPanel() {
         ) : (
           <>
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
               <TabsList className="mx-3 mt-2 grid grid-cols-4 h-8">
                 <TabsTrigger value="ask" className="text-[11px] gap-1 px-1">
                   <MessageSquare className="h-3 w-3" />اسأل
