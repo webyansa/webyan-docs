@@ -887,30 +887,31 @@ Deno.serve(async (req) => {
     // HEALTH CHECK
     // ═══════════════════════════════════════
     if (action === "health-check") {
+      const checkedAt = new Date().toISOString();
       const checks: Record<string, any> = {
         openai_key: false,
         openrouter_provider: false,
         openrouter_reachable: false,
         suggested_model: FALLBACK_MODEL,
-        checked_at: new Date().toISOString(),
+        checked_at: checkedAt,
       };
 
-      // Check OpenAI key
       const { data: oaiSetting } = await adminClient
         .from("system_settings").select("value").eq("key", "ai_openai_api_key").single();
       checks.openai_key = !!oaiSetting?.value;
 
-      // Check OpenRouter provider
       const { data: provider } = await adminClient
         .from("ai_providers").select("*").eq("provider_name", "OpenRouter").single();
+
+      const baseUrl = (provider?.base_url || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
       checks.openrouter_provider = !!(provider?.api_key_encrypted && provider.enabled);
       checks.provider_status = provider?.status || "unknown";
       checks.default_model = provider?.default_model || FALLBACK_MODEL;
+      checks.base_url = baseUrl;
 
-      // Test connectivity
       if (checks.openrouter_provider && provider) {
         try {
-          const testResp = await fetch(`${provider.base_url}/models`, {
+          const testResp = await fetch(`${baseUrl}/models`, {
             method: "GET",
             headers: { Authorization: `Bearer ${provider.api_key_encrypted}` },
           });
@@ -927,6 +928,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         healthy: allOk,
+        provider: "OpenRouter",
+        provider_status: checks.provider_status,
+        last_checked: checkedAt,
+        suggested_default_model: checks.default_model,
+        connection_state: allOk ? "connected" : "degraded",
         checks,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
