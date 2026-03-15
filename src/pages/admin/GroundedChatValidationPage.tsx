@@ -168,6 +168,9 @@ export default function GroundedChatValidationPage() {
   // Last error/success
   const [lastError, setLastError] = useState<any>(null);
   const [lastSuccess, setLastSuccess] = useState<any>(null);
+  const [openRouterOnlyResult, setOpenRouterOnlyResult] = useState<DebugRunReport | null>(null);
+  const [debugRunResult, setDebugRunResult] = useState<DebugRunReport | null>(null);
+  const [diagnosticLoading, setDiagnosticLoading] = useState<'openrouter' | 'grounded' | null>(null);
 
   useEffect(() => {
     if (activeTab === 'history') loadHistory();
