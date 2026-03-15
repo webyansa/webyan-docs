@@ -211,12 +211,54 @@ export default function GroundedChatValidationPage() {
       });
       if (resp.data?.success) {
         setHealthCheck(resp.data);
-        if (resp.data.healthy) toast.success('جميع الأنظمة تعمل بشكل سليم');
-        else toast.warning('توجد مشاكل في بعض الأنظمة');
+        toast[resp.data.healthy ? 'success' : 'warning'](resp.data.healthy ? 'جميع الأنظمة تعمل بشكل سليم' : 'توجد مشاكل في المزود');
       }
-    } catch (e: any) { toast.error('فشل فحص الصحة'); }
-    finally { setHealthLoading(false); }
+    } catch {
+      toast.error('تعذر تنفيذ فحص صحة المزود.');
+    } finally {
+      setHealthLoading(false);
+    }
   };
+
+  const extractErrorPayload = async (error: any): Promise<any | null> => {
+    if (!error) return null;
+    if (typeof error === 'string') {
+      try { return JSON.parse(error); } catch { return { message: error }; }
+    }
+    if (error.context) {
+      try {
+        const cloned = error.context.clone ? error.context.clone() : error.context;
+        return await cloned.json();
+      } catch {
+        try {
+          const text = await error.context.text();
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return error;
+  };
+
+  const toValidationErrorResult = (payload: any): ValidationResult => ({
+    success: false,
+    is_grounded: false,
+    final_answer: '',
+    sources: [],
+    confidence: 0,
+    latency_ms: 0,
+    response_status: 'error',
+    validation_status: 'failed',
+    validation_notes: [],
+    error_type: payload?.error_type || 'provider_error',
+    message: payload?.message || 'تعذر تحديد سبب الفشل من الخادم.',
+    suggestion: payload?.suggestion,
+    stage_failed: payload?.stage_failed,
+    technical_details: payload?.technical_details,
+    debug_notes: payload?.debug_notes || [],
+    debug: payload?.debug || payload,
+  });
 
   const runValidation = async () => {
     if (!question.trim()) { toast.error('أدخل السؤال أولاً'); return; }
@@ -234,76 +276,81 @@ export default function GroundedChatValidationPage() {
         },
       });
 
-      // Handle structured error responses
       if (resp.error) {
-        // Try to parse the error body for structured info
-        try {
-          const errorBody = typeof resp.error === 'string' ? JSON.parse(resp.error) : resp.error;
-          if (errorBody?.error_type) {
-            setResult({
-              success: false,
-              is_grounded: false,
-              final_answer: '',
-              sources: [],
-              confidence: 0,
-              latency_ms: 0,
-              response_status: 'error',
-              validation_status: 'failed',
-              validation_notes: [],
-              error_type: errorBody.error_type,
-              message: errorBody.message,
-              suggestion: errorBody.suggestion,
-            });
-            toast.error(errorBody.message || 'خطأ في التنفيذ');
-            return;
-          }
-        } catch { /* not structured */ }
-        toast.error('خطأ في تنفيذ الاختبار');
+        const payload = await extractErrorPayload(resp.error);
+        const normalized = toValidationErrorResult(payload);
+        setResult(normalized);
+        toast.error(normalized.message || 'تعذر تنفيذ الاختبار.');
+        loadLastErrorAndSuccess();
         return;
       }
 
       const data = resp.data;
-
-      // Check for inline error from response body
-      if (data && !data.success && data.error_type) {
-        setResult({
-          success: false,
-          is_grounded: false,
-          final_answer: '',
-          sources: [],
-          confidence: 0,
-          latency_ms: 0,
-          response_status: 'error',
-          validation_status: 'failed',
-          validation_notes: [],
-          error_type: data.error_type,
-          message: data.message,
-          suggestion: data.suggestion,
-          debug: data.debug,
-        });
-        toast.error(data.message);
+      if (data && data.success === false) {
+        const normalized = toValidationErrorResult(data);
+        setResult(normalized);
+        toast.error(normalized.message || 'تعذر تنفيذ الاختبار.');
+        loadLastErrorAndSuccess();
         return;
       }
 
-      if (data?.error) { toast.error(data.error); return; }
-
       setResult(data);
-
-      // Show fallback message if used
-      if (data?.fallback_message) {
-        toast.info(data.fallback_message);
-      } else if (data?.response_status === 'error') {
-        toast.error(data?.message || 'فشل في الحصول على رد من النموذج');
-      } else {
-        toast.success('تم التحقق بنجاح');
-      }
-
-      // Refresh last error/success
+      if (data?.fallback_message) toast.info(data.fallback_message);
+      else toast.success('تم تنفيذ الاختبار بنجاح');
       loadLastErrorAndSuccess();
     } catch (e: any) {
-      toast.error(e.message || 'خطأ غير متوقع');
+      const payload = await extractErrorPayload(e);
+      const normalized = toValidationErrorResult(payload || { message: 'لم يصل رد تشخيصي من الخادم.' });
+      setResult(normalized);
+      toast.error(normalized.message);
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
+  };
+
+  const runOpenRouterOnly = async () => {
+    setDiagnosticLoading('openrouter');
+    setOpenRouterOnlyResult(null);
+    try {
+      const resp = await supabase.functions.invoke('grounded-chat-test', { body: { action: 'openrouter-debug-test' } });
+      if (resp.error) {
+        const payload = await extractErrorPayload(resp.error);
+        setOpenRouterOnlyResult(payload as DebugRunReport);
+        toast.error(payload?.message || 'فشل اختبار OpenRouter المباشر.');
+        return;
+      }
+      setOpenRouterOnlyResult(resp.data as DebugRunReport);
+      toast.success('تم تنفيذ Test OpenRouter Only.');
+    } finally {
+      setDiagnosticLoading(null);
+    }
+  };
+
+  const runDebugGroundedRun = async () => {
+    if (!question.trim()) { toast.error('أدخل السؤال أولاً'); return; }
+    setDiagnosticLoading('grounded');
+    setDebugRunResult(null);
+    try {
+      const resp = await supabase.functions.invoke('grounded-chat-test', {
+        body: {
+          action: 'debug-run',
+          question,
+          model,
+          top_k: parseInt(topK),
+          category_filter: categoryFilter === ALL_CATEGORIES_VALUE ? undefined : categoryFilter,
+        },
+      });
+      if (resp.error) {
+        const payload = await extractErrorPayload(resp.error);
+        setDebugRunResult(payload as DebugRunReport);
+        toast.error(payload?.message || 'فشل Debug Grounded Run.');
+        return;
+      }
+      setDebugRunResult(resp.data as DebugRunReport);
+      toast[resp.data?.success ? 'success' : 'error'](resp.data?.success ? 'Debug Grounded Run نجح.' : 'Debug Grounded Run كشف سبب الفشل.');
+    } finally {
+      setDiagnosticLoading(null);
+    }
   };
 
   const retryLastFailed = async () => {
