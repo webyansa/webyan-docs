@@ -35,6 +35,19 @@ interface ValidationCheck {
   check: string; label: string; passed: boolean; detail: string; critical: boolean;
 }
 
+interface TechnicalDetails {
+  stage_failed: 'openrouter_request' | 'retrieval' | 'prompt_builder' | 'validation' | null;
+  selected_model: string | null;
+  retrieval_succeeded: boolean;
+  retrieved_chunks_count: number;
+  prompt_size_estimate: number;
+  status_code: number;
+  provider_error: string | null;
+  raw_error_snippet: string | null;
+  provider_used: string;
+  endpoint: string | null;
+}
+
 interface ValidationResult {
   success: boolean; is_grounded: boolean; final_answer: string;
   sources: Source[]; confidence: number; model?: string;
@@ -45,6 +58,9 @@ interface ValidationResult {
   error_type?: string;
   message?: string;
   suggestion?: string;
+  stage_failed?: TechnicalDetails['stage_failed'];
+  technical_details?: TechnicalDetails;
+  debug_notes?: string[];
 }
 
 interface HistoryItem {
@@ -57,6 +73,10 @@ interface HistoryItem {
 
 interface HealthCheckResult {
   healthy: boolean;
+  provider_status?: string;
+  last_checked?: string;
+  suggested_default_model?: string;
+  connection_state?: string;
   checks: {
     openai_key: boolean;
     openrouter_provider: boolean;
@@ -65,6 +85,19 @@ interface HealthCheckResult {
     default_model?: string;
     checked_at: string;
   };
+}
+
+interface DebugRunReport {
+  success: boolean;
+  stage_failed: TechnicalDetails['stage_failed'];
+  selected_model: string;
+  retrieved_chunks_count: number;
+  prompt_size_estimate: number;
+  response_status: number;
+  provider_error: string | null;
+  debug_notes: string[];
+  technical_details?: TechnicalDetails;
+  message?: string;
 }
 
 // ─── Models ───
