@@ -51,7 +51,7 @@ export default function CopilotSupportTab({ onSubmit, isLoading }: Props) {
           <Label className="text-xs font-medium">النبرة</Label>
           <Select value={tone} onValueChange={setTone}>
             <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
+             <SelectContent className="z-[200]">
               {TONES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -60,7 +60,7 @@ export default function CopilotSupportTab({ onSubmit, isLoading }: Props) {
           <Label className="text-xs font-medium">نوع الطلب</Label>
           <Select value={requestType} onValueChange={setRequestType}>
             <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
+             <SelectContent className="z-[200]">
               {REQUEST_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
             </SelectContent>
           </Select>
