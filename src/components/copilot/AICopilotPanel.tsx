@@ -395,7 +395,7 @@ export default function AICopilotPanel() {
               </TabsContent>
 
               {/* Support Tab */}
-              <TabsContent value="support" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="support" className="flex-1 flex flex-col overflow-auto mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
                 <CopilotSupportTab onSubmit={handleSupportSubmit} isLoading={isLoading} />
               </TabsContent>
