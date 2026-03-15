@@ -56,10 +56,11 @@ function classifyError(statusCode: number): ErrorType {
 
 function arabicErrorMessage(errorType: ErrorType): string {
   const messages: Record<ErrorType, string> = {
-    api_key_missing: "المفتاح غير صالح أو غير موجود.",
-    invalid_api_key: "المفتاح غير صالح أو غير موجود.",
+    api_key_missing: "مفتاح API غير موجود. يرجى إضافة المفتاح في إعدادات المزودات.",
+    invalid_api_key: "مفتاح API غير صالح. تحقق من صحة المفتاح.",
     model_not_found: "النموذج المحدد غير متاح حاليًا.",
     provider_unavailable: "تعذر الاتصال بمزود OpenRouter.",
+    provider_disabled: "مزود OpenRouter معطّل. يرجى تفعيله من إعدادات المزودات.",
     rate_limit: "تم تجاوز الحد المسموح من الطلبات. حاول لاحقاً.",
     timeout: "المزود استغرق وقتًا أطول من المتوقع.",
     malformed_request: "حدث خطأ أثناء بناء الطلب.",
