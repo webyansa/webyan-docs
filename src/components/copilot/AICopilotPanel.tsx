@@ -401,7 +401,7 @@ export default function AICopilotPanel() {
               </TabsContent>
 
               {/* Analyze Tab */}
-              <TabsContent value="analyze" className="flex-1 flex flex-col min-h-0 mt-0">
+              <TabsContent value="analyze" className="flex-1 flex flex-col overflow-auto mt-0 data-[state=inactive]:hidden">
                 <CopilotChatArea messages={messages} isLoading={isLoading} />
                 <CopilotTicketTab onSubmit={handleTicketSubmit} isLoading={isLoading} />
               </TabsContent>
