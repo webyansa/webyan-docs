@@ -19,6 +19,9 @@ import webyanLogo from '@/assets/webyan-logo.svg';
 import { rolePermissions, rolesInfo, type AppRole } from '@/lib/permissions';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import AdminCommandPalette from '@/components/admin/AdminCommandPalette';
+import { CopilotProvider } from '@/components/copilot/CopilotContext';
+import CopilotLauncher from '@/components/copilot/CopilotLauncher';
+import AICopilotPanel from '@/components/copilot/AICopilotPanel';
 
 const STORAGE_KEY_COLLAPSED = 'admin-sidebar-collapsed';
 
@@ -97,6 +100,7 @@ export default function AdminLayout() {
   const sidebarWidth = sidebarCollapsed ? 'lg:pr-16' : 'lg:pr-64';
 
   return (
+    <CopilotProvider>
     <div className="min-h-screen bg-muted/30" dir="rtl">
       <AdminCommandPalette permissions={permissions} />
 
@@ -190,6 +194,11 @@ export default function AdminLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* AI Copilot */}
+      <CopilotLauncher />
+      <AICopilotPanel />
     </div>
+    </CopilotProvider>
   );
 }

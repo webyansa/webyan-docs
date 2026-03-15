@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffAuth } from '@/hooks/useStaffAuth';
+import { CopilotProvider } from '@/components/copilot/CopilotContext';
+import CopilotLauncher from '@/components/copilot/CopilotLauncher';
+import AICopilotPanel from '@/components/copilot/AICopilotPanel';
 import { useStaffNotifications } from '@/hooks/useStaffNotifications';
 import {
   LayoutDashboard,
@@ -118,6 +121,7 @@ export default function StaffLayout() {
   });
 
   return (
+    <CopilotProvider>
     <div className="min-h-screen bg-muted/30" dir="rtl">
       {/* Top Header */}
       <header className="fixed top-0 right-0 left-0 z-50 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -138,7 +142,6 @@ export default function StaffLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Chat notifications (داخل لوحة الموظف) */}
             {permissions.staffId && (
               <ChatNotificationDropdown userType="staff" staffId={permissions.staffId} linkTo="/support/chat" />
             )}
@@ -273,6 +276,11 @@ export default function StaffLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* AI Copilot */}
+      <CopilotLauncher />
+      <AICopilotPanel />
     </div>
+    </CopilotProvider>
   );
 }
