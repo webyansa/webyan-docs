@@ -570,6 +570,17 @@ export default function GroundedChatValidationPage() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {loading ? 'جارِ التحقق...' : 'تشغيل الاختبار'}
               </Button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <Button variant="outline" onClick={runOpenRouterOnly} disabled={diagnosticLoading !== null} className="gap-2">
+                  {diagnosticLoading === 'openrouter' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Test OpenRouter Only
+                </Button>
+                <Button variant="outline" onClick={runDebugGroundedRun} disabled={diagnosticLoading !== null} className="gap-2">
+                  {diagnosticLoading === 'grounded' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bug className="h-4 w-4" />}
+                  Debug Grounded Run
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
