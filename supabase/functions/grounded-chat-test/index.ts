@@ -1907,8 +1907,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify(buildErrorResponse(
+      "malformed_request",
+      400,
+      "Unknown action",
+      body?.model || "",
+      { action_received: action || null, retrieved_chunks_count: 0, prompt_size_estimate: 0 },
+      "validation",
+      ["تم استدعاء endpoint بدون action صالح."],
+    )), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("Error:", e);
